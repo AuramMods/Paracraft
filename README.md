@@ -18,6 +18,8 @@ In a disposable world, press **K** for companion controls or run `/paracraft spa
 
 Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
 
+[Physical navigation](docs/NAVIGATION.md) includes independent native chunk tracking, basic swimming/ladder/door movement, and local obstacle/bridge/pillar recovery with carried tools and materials.
+
 ## Headless verification
 
 ```sh

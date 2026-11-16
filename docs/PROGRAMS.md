@@ -64,6 +64,7 @@ See [GAMEPLAY.md](GAMEPLAY.md) for the block target forms, detailed examples, re
 
 See [COMMANDS.md](COMMANDS.md) for command acknowledgment versus delayed completion, permissions, output, and dimension checkpoint behavior.
 See [PORTALS.md](PORTALS.md) for block query coverage and explicit Nether/End travel.
+See [NAVIGATION.md](NAVIGATION.md) for chunk tracking, physical movement, and local terrain recovery with carried supplies.
 
 Items accept registry IDs or `#tags`. A supplied inventory `scope` must currently be `{ "kind": "neighbor_chunks", "radius": 1 }`. `containersFrom` refers to a prior search result, avoiding another scan; its dimension, selector, original coverage, and timestamps stay explicit. Collection and transfer operations still resolve the real inventory and its rules when executing.
 

@@ -14,5 +14,6 @@ public final class QaServerSettings {
         event.getServer().getPlayerList().setViewDistance(8);
         event.getServer().getPlayerList().setSimulationDistance(8);
         event.getServer().setPvpAllowed(true);
+        event.getServer().getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(false,event.getServer());
     }
 }

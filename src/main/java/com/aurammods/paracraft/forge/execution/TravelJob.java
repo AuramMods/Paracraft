@@ -10,7 +10,7 @@ public final class TravelJob extends GameJob {
     public TravelJob(UUID id, CompanionPlayer actor, Vec3 destination) { super(id, "travel", actor); this.destination = destination; }
     @Override protected void advance() {
         phase = "traveling";
-        if (navigate(destination, 0.7)) succeed(new JsonObject());
+        if (navigate(destination, 0.7)) succeed(result);
     }
     @Override protected JsonObject writeData() { JsonObject value = new JsonObject(); value.add("destination", JobJson.vector(destination)); return value; }
 }

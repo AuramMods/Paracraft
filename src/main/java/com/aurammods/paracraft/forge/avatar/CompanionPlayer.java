@@ -75,6 +75,10 @@ public final class CompanionPlayer extends ServerPlayer {
         if (accepted && getHealth() + getAbsorptionAmount() < before) damageObserver.accept(source);
         return accepted;
     }
+    @Override protected void checkFallDamage(double vertical,boolean grounded,net.minecraft.world.level.block.state.BlockState state,net.minecraft.core.BlockPos position){
+        // A socket player's movement listener performs this native check. Local physics has no listener tick.
+        super.doCheckFallDamage(0,vertical,0,grounded);
+    }
     private boolean insideDeath, deathCommitted;
     private String sleepProblem = "";
     public String sleepProblem() { return sleepProblem; }
