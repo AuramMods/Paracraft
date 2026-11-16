@@ -42,6 +42,7 @@ public final class ServerEvents {
             if (manager != null) {
                 manager.jobs().tick();
                 manager.control().tick();
+                manager.endpoint().tick();
                 if (event.getServer().getTickCount() % 100 == 0) manager.checkpointAll();
             }
         }

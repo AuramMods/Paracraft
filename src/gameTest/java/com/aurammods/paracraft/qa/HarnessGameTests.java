@@ -80,7 +80,8 @@ public final class HarnessGameTests {
             int delivered = receiver.getInventory().countItem(Items.DIAMOND) + helper.getLevel()
                     .getEntitiesOfClass(ItemEntity.class, receiver.getBoundingBox().inflate(3)).stream()
                     .filter(item -> item.getItem().is(Items.DIAMOND) && assigned(item, recipient.id)).mapToInt(item -> item.getItem().getCount()).sum();
-            helper.assertTrue(delivered == 12, "Exactly the twelve collected diamonds reached the recipient");
+            helper.assertTrue(delivered == 12, "Exactly the twelve collected diamonds reached the recipient; actual=" + delivered
+                    + " program=" + current.view() + " receiver=" + nativeReceiverInventory(receiver));
             helper.assertTrue(chestCount(helper, new BlockPos(38, 2, 48)) == 0 && chestCount(helper, new BlockPos(60, 2, 50)) == 0, "Real source containers were emptied");
             loop.close(); actor.getInventory().clearContent(); receiver.getInventory().clearContent();
             manager.destroy(owner, entry.id); manager.destroy(recipientOwner, recipient.id);
@@ -182,4 +183,5 @@ public final class HarnessGameTests {
     private static boolean assigned(ItemEntity item, UUID recipient) { CompoundTag tag = item.saveWithoutId(new CompoundTag()); return tag.hasUUID("Owner") && recipient.equals(tag.getUUID("Owner")); }
     private static void chest(GameTestHelper helper, BlockPos position, int count) { helper.setBlock(position, Blocks.CHEST); ((ChestBlockEntity)helper.getLevel().getBlockEntity(helper.absolutePos(position))).setItem(0, new ItemStack(Items.DIAMOND, count)); }
     private static int chestCount(GameTestHelper helper, BlockPos position) { return ((ChestBlockEntity)helper.getLevel().getBlockEntity(helper.absolutePos(position))).getItem(0).getCount(); }
+    private static String nativeReceiverInventory(com.aurammods.paracraft.forge.avatar.CompanionPlayer receiver) { return receiver.getInventory().save(new net.minecraft.nbt.ListTag()).toString(); }
 }

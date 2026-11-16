@@ -15,6 +15,14 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class FoundationGameTests {
     @GameTest(template = "empty")
+    public static void qaWorldUsesTheConfiguredFlatGeneratorAndSeed(GameTestHelper helper) {
+        helper.assertTrue(helper.getLevel().getSeed() == 0
+                && helper.getLevel().getChunkSource().getGenerator() instanceof net.minecraft.world.level.levelgen.FlatLevelSource,
+                "The running QA world uses seed zero and flat generation");
+        Paracraft.LOG.info("QA_EVT {\"event\":\"deterministic_flat_qa_world\",\"status\":\"pass\"}");
+        helper.succeed();
+    }
+    @GameTest(template = "empty")
     public static void commandTreeSerializesCustomArguments(GameTestHelper helper) {
         var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
         try {

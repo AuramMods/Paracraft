@@ -10,7 +10,7 @@ Select a Java 17 JDK using `JAVA_HOME`, then run from the repository root:
 ./scripts/qa.sh
 ```
 
-The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds only its disposable `run/gametest/world`, preventing stale drops/avatars from earlier failures. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
+The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds its disposable `run/gametest/world` and writes QA-only `server.properties` for seed zero, flat terrain, and no generated structures. The running generator/seed are asserted by a GameTest. This matters because searches include every height in the nine chunks; normal random terrain can otherwise add unrelated loot chests above an arena. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
 
 The GameTest server terminates on completion. To interrupt a foreground run, use Ctrl-C and allow Gradle to terminate the child JVM. No persistent background server is created by this script. A retained interactive QA server will be added with the gameplay scenario.
 
@@ -43,7 +43,9 @@ The harness GameTests additionally exercise:
 - Request receipt content conflicts, repeat acknowledgment after control NBT reload/session rotation, and persistent world binding.
 - Disconnect during observation, retry under a new lease, immutable completed observation receipts after reconnect, rejection of invented receipts, and actual partial collection when a five-item search becomes a three-item source.
 
-These checks use actual Minecraft state through an in-process client/service bridge. Signed client chat, actual packets, client UI, and live model usage are not exercised.
+These checks use actual Minecraft state through an in-process client/service bridge. Signed client chat, native TCP delivery, client UI, and live model usage are not exercised.
+
+The client transport suite additionally runs the actual coordinator with local JSON files through native Minecraft custom-payload constructors and Forge buffer codecs. It forces multi-fragment snapshots with valid large item metadata, asks for progress, marks gathering inactive for a real travel program, resumes the same gathering request, delivers the items, and remains idle across heartbeat polls. It verifies native-sender authority and controller expiry after a missed heartbeat. Its clock is virtual and its endpoint delivery is in-process; it does not simulate a real TCP login.
 
 ## Current manual controls
 
@@ -93,7 +95,21 @@ Expected events: `cold_restart_write` and `cold_restart_read`, each with pass st
 
 ## Visual checks
 
-Client rendering, screens, animations, and any focus-preserving graphical launch remain unverified. Do not infer their success from headless results. Once the client features exist, the manual checklist will describe the exact controls, expected outcomes, and logs to return.
+Client rendering, screens, animations, actual TCP/signed chat, and client login/logout remain unverified. No verified focus-preserving graphical-client launcher has been set up, so automated checks have remained headless. No window or sign-in browser is launched by the QA scripts.
+
+For an owner-initiated graphical session:
+
+1. Build/install the JAR on Forge 47.4.28 clients and server, or start your development client yourself with `./gradlew runClient`. Use a disposable flat world. This command opens Minecraft; it is not part of automated QA.
+2. Press **K**, or use Mods → Paracraft → Config. Expect an explicit simulated-provider banner and disconnected account status. Inspect layout at your preferred GUI scale. The screen should not pause world simulation.
+3. Spawn Josh through the screen or `/paracraft spawn Josh`. Check visible player appearance, movement, and status. No authentication should be requested.
+4. Place five and seven diamonds in two reachable nearby chests within Josh's current nine-chunk neighborhood. Say `Josh, collect all the diamonds nearby and give them to me.` Allow the five-second route/observation cadence. Expect physical collection and delivery with simulated chat labels.
+5. During walking, say `Josh, progress?`; expect a reply without restarting collection. Then ask `Josh, travel to X Y Z` using a reachable nearby floor position. Expect the gathering task to become inactive while travel runs, then resume the existing work. Confirm twelve collected items arrive and task status becomes completed.
+6. Click Pause, then resume through either the screen or `/paracraft resume Josh`. Expect execution to stop/continue. Edit model/effort labels through Model routes, save, and reconnect to confirm persistence. These labels do not exercise real model access.
+7. From a second client, mention Josh before/after the owner grants trust, then revoke trust. Expect only authorized instructions to wake the owner's harness; the other client should not gain owner controls or memory.
+8. Disconnect while Josh is traveling. Expect the body to disappear, then restore at its saved location on reconnect with inventory/task state retained. Confirm it is not moved to the owner's new position and completed transfers are not repeated.
+9. Destroy through the owner controls in a disposable scenario and inspect carried/equipped item drops. Check that the body does not return on reconnect.
+
+Return the client and server `logs/latest.log` files, screenshots at problematic GUI scales, and a note for each failed step. Default development-client logs are `run/development/logs/latest.log`; local cognitive files are under that game directory's `paracraft/memory`. Never include credentials. Native client observations have not been supplied yet; passing headless tests does not substitute for these checks.
 
 ## Local development runtime
 

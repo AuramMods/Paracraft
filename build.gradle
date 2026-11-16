@@ -54,6 +54,22 @@ tasks.named('jar', Jar) { finalizedBy 'reobfJar' }
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     doFirst {
         if (!project.hasProperty('restartPhase')) project.delete(project.layout.projectDirectory.dir('run/gametest/world'))
+        // Forge's GameTestMain delegates world creation to the dedicated-server
+        // properties. Its default random terrain can contain loot in a test's
+        // nine-chunk search at any height, outside the placed arena.
+        def qaDirectory = project.file(project.hasProperty('restartPhase') ? 'run/restart-qa' : 'run/gametest')
+        qaDirectory.mkdirs()
+        new File(qaDirectory, 'server.properties').text = '''level-name=world
+level-seed=0
+level-type=minecraft:flat
+generate-structures=false
+generator-settings={"biome":"minecraft:plains","layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"structure_overrides":[]}
+online-mode=false
+spawn-protection=0
+enable-command-block=true
+view-distance=8
+simulation-distance=8
+'''
     }
 }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

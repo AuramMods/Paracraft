@@ -15,13 +15,13 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 | --- | --- |
 | Avatar | Client rendering verification, actor compatibility beyond the tested vanilla interactions, validated capacity limits |
 | Lifecycle | Real client login/logout verification, death/bed respawn, further command interruption and item-drop edge cases; pending execution now survives tested orderly process restart |
-| Observations | Client delivery of implemented server snapshots/events, block queries, further inventory compatibility; nine-chunk inventory observations/receipts are implemented |
+| Observations | Native client delivery verification, block queries, further inventory compatibility; server snapshots/events and Forge transport are implemented |
 | Execution | Following, additional gameplay operations and broader terrain recovery; structured programs and persisted execution/request results are implemented |
-| Harness | Forge client transport/runtime/storage/UI and helper-loss lease handling; the loop-to-actual-world service scenario passes headlessly |
+| Harness | Native client login/logout/UI verification and broader runtime recovery; Forge client runtime/storage/UI, packets, and controller expiry are implemented and checked headlessly where possible |
 | Authority | Actual connected-client instruction/control verification, normal player command execution and delayed outcomes; authoritative chat/delegation/receipt service is tested |
 | Gameplay | Mining, farming, combat/reflexes, equipment, placement, chunk traversal, explicit dimension travel, idle routines |
-| QA | Native client transport/rendering checks, combined actual-world task interruption/resumption, further edge cases, capacity evidence, client checklist |
-| Account UI | Clearly disconnected status and extension point for later sign-in/live inference |
+| QA | Native client TCP/rendering checks, further edge cases, capacity evidence; combined actual-world interruption/resumption passes, and the client checklist is documented |
+| Account UI | Visual verification of the implemented disconnected status; real sign-in/live inference remain follow-up scope |
 
 Live authentication and actual AI usage are outside this foundation goal and remain unverified.
 
@@ -72,3 +72,14 @@ Live authentication and actual AI usage are outside this foundation goal and rem
 - Added service authority, NBT receipt recovery, query disconnect/retry, frozen observation/changing-source, native health/equipment snapshot, and native damage-event assertions. An initial new damage assertion ran during normal spawn protection; it was moved into the established delayed survival test.
 - Validation: `./scripts/qa.sh` passed 26 JUnit tests and all 20 required Minecraft GameTests. `./scripts/restart-qa.sh` passed writer JVM 85566 and reader JVM 85981, retaining world identity, a chat acknowledgment without repeating its effect, and the pending real inventory transfer. The 160,847-byte mod JAR excludes QA classes/fixtures. QA events were collected into the ignored local session. No graphical client was launched.
 - Next: Forge networking, client runtime/local persistence, disconnected account/status controls, controller liveness, then the remaining gameplay/reflex/lifecycle/capacity work. The goal remains active and incomplete.
+
+## Cycle 7: Forge client runtime, packets, controls, and controller liveness
+
+- Added direction-specific Forge packets with bounded gzip/UTF-8 fragmentation, native-connection sender checks, controller generations, snapshot revisions, and transport-attempt IDs that reject late replies while preserving logical request deduplication. Snapshot revisions remain monotonic when the same stalled client reacquires an expired lease.
+- Added the Minecraft-independent client coordinator and Forge client tick/logout adapter. The owner client now polls/saves local memory, runs the labeled simulator, reconstructs known unfinished server work when local memory is absent, preserves corrupt files, and pauses/releases failed control. A server heartbeat timeout independently stops jobs and revokes leases.
+- Added explicit K-key/Mods-menu companion controls, disconnected account status, per-companion model/effort settings, spawn, pause/resume, destruction with drops, status/tasks/personality, and harness reconnect. No screen opens automatically. UI and raw server pause/resume stay consistent. Client memory uses the game directory's `paracraft/memory`.
+- Added headless native-payload codec integration for the actual coordinator: large valid item metadata forces fragmentation; real gathering is set inactive for another travel request and resumes the same program before delivery/idle. Native-sender authority and missing-controller expiry also run against actual Minecraft jobs.
+- QA exposed two fixture issues: a stress tag exceeded native NBT string size, and normal random terrain generated a shipwreck chest above an arena within its legitimate nine-chunk search. The metadata now uses separate valid tags. QA-only server properties now create seed-zero flat worlds without structures, with the actual running generator/seed asserted. Production/development worlds are unaffected. Two full suites passed after the world fix.
+- Validation: final `./scripts/qa.sh` passed 37 JUnit tests and all 23 required Minecraft GameTests. Fresh-process restart checks passed writer JVM 5465 and reader JVM 5695 under the corrected QA settings. The 208,881-byte JAR excludes QA classes/fixtures.
+- Native TCP login/signed chat, graphical screens/rendering, and actual client logout remain owner-check items in [QA.md](QA.md); the integration bridge uses native payload codecs with in-process endpoint delivery and virtual time. No graphical client, browser, sign-in, or live AI was used. [NETWORK.md](NETWORK.md) documents the implemented runtime.
+- Next: remaining gameplay operations, survival/reflex/death/bed handling, normal avatar commands/dimension travel, broader navigation/compatibility, and capacity checks. The full foundation goal remains active.

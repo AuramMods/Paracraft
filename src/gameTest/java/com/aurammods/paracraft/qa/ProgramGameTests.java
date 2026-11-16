@@ -45,7 +45,7 @@ public final class ProgramGameTests {
                 """.formatted(recipient.id));
         GameJob job = manager.jobs().submitProgram(owner, entry.id, entry.authority.session(), UUID.randomUUID(), program, "replace");
         helper.onEachTick(() -> {
-            helper.assertTrue(job.state() != JobState.FAILED, "Program failed: " + job.view());
+            helper.assertTrue(job.state() != JobState.FAILED && job.state() != JobState.CANCELLED, "Program failed or was cancelled: " + job.view());
             if (job.state() != JobState.SUCCEEDED) return;
             var results = job.result().getAsJsonObject("results");
             helper.assertTrue(results.getAsJsonObject("loot").get("acquired").getAsInt() == 12, "Named collection result has twelve diamonds");

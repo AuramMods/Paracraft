@@ -24,6 +24,7 @@ public final class AvatarManager {
     private final MinecraftServer server;
     private final AvatarSavedData saved;
     private final com.aurammods.paracraft.forge.control.ServerControl control;
+    private final com.aurammods.paracraft.forge.control.ControlEndpoint endpoint;
     private final Map<UUID, CompanionPlayer> active = new HashMap<>();
     private final com.aurammods.paracraft.forge.execution.JobManager jobs =
             new com.aurammods.paracraft.forge.execution.JobManager(this);
@@ -33,6 +34,7 @@ public final class AvatarManager {
         saved = server.overworld().getDataStorage().computeIfAbsent(
                 AvatarSavedData::load, AvatarSavedData::new, "paracraft_avatars");
         control = new com.aurammods.paracraft.forge.control.ServerControl(this, server);
+        endpoint = new com.aurammods.paracraft.forge.control.ControlEndpoint(this, server);
     }
 
     public Collection<AvatarEntry> entries() { return saved.entries(); }
@@ -42,6 +44,18 @@ public final class AvatarManager {
     public UUID worldId() { return saved.worldId(); }
     public void dirty() { saved.setDirty(); }
     public com.aurammods.paracraft.forge.control.ServerControl control() { return control; }
+    public com.aurammods.paracraft.forge.control.ControlEndpoint endpoint() { return endpoint; }
+    public void renewController(UUID owner) {
+        for (AvatarEntry entry : saved.entries()) if (entry.authority.owner().equals(owner) && active.containsKey(entry.id)) {
+            jobs.pause(entry.id); entry.authority.disconnect(); if (!entry.paused) entry.authority.connect();
+        }
+        saved.setDirty();
+    }
+    public void suspendController(UUID owner, String reason) {
+        for (AvatarEntry entry : saved.entries()) if (entry.authority.owner().equals(owner) && active.containsKey(entry.id)) {
+            pause(owner, entry.id, true); entry.control.addProperty("controllerStatus", reason);
+        }
+    }
     public com.aurammods.paracraft.forge.execution.JobManager jobs() { return jobs; }
 
     public AvatarEntry spawn(UUID owner, ServerLevel level, Vec3 position, String name) {
@@ -87,6 +101,7 @@ public final class AvatarManager {
     public void checkpointAll() { saved.entries().forEach(this::checkpoint); }
 
     public void disconnectOwner(UUID owner) {
+        endpoint.disconnect(owner);
         control.disconnect(owner);
         for (AvatarEntry entry : saved.entries()) {
             if (entry.authority.owner().equals(owner)) {
@@ -154,6 +169,7 @@ public final class AvatarManager {
     public void pause(UUID owner, UUID id, boolean paused) {
         AvatarEntry entry = owned(owner, id);
         entry.paused = paused;
+        if (!paused) entry.control.remove("controllerStatus");
         if (paused) jobs.pause(id); else jobs.resume(id);
         entry.authority.disconnect();
         if (!paused && active.containsKey(id)) entry.authority.connect();

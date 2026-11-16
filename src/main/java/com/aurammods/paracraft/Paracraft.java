@@ -25,6 +25,7 @@ public final class Paracraft {
     }
 
     public Paracraft() {
+        com.aurammods.paracraft.forge.network.ForgeNetwork.register();
         com.aurammods.paracraft.forge.execution.CommandArguments.register(
                 net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, CONFIG);

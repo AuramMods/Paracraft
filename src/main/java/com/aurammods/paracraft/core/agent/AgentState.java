@@ -32,6 +32,7 @@ public final class AgentState {
     public boolean hasWork() {
         return tasks.entrySet().stream().anyMatch(e -> !Set.of("COMPLETED", "FAILED").contains(e.getValue().getAsJsonObject().get("status").getAsString()));
     }
+    public boolean paused() { return paused; }
     public void mutate(String tool, JsonObject args) {
         switch (tool) {
             case "task_upsert" -> {

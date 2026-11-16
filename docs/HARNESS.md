@@ -1,12 +1,12 @@
 # Client decision-loop foundation
 
-This describes the Minecraft-independent harness core in `core/agent` and its authoritative Forge service in `forge/control`. Unit tests use virtual time and service fixtures; additional headless Forge GameTests connect the same loop to actual inventories and player movement. The Forge client transport/runtime and account/status screen are still required. The current mod records authorized chat events but does not yet run the loop on an in-game client.
+This describes the Minecraft-independent harness core in `core/agent` and its authoritative Forge service in `forge/control`. Unit tests use virtual time and service fixtures; headless Forge GameTests connect the same loop/coordinator to actual inventories and player movement. The Forge client runtime, transport, and disconnected account/status screen are wired; native client/login/rendering checks remain unverified. See [NETWORK.md](NETWORK.md).
 
 ## Provider and routing
 
 `InferenceProvider` accepts a complete request containing a route, configurable model/effort labels, physical snapshot, original trigger, and explicit observation results. Each call is independent. The request owns copies of its JSON; a provider cannot mutate live harness state. Provider futures are polled on the owner's client thread.
 
-The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. These are route settings supplied by the design, not evidence of model availability, authentication, or live inference. The current simulator never makes network/provider requests.
+The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. These are route settings supplied by the design, not evidence of model availability, authentication, or live inference. The current simulator never calls an external model service.
 
 | Route | Available tools |
 | --- | --- |
@@ -27,9 +27,9 @@ Unfinished `QUEUED`, `ACTIVE`, `INACTIVE`, and `WAITING` tasks remain schedulabl
 
 Every turn stores its original trigger, planning continuation results, route/round, accepted tool batch, and acknowledgment cursor. State is saved before inference starts and before effects are sent. Restarting during inference reruns the pending route with the original trigger and fresh physical context. Restarting during a tool submission replays the recorded call using the same request UUID, without inferring another batch.
 
-`HarnessLoop.Sink` routes effects through `ServerControl`, which persists authoritative acknowledgments and deduplicates server effects, including chat and observation receipts. IDs identify a turn/round/call rather than an ephemeral connection. The upcoming network adapter must stamp the current lease and actual connected owner. The service already checks ownership, lease validity, conflicting request content, and revoked instruction senders. GameTests exercise service-level retries/reconnect; real client transport remains unverified.
+`HarnessLoop.Sink` routes effects through `ServerControl`, which persists authoritative acknowledgments and deduplicates server effects, including chat and observation receipts. IDs identify a turn/round/call rather than an ephemeral connection. The Forge adapter stamps the current lease and derives the owner from the native connection. The service checks ownership, lease validity, conflicting request content, and revoked instruction senders. GameTests exercise the native payload codecs/in-process endpoint; real client TCP transport remains unverified.
 
-Provider/tool failures pause the local loop and expose `lastError` for UI and control-session handling. The runtime adapter must stop/revoke server execution when its harness fails or disconnects. This lifecycle wiring is pending.
+Provider/tool failures pause the local loop and expose `lastError` in the UI. The runtime sends an owner pause on local faults and releases control on link failure. The server independently pauses/revokes an expired controller. Native client logout saves/cancels local work, and server logout independently saves/despawns bodies.
 
 ## Tasks and local storage
 
@@ -43,7 +43,7 @@ History retains at most 128 entries and 65,536 JSON characters. Removed history 
 <root>/<world UUID>/<owner UUID>/<avatar UUID>.json
 ```
 
-It writes a forced temporary file and replaces the destination atomically when the filesystem supports it, with a replacement fallback otherwise. The record repeats its binding and schema; malformed or mismatched data raises an error and is left available for diagnosis. Tests cover actual temporary files, state replacement, and world isolation. No production Minecraft storage directory is selected until the client adapter is connected.
+It writes a forced temporary file and replaces the destination atomically when the filesystem supports it, with a replacement fallback otherwise. The record repeats its binding and schema; malformed or mismatched data raises an error and is left available for diagnosis. Tests cover actual temporary files, state replacement, and world isolation. The Forge client selects `<game directory>/paracraft/memory` as its root.
 
 ## Deterministic QA scripts
 
@@ -83,4 +83,4 @@ An inventory query advances incrementally over exactly the existing nine-chunk s
 
 Permission administration through the agent service requires an owner-origin instruction. Trusted users can instruct through the owner's harness but cannot gain its lease or administer the trust list. Raw owner commands remain available.
 
-World identity, journals, receipts, and published program states are saved with the existing avatar data. Current receipt/program histories are retained without pruning; long-running scale/storage optimization remains open. The two-process restart suite verifies world identity, recovery of a chat acknowledgment without repeating its effect, and the pending physical transfer. Completed observation receipt recovery is tested through NBT/body rebinds. These do not claim transactional crash recovery across arbitrary mod inventories. Real packets, native client login/logout, helper-failure lease handling, and account UI still need direct verification.
+World identity, journals, receipts, and published program states are saved with the existing avatar data. Current receipt/program histories are retained without pruning; long-running scale/storage optimization remains open. The two-process restart suite verifies world identity, recovery of a chat acknowledgment without repeating its effect, and the pending physical transfer. Completed observation receipt recovery is tested through NBT/body rebinds. These do not claim transactional crash recovery across arbitrary mod inventories. Native payload codecs and heartbeat loss are tested; actual TCP/client login/logout and account UI rendering still need direct verification.
