@@ -34,6 +34,8 @@ The program suite executes search-to-collection-to-delivery through named result
 
 Real client login/logout, rendering, automatic death respawn, the client decision loop, and the chat-to-Light-to-planning diamond workflow remain unverified or incomplete. Server scenarios submit through the same execution service exposed by manual controls. See [PROGRAMS.md](PROGRAMS.md) for program syntax.
 
+The decision-loop core also has deterministic JUnit scenarios with a virtual clock and stubbed server replies. They check five-second routing/continuations, slow-response serialization, forbidden Light tools, session cancellation, coalescing, event/timer waits, on-disk memory, durable pending turns and request IDs, progress without replacement, task interruption/resumption, and returning to idle. See [HARNESS.md](HARNESS.md) for the boundary and scripted grammar. These are component checks; in-game networking, account UI, and a combined actual-world harness scenario remain pending.
+
 ## Current manual controls
 
 The following player commands exist in the foundation build:

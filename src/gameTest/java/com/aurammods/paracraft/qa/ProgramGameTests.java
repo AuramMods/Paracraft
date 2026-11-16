@@ -63,12 +63,16 @@ public final class ProgramGameTests {
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void nestedCatchDeliversPartialAcquisitionAndContinues(GameTestHelper helper) {
         var manager = ServerEvents.avatars(helper.getLevel().getServer()); UUID owner = UUID.randomUUID();
-        var entry = spawn(helper, manager, owner, 2.5, 2.5); var recipient = spawn(helper, manager, owner, 2.5, 4.5);
+        // This recovery fixture has no navigation floor. Keep delivery comfortably in reach,
+        // and select a unique item so other concurrent tests' nine-chunk chests cannot become sources.
+        var entry = spawn(helper, manager, owner, 2.5, 2.5); var recipient = spawn(helper, manager, owner, 2.5, 4.0);
         manager.actor(entry.id).setNoGravity(true); manager.actor(recipient.id).setNoGravity(true);
         chest(helper, new BlockPos(3, 2, 2), 3);
+        ((ChestBlockEntity)helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(3, 2, 2))))
+                .setItem(0, new ItemStack(Items.AMETHYST_SHARD, 3));
         var program = json("""
                 {"steps":[{"try":[{"try":[
-                  {"op":"collect_items","item":"minecraft:diamond","quantity":10000,"saveAs":"partial"}
+                  {"op":"collect_items","item":"minecraft:amethyst_shard","quantity":10000,"saveAs":"partial"}
                 ],"catch":[{"op":"report_failure","saveAs":"inner"},{"op":"rethrow"}]}],"catch":[
                   {"op":"deliver_items","itemsFrom":"partial","recipient":"%s"},
                   {"op":"report_failure","saveAs":"outer"}
@@ -79,9 +83,14 @@ public final class ProgramGameTests {
             helper.assertTrue(job.state() != JobState.FAILED, "Recovery program failed: " + job.view());
             if (job.state() != JobState.SUCCEEDED) return;
             var results = job.result().getAsJsonObject("results");
-            helper.assertTrue(results.has("continued") && results.getAsJsonObject("outer").getAsJsonObject("partial").get("acquired").getAsInt() >= 3,
+            helper.assertTrue(results.has("continued") && results.getAsJsonObject("outer").getAsJsonObject("partial").get("acquired").getAsInt() == 3,
                     "Outer handler received the original failure and actual partial result");
-            helper.assertTrue(manager.actor(entry.id).getInventory().countItem(Items.DIAMOND) == 0, "Recovery delivered actual collected items");
+            helper.assertTrue(manager.actor(entry.id).getInventory().countItem(Items.AMETHYST_SHARD) == 0, "Recovery delivered actual collected items");
+            var receiver = manager.actor(recipient.id);
+            int received = receiver.getInventory().countItem(Items.AMETHYST_SHARD) + helper.getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, receiver.getBoundingBox().inflate(3)).stream()
+                    .filter(e -> e.getItem().is(Items.AMETHYST_SHARD) && assigned(e, recipient.id)).mapToInt(e -> e.getItem().getCount()).sum();
+            helper.assertTrue(received == 3, "Recovered items actually reached the recipient's feet");
             manager.actor(recipient.id).getInventory().clearContent(); manager.destroy(owner, entry.id); manager.destroy(owner, recipient.id);
             pass("program_nested_partial_recovery"); helper.succeed();
         });

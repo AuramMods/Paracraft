@@ -79,6 +79,8 @@ The avatar prototype must exercise damage, hunger, oxygen, modded equipment, blo
 
 ## 4. Authentication and runtime
 
+Foundation implementation defers authentication and live inference until the owner can test sign-in as a follow-up. Build the provider boundary and account-status UI now, and exercise the same decision/action pipeline with an explicitly labeled deterministic simulator. No credentials or account linking are needed for foundation QA.
+
 Build a custom snapshot harness with an inference-provider interface. The primary integration is official **Sign in with ChatGPT** with permission to use an eligible ChatGPT plan. The plan does not depend on reproducing undocumented Codex authentication or requiring the Codex desktop app.
 
 OpenAI's current integration supports eligible local personal and open-source projects. Identity sign-in and permission to consume plan usage are separate. Eligibility and model access remain account-dependent; a completed inference establishes that a particular request worked. See the [official integration guide](https://developers.openai.com/cookbook/articles/sign-in-with-chatgpt).
@@ -383,9 +385,9 @@ Implement navigation, nine-chunk inventory discovery, generic container access, 
 
 First gameplay demonstration: collect diamonds from containers across the avatar's current chunk and immediate neighboring/diagonal chunks, then deliver them to a player.
 
-### Milestone 3: Local authentication and routed harness
+### Milestone 3: Routed client harness and simulated inference
 
-Integrate client-managed sign-in and complete a real authenticated inference. Add configurable Light/X-High routes, separate tool surfaces, explicit snapshots, rolling history, tasks, personality, memory, and the five-second scheduler. Exercise the diamond request through chat end to end.
+Add configurable Light/X-High routes, separate tool surfaces, explicit snapshots, rolling history, tasks, personality, memory, and the five-second scheduler. Exercise the diamond request through chat end to end with the labeled deterministic provider. Include a visibly disconnected account-status UI and an extension point for later sign-in. Actual authentication and live inference are a follow-up after the foundation works.
 
 ### Milestone 4: Interruptions, waits, delegation, and commands
 
