@@ -12,12 +12,14 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Script QA against a stubbed service; physical inventory behavior is covered separately by GameTests. */
 class SimulatedProviderTest {
     @Test void commandScriptsEscalateAndSelectExplicitCompletionSemantics(){
-        for(String instruction:List.of("Josh, execute command qa_identity","Josh, teleport command qa_home","Josh, discover commands qa_")){
+        for(String instruction:List.of("Josh, execute command qa_identity","Josh, teleport command qa_home","Josh, discover commands qa_","Josh, use portal 12 64 -30","Josh, search blocks #minecraft:portals")){
             Clock clock=new Clock();Sink sink=new Sink();sink.reply=sent->CompletableFuture.completedFuture(ok(job(sent.args().get("id").getAsString(),"RUNNING")));
             try(HarnessLoop loop=new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{})){
                 loop.accept(frame(chat(1,instruction)));pump(loop);assertTrue(sink.sent.isEmpty());clock.advance(5000);pump(loop);
                 assertEquals(1,loop.planningCalls());assertEquals("program",sink.sent.get(0).tool());var step=sink.sent.get(0).args().getAsJsonArray("steps").get(0).getAsJsonObject();
                 if(instruction.contains("discover")){assertEquals("discover_commands",step.get("op").getAsString());assertEquals("qa_",step.get("prefix").getAsString());}
+                else if(instruction.contains("use portal")){assertEquals("use_portal",step.get("op").getAsString());assertEquals("[12,64,-30]",step.getAsJsonArray("position").toString());}
+                else if(instruction.contains("search blocks")){assertEquals("search_blocks",step.get("op").getAsString());assertEquals("#minecraft:portals",step.get("block").getAsString());}
                 else{assertEquals("execute_command",step.get("op").getAsString());assertEquals(instruction.contains("teleport"),step.has("await"));}
             }
         }

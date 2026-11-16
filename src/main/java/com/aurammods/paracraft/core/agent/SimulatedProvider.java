@@ -17,6 +17,8 @@ public final class SimulatedProvider implements InferenceProvider {
     private static final Pattern BEHAVIOR = Pattern.compile("(?i)\\bbehavior (players|mobs) (passive|flee|neutral|aggressive)\\b");
     private static final Pattern COMMAND=Pattern.compile("(?i)\\b(execute|teleport) command (.+)$");
     private static final Pattern DISCOVER=Pattern.compile("(?i)\\bdiscover commands(?: (.*))?$");
+    private static final Pattern PORTAL=Pattern.compile("(?i)\\buse portal (-?\\d+) (-?\\d+) (-?\\d+)\\b");
+    private static final Pattern BLOCKS=Pattern.compile("(?i)\\bsearch blocks (#[a-z0-9_]+:[a-z0-9_/.-]+|[a-z0-9_]+:[a-z0-9_/.-]+)\\b");
     private static final Set<String> TERMINAL_TASK = Set.of("COMPLETED", "FAILED");
     @Override public String label() { return "SIMULATED — deterministic QA scripts, no AI usage"; }
     @Override public boolean simulated() { return true; }
@@ -35,7 +37,7 @@ public final class SimulatedProvider implements InferenceProvider {
         JsonObject task = nextTask(frame);
         if (request.route() == Route.LIGHT) {
             if (chat) {
-                if(COMMAND.matcher(text).find() || DISCOVER.matcher(text).find())return decision(call("think_harder",new JsonObject()));
+                if(COMMAND.matcher(text).find() || DISCOVER.matcher(text).find() || PORTAL.matcher(text).find() || BLOCKS.matcher(text).find())return decision(call("think_harder",new JsonObject()));
                 if (lower.contains("progress") || lower.contains("status")) return say(progress(frame));
                 if (scriptedAction(text)) return decision(call("think_harder", new JsonObject()));
                 if (lower.contains("hello") || lower.contains("hey") || lower.contains("how's it going"))
@@ -49,6 +51,12 @@ public final class SimulatedProvider implements InferenceProvider {
             return decision();
         }
         if (chat) {
+            var portal=PORTAL.matcher(text);var blocks=BLOCKS.matcher(text);boolean usePortal=portal.find(),searchBlocks=blocks.find();
+            if(usePortal || searchBlocks){
+                String id=identity(frame,event,usePortal?"portal":"blocks");var program=baseProgram(id);var step=new JsonObject();step.addProperty("op",usePortal?"use_portal":"search_blocks");step.addProperty("saveAs",usePortal?"portal":"blocks");
+                if(usePortal){var position=new JsonArray();for(int i=1;i<=3;i++)position.add(Integer.parseInt(portal.group(i)));step.add("position",position);}else step.addProperty("block",blocks.group(1).toLowerCase(Locale.ROOT));
+                var steps=new JsonArray();steps.add(step);program.add("steps",steps);return startTask(frame,task(id,text,"ACTIVE",-1),program);
+            }
             var command=COMMAND.matcher(text);var discover=DISCOVER.matcher(text);boolean execute=command.find(),discovery=discover.find();
             if(execute || discovery){
                 String id=identity(frame,event,execute?"command":"commands");JsonObject program=baseProgram(id);JsonObject step=new JsonObject();

@@ -40,7 +40,7 @@ Native roster membership also counts toward Minecraft's online-player count and 
 
 Normal logout hooks run before the final canonical physical-state snapshot. Inventory/location changes made by those hooks are preserved. Destruction then drops retained items once and updates the native player-data mirror with the emptied inventory. Respawn replaces the roster body without firing a second ordinary login/logout pair. The [Forge access transformer](https://docs.minecraftforge.net/en/1.20.1/advanced/accesstransformers/) exposes the required native roster fields; its resource is included in the mod JAR.
 
-Explicit portal use is still being implemented. Ordinary navigation does not automatically enter portals. These command checks do not establish arbitrary home/TPA mod compatibility or visual client behavior.
+[Explicit Nether/End portal use](PORTALS.md) is implemented separately. Ordinary navigation does not automatically enter portals. These command checks do not establish arbitrary home/TPA mod compatibility or visual client behavior.
 
 ## Verification
 

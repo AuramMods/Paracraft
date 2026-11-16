@@ -10,6 +10,8 @@ public final class OperationSyntax {
     public static void validate(JsonObject spec) {
         String op = string(spec, "op");
         switch (op) {
+            case "search_blocks" -> {string(spec,"block");if(spec.has("limit") && (integer(spec,"limit")<1 || integer(spec,"limit")>4096))throw new IllegalArgumentException("Block result limit must be between 1 and 4096");}
+            case "use_portal" -> {com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("position"));if(spec.has("timeoutTicks"))integer(spec,"timeoutTicks");if(spec.has("dimension"))string(spec,"dimension");}
             case "discover_commands" -> {
                 if(spec.has("prefix") && (!spec.get("prefix").isJsonPrimitive() || !spec.getAsJsonPrimitive("prefix").isString()))throw new IllegalArgumentException("Command prefix must be a string");
             }

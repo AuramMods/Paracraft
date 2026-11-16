@@ -60,8 +60,8 @@ public final class PlayerNavigator implements AutoCloseable {
         }
         if (path.isDone()) { path = null; closeVelocity(); return false; }
         BlockPos next = path.getNextNodePos();
-        if (actor.serverLevel().getBlockState(next).is(BlockTags.PORTALS)
-                || actor.serverLevel().getBlockState(next.above()).is(BlockTags.PORTALS))
+        if ((actor.serverLevel().getBlockState(next).is(BlockTags.PORTALS) && !actor.portalAuthorized(next))
+                || (actor.serverLevel().getBlockState(next.above()).is(BlockTags.PORTALS) && !actor.portalAuthorized(next.above())))
             throw new IllegalStateException("Route enters a portal; explicit dimension travel is required");
         for (BlockPos pos : listAround(next)) {
             var state = actor.serverLevel().getBlockState(pos);

@@ -92,6 +92,7 @@ public final class AvatarManager {
                 pause(entry.authority.owner(),entry.id,true);entry.control.addProperty("controllerStatus","Avatar disconnected: "+body.disconnectReason());
                 survival.get(entry.id).close();checkpoint(entry);detach(entry.id);entry.execution=jobs.checkpoint(entry.id);jobs.unbind(entry.id);continue;
             }
+            if(body.wonGame){respawn(entry,body,true);continue;}
             if (body.deathCommitted()) {
                 if (!entry.control.has("lifecycle") || !entry.control.getAsJsonObject("lifecycle").get("state").getAsString().equals("dead")) {
                     survival.get(entry.id).onDeath(); jobs.cancelAll(entry.id, "Avatar died"); entry.authority.disconnect();
@@ -107,13 +108,18 @@ public final class AvatarManager {
     }
 
     private void respawn(AvatarEntry entry, CompanionPlayer old) {
+        respawn(entry,old,false);
+    }
+    private void respawn(AvatarEntry entry, CompanionPlayer old,boolean endReturn) {
+        boolean resume=endReturn && jobs.get(entry.id)!=null && jobs.get(entry.id).state()==com.aurammods.paracraft.core.JobState.RUNNING && !entry.paused;
+        jobs.pause(entry.id);
         var spawnLevel = server.getLevel(old.getRespawnDimension()); var bed = old.getRespawnPosition();
         var location = spawnLevel != null && bed != null ? net.minecraft.world.entity.player.Player.findRespawnPositionAndUseSpawnBlock(
-                spawnLevel, bed, old.getRespawnAngle(), old.isRespawnForced(), false) : java.util.Optional.<Vec3>empty();
+                spawnLevel, bed, old.getRespawnAngle(), old.isRespawnForced(), endReturn) : java.util.Optional.<Vec3>empty();
         ServerLevel destination = location.isPresent() ? spawnLevel : server.overworld();
         var execution = jobs.checkpoint(entry.id); jobs.unbind(entry.id); detach(entry.id,true);
         CompanionPlayer fresh = new CompanionPlayer(destination, old.getGameProfile());
-        fresh.restoreFrom(old, false); fresh.setId(old.getId()); fresh.setMainArm(old.getMainArm()); old.getTags().forEach(fresh::addTag);
+        fresh.restoreFrom(old, endReturn); fresh.setId(old.getId()); fresh.setMainArm(old.getMainArm()); old.getTags().forEach(fresh::addTag);
         if (location.isPresent()) {
             Vec3 point = location.get(); float angle = old.getRespawnAngle(); var state = destination.getBlockState(bed);
             if (state.is(net.minecraft.tags.BlockTags.BEDS) || state.is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR)) {
@@ -124,15 +130,17 @@ public final class AvatarManager {
             fresh.setRespawnPosition(destination.dimension(), bed, old.getRespawnAngle(), old.isRespawnForced(), false);
         }
         while (!destination.noCollision(fresh) && fresh.getY() < destination.getMaxBuildHeight()) fresh.setPos(fresh.getX(), fresh.getY() + 1, fresh.getZ());
-        if (server.isHardcore()) fresh.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
-        entry.control.addProperty("lifeRevision", entry.control.has("lifeRevision") ? entry.control.get("lifeRevision").getAsLong() + 1 : 1);
+        if (server.isHardcore() && !endReturn) fresh.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+        if(!endReturn)entry.control.addProperty("lifeRevision", entry.control.has("lifeRevision") ? entry.control.get("lifeRevision").getAsLong() + 1 : 1);
         entry.execution = execution; attach(entry, fresh, true);
         var result = new com.google.gson.JsonObject(); result.addProperty("state", "alive"); result.addProperty("usedSpawnBlock", location.isPresent());
         result.addProperty("invalidSpawnBlock", bed != null && location.isEmpty()); result.addProperty("dimension", destination.dimension().location().toString());
         result.add("position", com.aurammods.paracraft.forge.execution.JobJson.vector(fresh.position()));
         entry.control.add("lifecycle", result);
-        net.minecraftforge.event.ForgeEventFactory.firePlayerRespawnEvent(fresh, false);
-        control.event(entry.id, "respawn", result); checkpoint(entry);
+        result.addProperty("endReturn",endReturn);net.minecraftforge.event.ForgeEventFactory.firePlayerRespawnEvent(fresh, endReturn);
+        if(endReturn)net.minecraftforge.event.ForgeEventFactory.firePlayerChangedDimensionEvent(fresh,old.serverLevel().dimension(),destination.dimension());
+        if(resume)jobs.resume(entry.id);
+        control.event(entry.id, endReturn?"portal_return":"respawn", result); checkpoint(entry);
     }
 
     public AvatarEntry spawn(UUID owner, ServerLevel level, Vec3 position, String name) {

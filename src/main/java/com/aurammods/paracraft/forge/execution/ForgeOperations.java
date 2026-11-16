@@ -15,7 +15,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     public ForgeOperations(CompanionPlayer actor,Runnable acceptDimension) { this.actor = actor;this.acceptDimension=acceptDimension; }
     @Override public Set<String> operations() {
         return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items",
-                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn", "execute_command", "discover_commands");
+                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn", "execute_command", "discover_commands", "use_portal", "search_blocks");
     }
     @Override public void validate(JsonObject specification) { OperationSyntax.validate(specification); }
     @Override public ProgramMachine.Operation start(UUID id, JsonObject specification, ProgramMachine.Context context, JsonObject checkpoint) {
@@ -25,7 +25,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
         job.resume();
         return new ProgramMachine.Operation() {
             @Override public ProgramMachine.Update tick() {
-                job.tick(); if(job instanceof CommandJob)acceptDimension.run(); JsonObject view = job.view();
+                job.tick(); if(job instanceof CommandJob || job instanceof PortalJob)acceptDimension.run(); JsonObject view = job.view();
                 return new ProgramMachine.Update(job.state(), job.result(), view.get("error").getAsString());
             }
             @Override public JsonObject checkpoint() { return job.checkpoint(); }
@@ -37,6 +37,8 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     private GameJob create(UUID id, JsonObject spec, ProgramMachine.Context context) {
         String op = spec.get("op").getAsString();
         return switch (op) {
+            case "search_blocks" -> new BlockSearchJob(id,actor,spec);
+            case "use_portal" -> new PortalJob(id,actor,spec);
             case "execute_command" -> new CommandJob(id,actor,spec);
             case "discover_commands" -> new CommandDiscoveryJob(id,actor,spec.has("prefix")?spec.get("prefix").getAsString():"");
             case "travel" -> new TravelJob(id, actor, JobJson.vector(spec.get("destination")));

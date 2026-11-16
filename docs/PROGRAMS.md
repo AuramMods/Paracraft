@@ -57,10 +57,13 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `set_spawn` | `bed` block position; native spawn setting and brief sleep when permitted |
 | `discover_commands` | Optional `prefix`; native usage forms and completions for this avatar |
 | `execute_command` | `command`, optional `await: "teleport"` and outcome predicates; native dispatch and actual observed arrival |
+| `search_blocks` | `block` ID/tag, optional result `limit`; full-height loaded nine-chunk block observation |
+| `use_portal` | Selected `position`, optional expected `dimension`/`timeoutTicks`; physical approach and native portal transition |
 
 See [GAMEPLAY.md](GAMEPLAY.md) for the block target forms, detailed examples, result semantics, protection/persistence checks, and current adapter limits.
 
 See [COMMANDS.md](COMMANDS.md) for command acknowledgment versus delayed completion, permissions, output, and dimension checkpoint behavior.
+See [PORTALS.md](PORTALS.md) for block query coverage and explicit Nether/End travel.
 
 Items accept registry IDs or `#tags`. A supplied inventory `scope` must currently be `{ "kind": "neighbor_chunks", "radius": 1 }`. `containersFrom` refers to a prior search result, avoiding another scan; its dimension, selector, original coverage, and timestamps stay explicit. Collection and transfer operations still resolve the real inventory and its rules when executing.
 

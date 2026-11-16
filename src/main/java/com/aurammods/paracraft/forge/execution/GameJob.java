@@ -39,7 +39,7 @@ public abstract class GameJob {
     }
     protected abstract void advance();
     private boolean invalidateControl() {
-        String reason = !actor.isAlive() || actor.isRemoved() || actor.retired() || actor.hasDisconnected() ? "Avatar died, disconnected, or was removed"
+        String reason = !actor.isAlive() || (actor.isRemoved() && !(actor.wonGame && allowsDimensionChange())) || actor.retired() || actor.hasDisconnected() ? "Avatar died, disconnected, or was removed"
                 : !allowsDimensionChange() && actor.serverLevel().dimension() != dimension ? "Avatar changed dimension" : null;
         if (reason == null) return false;
         // A native hook can change life/dimension during this tick's indivisible action.

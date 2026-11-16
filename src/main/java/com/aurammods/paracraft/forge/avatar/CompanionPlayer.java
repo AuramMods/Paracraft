@@ -53,7 +53,17 @@ public final class CompanionPlayer extends ServerPlayer {
         try{return super.changeDimension(destination,teleporter);}
         finally{insideTeleport=outer;if(!outer && nativeTeleportSeen){teleportSerial++;hasChangedDimension();gameMode.setLevel(serverLevel());}}
     }
-    @Override public boolean canChangeDimensions(){return false;} // An explicit portal operation grants this in the portal adapter.
+    private java.util.UUID portalRequest;
+    private net.minecraft.core.BlockPos selectedPortal;
+    private net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> portalDimension;
+    public void grantPortal(java.util.UUID request,net.minecraft.core.BlockPos position){portalRequest=request;selectedPortal=position.immutable();portalDimension=serverLevel().dimension();}
+    public void revokePortal(java.util.UUID request){if(request.equals(portalRequest)){portalRequest=null;selectedPortal=null;portalDimension=null;isInsidePortal=false;portalTime=0;}}
+    public boolean portalAuthorized(net.minecraft.core.BlockPos position){return !retired && portalRequest!=null && portalDimension==serverLevel().dimension() && (position.equals(selectedPortal) || position.equals(selectedPortal.above()));}
+    @Override public boolean canChangeDimensions(){return portalRequest!=null && portalDimension==serverLevel().dimension() && !retired && isAlive() && super.canChangeDimensions()
+            && getBoundingBox().intersects(new net.minecraft.world.phys.AABB(selectedPortal));}
+    @Override public void handleInsidePortal(net.minecraft.core.BlockPos position){if(portalAuthorized(position))super.handleInsidePortal(position);}
+    @Override protected void handleNetherPortal(){if(portalRequest==null || portalDimension!=serverLevel().dimension()){isInsidePortal=false;portalTime=0;}super.handleNetherPortal();}
+    @Override public void restoreFrom(ServerPlayer previous,boolean keepEverything){super.restoreFrom(previous,keepEverything);if(keepEverything && previous instanceof CompanionPlayer old)teleportSerial=old.teleportSerial+1;}
     private boolean needsAir, canRefillAir = true;
     private java.util.function.Consumer<net.minecraft.world.damagesource.DamageSource> damageObserver = source -> { };
     public boolean needsAir() { return needsAir; }
@@ -91,10 +101,10 @@ public final class CompanionPlayer extends ServerPlayer {
         if (insideDeath) deathCommitted = true;
     }
     @Override public void addAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
-        super.addAdditionalSaveData(tag); tag.putBoolean("ParacraftDeathCommitted", deathCommitted);tag.putLong("ParacraftTeleportSerial",teleportSerial);
+        super.addAdditionalSaveData(tag); tag.putBoolean("ParacraftDeathCommitted", deathCommitted);tag.putLong("ParacraftTeleportSerial",teleportSerial);tag.putBoolean("ParacraftEndReturn",wonGame);
     }
     @Override public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
-        super.readAdditionalSaveData(tag); deathCommitted = tag.getBoolean("ParacraftDeathCommitted");teleportSerial=tag.getLong("ParacraftTeleportSerial");
+        super.readAdditionalSaveData(tag); deathCommitted = tag.getBoolean("ParacraftDeathCommitted");teleportSerial=tag.getLong("ParacraftTeleportSerial");wonGame=tag.getBoolean("ParacraftEndReturn");
     }
     private final java.util.Set<java.util.function.Consumer<net.minecraft.world.item.ItemStack>> pickupObservers = new java.util.HashSet<>();
     public Runnable observePickups(java.util.function.Consumer<net.minecraft.world.item.ItemStack> observer) {

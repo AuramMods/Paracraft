@@ -16,6 +16,8 @@ The reobfuscated mod is written to `build/libs/paracraft-forge-1.20.1-0.1.0-dev.
 
 In a disposable world, press **K** for companion controls or run `/paracraft spawn Josh`, then mention Josh in chat. The initial provider is a labeled deterministic simulator. Try `Josh, collect the diamonds nearby and give them to me.` Model routes and local pause state are saved in the game directory; no credentials are required. Broader gameplay remains in progress.
 
+Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
+
 ## Headless verification
 
 ```sh

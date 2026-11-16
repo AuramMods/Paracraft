@@ -24,7 +24,7 @@ public final class ProgramJob extends GameJob {
         }
     }
     @Override public void cancel(String reason) { machine.cancel(reason); result = machine.view(); super.cancel(reason); }
-    @Override protected boolean allowsDimensionChange(){return machine.hasPendingOperation() && machine.currentOperation().equals("execute_command");}
+    @Override protected boolean allowsDimensionChange(){return machine.hasPendingOperation() && java.util.Set.of("execute_command","use_portal").contains(machine.currentOperation());}
     @Override protected boolean allowsRestoredDimension(JsonObject checkpoint){return JobCodec.pendingCommand(checkpoint.getAsJsonObject("data").getAsJsonObject("machine"));}
     @Override protected void onPause() { machine.pause(); result = machine.view(); }
     @Override public void resume() { machine.resume(); super.resume(); }
