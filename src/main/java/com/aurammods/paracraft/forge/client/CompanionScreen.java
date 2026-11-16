@@ -78,6 +78,11 @@ public final class CompanionScreen extends Screen {
             if (frame.has("health")) lines.add("Health " + frame.get("health") + " · Food " + frame.get("food") + " · Oxygen " + frame.get("oxygen"));
             if (frame.has("position")) lines.add(frame.get("dimension").getAsString() + " " + frame.get("position"));
             if (frame.has("controllerStatus")) lines.add(frame.get("controllerStatus").getAsString());
+            if (frame.has("survival")) {
+                var survival = frame.getAsJsonObject("survival"); lines.add("Server behavior: " + survival.get("mode"));
+                if (survival.has("behavior")) lines.add("Players: " + survival.getAsJsonObject("behavior").get("players") + " · Mobs: " + survival.getAsJsonObject("behavior").get("mobs"));
+                if (survival.has("reflex")) lines.add("Reflex: " + survival.getAsJsonObject("reflex").get("phase"));
+            }
             lines.add("Decisions: " + view.decisions() + " · Planning: " + view.planningDecisions());
             if (view.freshMemory()) lines.add("Fresh local memory. Saved server operations are preserved.");
             if (view.memory() != null) {

@@ -88,6 +88,7 @@ public final class ServerControl {
             JsonObject source = authorizeTrigger(entry, triggerEvent);
             JsonObject result;
             switch (tool) {
+                case "configure_behavior" -> result = avatars.configureBehavior(actualOwner,avatar,args);
                 case "observe" -> {
                     if (!string(args, "kind").equals("inventory")) throw new IllegalArgumentException("Unsupported observation kind");
                     if (pending != null) throw new IllegalStateException("An inventory observation is already running");

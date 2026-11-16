@@ -20,6 +20,16 @@ public final class CompanionCommands {
     @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         var root = Commands.literal("paracraft");
+        root.then(Commands.literal("behavior").then(Commands.argument("companion",StringArgumentType.word())
+                .executes(ctx -> invoke(ctx,(owner,manager) -> {
+                    var entry = find(ctx,owner,manager); owner.sendSystemMessage(Component.literal(manager.behavior(owner.getUUID(),entry.id).toString())); return 1;
+                })).then(Commands.argument("settings",StringArgumentType.greedyString()).executes(ctx -> invoke(ctx,(owner,manager) -> {
+                    var entry = find(ctx,owner,manager);
+                    com.google.gson.JsonObject patch;
+                    try { patch = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx,"settings")).getAsJsonObject(); }
+                    catch (com.google.gson.JsonParseException invalid) { throw new IllegalArgumentException("Invalid behavior JSON: " + invalid.getMessage()); }
+                    owner.sendSystemMessage(Component.literal(manager.configureBehavior(owner.getUUID(),entry.id,patch).toString())); return 1;
+                })))));
         root.then(Commands.literal("spawn").then(Commands.argument("name", StringArgumentType.word())
                 .executes(ctx -> invoke(ctx, (owner, manager) -> {
                     AvatarEntry entry = manager.spawn(owner.getUUID(), owner.serverLevel(), owner.position(),

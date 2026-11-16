@@ -131,6 +131,11 @@ public final class GameplayGameTests {
         var entry = spawn(helper, manager, owner, 2.5, 2.5); var actor = manager.actor(entry.id);
         for (int i = 0; i < 36; i++) actor.getInventory().setItem(i, new ItemStack(Items.STONE, 64));
         actor.getInventory().setItem(0, new ItemStack(Items.IRON_PICKAXE)); helper.setBlock(new BlockPos(3,2,2), Blocks.DIAMOND_ORE);
+        BlockPos ore=helper.absolutePos(new BlockPos(3,2,2)); java.util.Set<UUID> generated=new java.util.HashSet<>();
+        class Drops { @SubscribeEvent public void join(net.minecraftforge.event.entity.EntityJoinLevelEvent e) {
+            if(e.getLevel()==helper.getLevel() && e.getEntity() instanceof ItemEntity item && item.blockPosition().equals(ore) && item.getItem().is(Items.DIAMOND)) generated.add(item.getUUID());
+        } }
+        var sourceDrops=new Drops(); MinecraftForge.EVENT_BUS.register(sourceDrops);
         var job = submit(manager, owner, entry, "{\"steps\":[{\"op\":\"mine_blocks\",\"block\":" + position(helper,3,2,2) + ",\"saveAs\":\"mined\"}]}");
         int[] diagnostic = {0};
         helper.onEachTick(() -> {
@@ -140,8 +145,9 @@ public final class GameplayGameTests {
             if (job.state() != JobState.FAILED) return;
             var pending = job.result().getAsJsonObject("error").getAsJsonObject("partial");
             helper.assertTrue(pending.get("broken").getAsInt() == 1 && actor.getInventory().countItem(Items.DIAMOND) == 0, "Actual pickup failure retains mined partial state");
-            int drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class, actor.getBoundingBox().inflate(4)).stream().filter(e -> e.getItem().is(Items.DIAMOND)).mapToInt(e -> e.getItem().getCount()).sum();
-            helper.assertTrue(drops == 1, "The uncollected diamond remains a real world item");
+            int drops=generated.stream().map(helper.getLevel()::getEntity).filter(e->e instanceof ItemEntity).map(e->(ItemEntity)e).filter(e->e.isAlive() && e.getItem().is(Items.DIAMOND)).mapToInt(e->e.getItem().getCount()).sum();
+            helper.assertTrue(generated.size()==1 && drops==1, "The exact ore-generated diamond remains a real world item: generated="+generated+" remaining="+drops);
+            MinecraftForge.EVENT_BUS.unregister(sourceDrops);
             clean(manager, owner, entry); pass("mine_full_inventory_preserves_drop"); helper.succeed();
         });
     }

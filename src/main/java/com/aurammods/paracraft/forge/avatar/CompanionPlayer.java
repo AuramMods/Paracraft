@@ -16,6 +16,17 @@ import java.util.Set;
 
 /** Real survival player, ticked by its level; it has no socket or authenticated account. */
 public final class CompanionPlayer extends ServerPlayer {
+    private boolean needsAir, canRefillAir = true;
+    private java.util.function.Consumer<net.minecraft.world.damagesource.DamageSource> damageObserver = source -> { };
+    public boolean needsAir() { return needsAir; }
+    public boolean canRefillAir() { return canRefillAir; }
+    public void recordBreathing(boolean canBreathe, boolean canRefill) { needsAir = !canBreathe; canRefillAir = canRefill; }
+    public void observeDamage(java.util.function.Consumer<net.minecraft.world.damagesource.DamageSource> observer) { damageObserver = observer; }
+    @Override public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
+        float before = getHealth() + getAbsorptionAmount(); boolean accepted = super.hurt(source, amount);
+        if (accepted && getHealth() + getAbsorptionAmount() < before) damageObserver.accept(source);
+        return accepted;
+    }
     private boolean insideDeath, deathCommitted;
     private String sleepProblem = "";
     public String sleepProblem() { return sleepProblem; }

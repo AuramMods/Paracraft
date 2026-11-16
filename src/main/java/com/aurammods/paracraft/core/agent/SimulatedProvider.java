@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 /** A finite QA script interpreter, explicitly not an LLM or a natural-language capability claim. */
 public final class SimulatedProvider implements InferenceProvider {
     private static final Pattern TRAVEL = Pattern.compile("(?i)\\btravel to (-?\\d+(?:\\.\\d+)?) (-?\\d+(?:\\.\\d+)?) (-?\\d+(?:\\.\\d+)?)\\b");
+    private static final Pattern BEHAVIOR = Pattern.compile("(?i)\\bbehavior (players|mobs) (passive|flee|neutral|aggressive)\\b");
     private static final Set<String> TERMINAL_TASK = Set.of("COMPLETED", "FAILED");
     @Override public String label() { return "SIMULATED — deterministic QA scripts, no AI usage"; }
     @Override public boolean simulated() { return true; }
@@ -36,7 +37,7 @@ public final class SimulatedProvider implements InferenceProvider {
                 if (scriptedAction(text)) return decision(call("think_harder", new JsonObject()));
                 if (lower.contains("hello") || lower.contains("hey") || lower.contains("how's it going"))
                     return say("I'm here. This companion is running the deterministic QA simulator.");
-                return say("Simulation scripts: collect diamonds, progress, pause work, resume work, travel to X Y Z, wait for EVENT, remember KEY=TEXT, personality TEXT, trust UUID, untrust UUID.");
+                return say("Simulation scripts: collect diamonds, progress, pause work, resume work, travel to X Y Z, behavior players|mobs passive|flee|neutral|aggressive, wait for EVENT, remember KEY=TEXT, personality TEXT, trust UUID, untrust UUID.");
             }
             if (task == null) return decision();
             JsonObject job = program(frame, task);
@@ -45,6 +46,11 @@ public final class SimulatedProvider implements InferenceProvider {
             return decision();
         }
         if (chat) {
+            var behavior = BEHAVIOR.matcher(text);
+            if (behavior.find()) {
+                JsonObject patch = new JsonObject(); patch.addProperty(behavior.group(1).toLowerCase(Locale.ROOT),behavior.group(2).toLowerCase(Locale.ROOT));
+                return decision(call("configure_behavior",patch),speech("Server behavior updated."));
+            }
             var travel = TRAVEL.matcher(text);
             if (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find"))) {
                 if (!request.observations().has("inventory")) {
@@ -105,7 +111,7 @@ public final class SimulatedProvider implements InferenceProvider {
         String lower = text.toLowerCase(Locale.ROOT);
         return (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find"))) || TRAVEL.matcher(text).find()
                 || lower.contains("pause work") || lower.contains("resume work") || lower.contains("remember ") || lower.contains("personality ")
-                || lower.contains("wait for ") || lower.contains("trust ");
+                || lower.contains("wait for ") || lower.contains("trust ") || BEHAVIOR.matcher(text).find();
     }
     private static Decision startTask(JsonObject frame, JsonObject task, JsonObject program) {
         List<Call> calls = new ArrayList<>();

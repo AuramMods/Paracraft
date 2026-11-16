@@ -13,5 +13,6 @@ public final class QaServerSettings {
         // alone does not apply these settings. Apply them to the actual runtime.
         event.getServer().getPlayerList().setViewDistance(8);
         event.getServer().getPlayerList().setSimulationDistance(8);
+        event.getServer().setPvpAllowed(true);
     }
 }

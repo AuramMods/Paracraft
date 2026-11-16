@@ -64,6 +64,10 @@ public final class ServerEvents {
         if (!(event.getPlayer() instanceof CompanionPlayer)) avatars(event.getPlayer().server).control().chat(event.getPlayer().getUUID(), event.getRawText());
     }
     @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void breathe(net.minecraftforge.event.entity.living.LivingBreatheEvent event) {
+        if (event.getEntity() instanceof CompanionPlayer actor) actor.recordBreathing(event.canBreathe(), event.canRefillAir());
+    }
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
     public static void damage(net.minecraftforge.event.entity.living.LivingDamageEvent event) {
         if (event.getEntity() instanceof CompanionPlayer actor) {
             var details = new com.google.gson.JsonObject(); details.addProperty("amount", event.getAmount());

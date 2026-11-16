@@ -11,6 +11,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Script QA against a stubbed service; physical inventory behavior is covered separately by GameTests. */
 class SimulatedProviderTest {
+    @Test void behaviorChangeEscalatesAndCannotUseTheLightToolSurface() {
+        Clock clock = new Clock(); Sink sink = new Sink();
+        assertThrows(IllegalArgumentException.class,()->ToolPolicy.validate(InferenceProvider.Route.LIGHT,decision("configure_behavior",json("{\"players\":\"passive\"}"))));
+        try (HarnessLoop loop = new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{})) {
+            loop.accept(frame(chat(1,"Josh, behavior players passive"))); pump(loop); assertTrue(sink.sent.isEmpty());
+            clock.advance(5000); pump(loop);
+            assertEquals(List.of("configure_behavior","chat"),sink.sent.stream().map(Sent::tool).toList());
+            assertEquals("passive",sink.sent.get(0).args().get("players").getAsString()); assertEquals(1,loop.planningCalls());
+        }
+    }
     @Test void socialChatHasASimulationLabelAndIdleInvokesNothing() {
         Clock clock = new Clock(); Sink sink = new Sink();
         try (HarnessLoop loop = new HarnessLoop(BINDING, new AgentState(), new SimulatedProvider(), clock, sink, () -> {})) {

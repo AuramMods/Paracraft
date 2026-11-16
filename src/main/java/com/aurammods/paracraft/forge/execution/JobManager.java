@@ -19,6 +19,7 @@ public final class JobManager {
     private final Map<UUID, UUID> reflexHeld = new HashMap<>();
     public JobManager(AvatarManager avatars) { this.avatars = avatars; }
     public GameJob get(UUID avatar) { return jobs.get(avatar); }
+    public boolean hasUnfinished(UUID avatar) { return requests.getOrDefault(avatar,Map.of()).values().stream().anyMatch(job -> !job.state().terminal()); }
     public GameJob request(UUID avatar, UUID id) { return requests.getOrDefault(avatar, Map.of()).get(id); }
     public List<GameJob> requests(UUID avatar) { return List.copyOf(requests.getOrDefault(avatar, Map.of()).values()); }
     public GameJob submit(UUID sender, UUID avatar, UUID session, GameJob job, boolean replace) {

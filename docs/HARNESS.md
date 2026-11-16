@@ -11,7 +11,7 @@ The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. Thes
 | Route | Available tools |
 | --- | --- |
 | Light | `chat`, `think_harder`, or an empty decision |
-| Planning | `chat`, `observe`, `program`, `resume_program`, `pause_program`, `cancel_program`, `task_upsert`, `task_remove`, `remember`, `forget`, `personality`, `wait`, `trust`, `untrust` |
+| Planning | `chat`, `observe`, `program`, `resume_program`, `pause_program`, `cancel_program`, `task_upsert`, `task_remove`, `remember`, `forget`, `personality`, `wait`, `trust`, `untrust`, `configure_behavior` |
 
 A continuation (`think_harder` or `observe`) must be the sole tool call in a reply. The whole reply is checked before even an otherwise permitted call is applied. Persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
 
@@ -20,6 +20,8 @@ A continuation (`think_harder` or `observe`) must be the sole tool call in a rep
 `HarnessLoop` receives the latest snapshot through `accept` and advances through `tick`. It keeps one inference/effect pipeline per avatar. Every inference start, including escalation and observation continuations, observes the five-second minimum. A slow response holds that pipeline; snapshots arriving meanwhile replace physical state instead of queueing inference requests.
 
 Snapshots are bound to persistent world, owner, and avatar UUIDs. Session changes or a server pause cancel pending futures. Results from an old future cannot be applied, including when a provider ignores cancellation. The turn remains saved for resumption under a valid lease.
+
+Respawn advances a persisted life revision. An unfinished decision from the previous body is discarded instead of submitting its remaining effects under the new lease; durable tasks and an unfinished original chat request remain for fresh planning. Ordinary reconnect within the same life preserves retry/deduplication behavior.
 
 Events have monotonically increasing journal IDs. Repeated/unsorted snapshots do not replay IDs. Pending damage and pickup notifications coalesce by type; they retain the first/latest IDs and occurrence counts, and damage totals where supplied. The newest physical snapshot supplies actual inventory/health. Authorized chat events remain separate with their original text and sender UUID. History-only events (`wake: false`), including outgoing responses, advance history/cursor without waking the model.
 
@@ -60,6 +62,7 @@ It writes a forced temporary file and replaces the destination atomically when t
 | `Josh, remember base=South door` | Planning memory write |
 | `Josh, personality Brief and cheerful` | Planning personality update |
 | `Josh, trust <UUID>` / `Josh, untrust <UUID>` | Planning delegation request; the server must verify owner permission |
+| `Josh, behavior players passive` / `Josh, behavior mobs neutral` | Escalate and update the selected server reaction category; all four documented reactions are supported |
 
 An inactive task remains eligible for automatic later resumption; `pause work` is not a permanent pause. Use an explicit wait or the runtime's owner pause control to suspend polling.
 
@@ -78,6 +81,8 @@ The Forge GameTests also connect the loop and service into an actual Minecraft s
 `ServerControl` runs on the server thread. It records authorized owner/trusted mentions, damage, pickups, outgoing responses, and terminal program results. Name matching is case-insensitive and respects player-name boundaries. The server keeps 256 recent journal events with compacted type counts and a persistent sequence. New effects referring to expired or revoked instruction events fail explicitly. A previously accepted request can return its acknowledgment under a fresh valid owner lease without repeating its effect.
 
 Snapshots include the world binding, session, identity/permissions, physical location/dimension, health, hunger, oxygen, experience, carried/equipped stack data and durability, effects, bed spawn, nearby entities with explicit truncation, execution progress, events, and recent inventory observation receipts. The client adds cognitive context before each provider invocation.
+
+They also include native breathing status, survival mode, reaction/idle settings, current/last mechanical reflex, and patrol progress. `configure_behavior` uses the same authoritative request receipts as other server effects. See [BEHAVIOR.md](BEHAVIOR.md).
 
 An inventory query advances incrementally over exactly the existing nine-chunk search scope, inspecting at most eight block entities per tick. Queries do not replace the running program. Disconnect interrupts an unfinished query; completed receipts survive in avatar NBT and can be acknowledged after reconnect. Search data retains its original timestamps and coverage. A program binds only receipts owned by that avatar; later transfers use actual changed contents and report partial results.
 

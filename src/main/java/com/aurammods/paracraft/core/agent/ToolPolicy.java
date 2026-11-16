@@ -6,7 +6,7 @@ public final class ToolPolicy {
     private ToolPolicy() { }
     private static final Set<String> LIGHT = Set.of("chat", "think_harder");
     private static final Set<String> PLANNING = Set.of("chat", "observe", "program", "resume_program", "pause_program", "cancel_program",
-            "task_upsert", "task_remove", "remember", "forget", "personality", "wait", "trust", "untrust");
+            "task_upsert", "task_remove", "remember", "forget", "personality", "wait", "trust", "untrust", "configure_behavior");
     public static Set<String> allowed(InferenceProvider.Route route) { return route == InferenceProvider.Route.LIGHT ? LIGHT : PLANNING; }
     public static void validate(InferenceProvider.Route route, InferenceProvider.Decision decision) {
         Set<String> allowed = allowed(route);

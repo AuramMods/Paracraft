@@ -42,6 +42,7 @@ final class SnapshotBuilder {
         frame.addProperty("health", actor.getHealth()); frame.addProperty("maxHealth", actor.getMaxHealth()); frame.addProperty("alive", actor.isAlive());
         frame.addProperty("food", actor.getFoodData().getFoodLevel()); frame.addProperty("saturation", actor.getFoodData().getSaturationLevel());
         frame.addProperty("oxygen", actor.getAirSupply()); frame.addProperty("maxOxygen", actor.getMaxAirSupply());
+        frame.addProperty("canBreathe", !actor.needsAir()); frame.addProperty("canRefillAir", actor.canRefillAir());
         frame.addProperty("experienceLevel", actor.experienceLevel); frame.addProperty("experienceProgress", actor.experienceProgress);
         frame.addProperty("selectedSlot", actor.getInventory().selected);
         JsonArray inventory = new JsonArray();

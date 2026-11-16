@@ -50,6 +50,7 @@ public final class RestartGameTests {
         UUID owner = UUID.randomUUID(), request = UUID.randomUUID();
         var entry = manager.spawn(owner, level, new Vec3(3000.5, 80, 3000.5), "RestartQA");
         manager.actor(entry.id).setNoGravity(true); UUID session = entry.authority.session();
+        manager.configureBehavior(owner,entry.id,JsonParser.parseString("{\"players\":\"passive\",\"mobs\":\"flee\",\"idle\":{\"waitTicks\":17,\"waypoints\":[[3000.5,80,3000.5]]}}").getAsJsonObject());
         UUID receipt = UUID.randomUUID();
         JsonObject chat = new JsonObject(); chat.addProperty("message", "[SIMULATED] persisted receipt");
         helper.assertTrue(manager.control().request(owner, entry.id, session, receipt, "chat", chat, 0).join().get("ok").getAsBoolean(),
@@ -80,6 +81,10 @@ public final class RestartGameTests {
         var entry = manager.entry(id);
         helper.assertTrue(manager.worldId().toString().equals(expected.get("worldId").getAsString()), "World binding survives a cold process restart");
         helper.assertTrue(entry != null && entry.authority.session() == null, "Loaded saved avatar without runtime lease");
+        var behavior=entry.control.getAsJsonObject("survival").getAsJsonObject("behavior");
+        helper.assertTrue(behavior.get("players").getAsString().equals("passive") && behavior.get("mobs").getAsString().equals("flee")
+                && behavior.getAsJsonObject("idle").get("waitTicks").getAsInt()==17 && behavior.getAsJsonObject("idle").getAsJsonArray("waypoints").size()==1,
+                "Nondefault reaction categories and idle settings loaded from disk before body reconstruction");
         helper.assertTrue(manager.restoreOwner(owner).isEmpty(), "Loaded actor and execution from world storage");
         helper.assertTrue(manager.actor(id).getInventory().countItem(Items.DIAMOND) == 3, "Actual disk inventory contains collected items");
         helper.assertTrue(count(helper, SOURCE) == 3 && count(helper, DESTINATION) == 0, "Actual persisted containers match the checkpoint");

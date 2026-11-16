@@ -62,6 +62,28 @@ public final class AvatarManager {
     public boolean reflexBusy(UUID avatar) {
         SurvivalController reflex = survival.get(avatar); return reflex != null && reflex.busy();
     }
+    public com.google.gson.JsonObject configureBehavior(UUID owner, UUID avatar, com.google.gson.JsonObject patch) {
+        AvatarEntry entry = owned(owner, avatar);
+        var state = behaviorState(entry);
+        var next = com.aurammods.paracraft.core.BehaviorSettings.merge(state.getAsJsonObject("behavior"),patch);
+        var runtime = survival.get(avatar);
+        if (runtime != null) runtime.configure(next);
+        else {
+            boolean routineChanged=!state.getAsJsonObject("behavior").get("idle").equals(next.get("idle")); state.add("behavior",next);
+            if(routineChanged || !state.has("idle")){var idle = new com.google.gson.JsonObject(); idle.addProperty("state","ready"); idle.addProperty("waypoint",0); idle.addProperty("waitRemaining",0); state.add("idle",idle);}
+        }
+        saved.setDirty(); return next.deepCopy();
+    }
+    public com.google.gson.JsonObject behavior(UUID owner, UUID avatar) { return behaviorState(owned(owner,avatar)).deepCopy(); }
+    private com.google.gson.JsonObject behaviorState(AvatarEntry entry) {
+        if (!entry.control.has("survival")) entry.control.add("survival",new com.google.gson.JsonObject());
+        var state = entry.control.getAsJsonObject("survival");
+        if (!state.has("behavior")) {
+            String dimension = entry.physical.contains("Dimension") ? entry.physical.getString("Dimension") : "minecraft:overworld";
+            state.add("behavior",com.aurammods.paracraft.core.BehaviorSettings.defaults(dimension)); saved.setDirty();
+        }
+        return state;
+    }
 
     public void tickLifecycle() {
         for (var pair : List.copyOf(active.entrySet())) {
@@ -228,6 +250,7 @@ public final class AvatarManager {
         entry.paused = paused;
         if (!paused) entry.control.remove("controllerStatus");
         if (paused) jobs.pause(id); else jobs.resume(id);
+        if (paused && survival.containsKey(id)) survival.get(id).pauseRoutines();
         entry.authority.disconnect();
         if (!paused && active.containsKey(id) && active.get(id).isAlive() && !active.get(id).deathCommitted()) entry.authority.connect();
         saved.setDirty();

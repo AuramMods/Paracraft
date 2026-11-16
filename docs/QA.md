@@ -10,7 +10,7 @@ Select a Java 17 JDK using `JAVA_HOME`, then run from the repository root:
 ./scripts/qa.sh
 ```
 
-The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds its disposable `run/gametest/world` and writes QA-only `server.properties` for seed zero, flat terrain, and no generated structures. The running generator/seed are asserted by a GameTest. This matters because searches include every height in the nine chunks; normal random terrain can otherwise add unrelated loot chests above an arena. The QA-only server-start adapter also sets the actual minimal GameTest player list's view/simulation distances to eight, with runtime assertions. Its zero defaults otherwise leave targets outside the template's forced chunks frozen even though properties specify a distance. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
+The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds its disposable `run/gametest/world` and writes QA-only `server.properties` for seed zero, flat terrain, and no generated structures. The running generator/seed are asserted by a GameTest. This matters because searches include every height in the nine chunks; normal random terrain can otherwise add unrelated loot chests above an arena. The QA-only server-start adapter also sets the actual minimal GameTest player list's view/simulation distances to eight, with runtime assertions, and enables native PvP for player-interaction tests. Its zero distance defaults otherwise leave targets outside the template's forced chunks frozen even though properties specify a distance. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
 
 The GameTest server terminates on completion. To interrupt a foreground run, use Ctrl-C and allow Gradle to terminate the child JVM. No persistent background server is created by this script. A retained interactive QA server will be added with the gameplay scenario.
 
@@ -61,6 +61,8 @@ See [GAMEPLAY.md](GAMEPLAY.md) for program examples and current adapter limits. 
 
 The survival suite adds actual native death/drop/vanishing/experience checks, repeated-death protection, cancellation of current/parked/queued work, normal bed respawn, keep-inventory and broken-bed fallback, saved dead-body restoration, Forge-cancelled rescue, clone/respawn hooks, native brief sleeping/occupancy, initial daytime bed setting/persistence, spawn-hook denial, food use/remainder, rejected food use, disconnect during eating, and owner pause surviving eating completion. The client harness also verifies that a saved unfinished old-body decision is discarded on respawn while tasks/request context remain. See [SURVIVAL.md](SURVIVAL.md) for behavior and verification limits.
 
+The reflex suite exercises an actual roofed water pool with a side exit, sealed-pool search failure and retry spacing, native water-breathing effects, neutral retaliation, passive stop/explicit resume, player fleeing, separate aggressive categories and authority exclusions, and canceled native attacks leaving ordinary work paused. It also connects an actual simulated harness to behavior changes and a repeated physical idle patrol: routine arrivals consume no inference, ordinary travel interrupts it, reconnect preserves progress, and owner pause stops movement. See [BEHAVIOR.md](BEHAVIOR.md) for exact configuration and limits.
+
 ## Current manual controls
 
 The following player commands exist in the foundation build:
@@ -81,6 +83,8 @@ The following player commands exist in the foundation build:
 /paracraft deliver Josh <online-player> minecraft:diamond
 /paracraft job Josh
 /paracraft cancel Josh
+/paracraft behavior Josh
+/paracraft behavior Josh {"players":"flee","mobs":"neutral"}
 /paracraft program Josh {"steps":[{"op":"wait_ticks","ticks":20},{"op":"report_result"}]}
 ```
 
@@ -103,7 +107,7 @@ Return `run/development/logs/latest.log` and notes/screenshots for visual behavi
 
 With Java 17 selected, run `./scripts/restart-qa.sh`. It deletes only its generated `run/restart-qa` workspace, starts one headless writer process, waits for its actual completion, then starts a different reader process against the saved world. It does not reset the world between those two processes.
 
-The writer stops a program after collecting three of six diamonds but before depositing them. The reader must load the avatar/program from world storage, observe three diamonds remaining in the source and three carried, reject the old lease, acknowledge the same request ID, then resume to leave three in the source, three in the destination, and none carried. It also verifies the persisted world UUID and a control-service chat receipt, acknowledging that receipt under the fresh lease without emitting another response event. The marker file stores expected identifiers and the first process ID; it is not used as replacement inventory, receipt, or program state.
+The writer stops a program after collecting three of six diamonds but before depositing them. The reader must load the avatar/program from world storage, observe three diamonds remaining in the source and three carried, reject the old lease, acknowledge the same request ID, then resume to leave three in the source, three in the destination, and none carried. It also verifies the persisted world UUID and a control-service chat receipt, acknowledging that receipt under the fresh lease without emitting another response event. Nondefault player/mob reactions and idle settings must already exist in loaded data before body reconstruction. The marker file stores expected identifiers and the first process ID; it is not used as replacement inventory, receipt, behavior, or program state.
 
 Expected events: `cold_restart_write` and `cold_restart_read`, each with pass status and different process IDs. A zero-test run cannot satisfy the script. Logs to return are `build/qa/restart/write.log` and `build/qa/restart/read.log`; the native second-process log is `run/restart-qa/logs/latest.log`.
 
@@ -124,6 +128,8 @@ For an owner-initiated graphical session:
 9. Destroy through the owner controls in a disposable scenario and inspect carried/equipped item drops. Check that the body does not return on reconnect.
 10. In a separate disposable scenario, create an available bed near a newly spawned companion. Expect an initial attempt to set spawn; daytime can set spawn without sleep. Use a `set_spawn` program to select another bed and inspect the reported result. Check occupied/obstructed beds as well as visible sleeping/waking.
 11. Supply food, let hunger fall, and expect actual eating without inference controlling every tick. Pause ordinary work during eating and confirm eating completion does not resume it. Then deliberately cause a normal death: check drops, bed/fallback respawn, interrupted work, and the new body. Repeat with your server's keep-inventory rules. Do not infer client animations from the automated server tests.
+12. Inspect `/paracraft behavior Josh`, then say `Josh, behavior players passive`. Expect Light escalation and a persisted category change visible in the screen/snapshot. Use a disposable scenario to compare passive, flee, and neutral responses; your server's PvP/claim rules still apply.
+13. Configure an idle patrol using the example in [BEHAVIOR.md](BEHAVIOR.md), replacing coordinates with your actual floor positions. Expect repeated movement without growing inference counts from routine arrivals. Interrupt it with work, pause, and reconnect. Test a safe pool with a surface/side exit to observe oxygen escape; sealed pools can fail and cause death normally.
 
 Return the client and server `logs/latest.log` files, screenshots at problematic GUI scales, and a note for each failed step. Default development-client logs are `run/development/logs/latest.log`; local cognitive files are under that game directory's `paracraft/memory`. Never include credentials. Native client observations have not been supplied yet; passing headless tests does not substitute for these checks.
 
