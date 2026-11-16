@@ -71,7 +71,9 @@ public final class PlayerNavigator implements AutoCloseable {
         }
         while (!path.isDone()) {
             Vec3 node = path.getNextEntityPos(proxy);
-            if (actor.position().distanceTo(node) > 0.5) break;
+            double horizontalReach=actor.getBbWidth()>0.75F?actor.getBbWidth()/2:0.75F-actor.getBbWidth()/2;
+            // Native ground navigation tolerates partial-height support vertically.
+            if(Math.abs(actor.getX()-node.x)>=horizontalReach || Math.abs(actor.getZ()-node.z)>=horizontalReach || Math.abs(actor.getY()-node.y)>=1)break;
             path.advance();
         }
         if (path.isDone()) { path = null; closeVelocity();if(pathOrigin!=null && actor.position().distanceTo(pathOrigin)>0.5)attempts=0;else if(++attempts>1)beginRecovery(destination);return false; }

@@ -20,6 +20,8 @@ Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are avai
 
 [Physical navigation](docs/NAVIGATION.md) includes independent native chunk tracking, basic swimming/ladder/door movement, and local obstacle/bridge/pillar recovery with carried tools and materials.
 
+[Container actions](docs/CONTAINERS.md) support broad collection/delivery and explicit open/take/deposit programs through vanilla inventories and sided Forge item capabilities. Admission at four saved avatars per owner and 64 active per server, plus configurable limits, has native QA coverage.
+
 ## Headless verification
 
 ```sh

@@ -15,7 +15,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     public ForgeOperations(CompanionPlayer actor,Runnable acceptDimension) { this.actor = actor;this.acceptDimension=acceptDimension; }
     @Override public Set<String> operations() {
         return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items",
-                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn", "execute_command", "discover_commands", "use_portal", "search_blocks");
+                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn", "execute_command", "discover_commands", "use_portal", "search_blocks", "open_inventory", "take_items");
     }
     @Override public void validate(JsonObject specification) { OperationSyntax.validate(specification); }
     @Override public ProgramMachine.Operation start(UUID id, JsonObject specification, ProgramMachine.Context context, JsonObject checkpoint) {
@@ -37,6 +37,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     private GameJob create(UUID id, JsonObject spec, ProgramMachine.Context context) {
         String op = spec.get("op").getAsString();
         return switch (op) {
+            case "open_inventory", "take_items" -> new ContainerJob(id,actor,op,spec);
             case "search_blocks" -> new BlockSearchJob(id,actor,spec);
             case "use_portal" -> new PortalJob(id,actor,spec);
             case "execute_command" -> new CommandJob(id,actor,spec);
