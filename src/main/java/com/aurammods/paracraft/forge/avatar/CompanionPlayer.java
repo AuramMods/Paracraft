@@ -29,6 +29,9 @@ public final class CompanionPlayer extends ServerPlayer {
         // Connected players normally receive this tick from their network listener.
         // Our listener has no network loop, so execute it exactly once here instead.
         super.doTick();
+        // A normal connection updates the chunk map after movement. This actor has
+        // no connection tick, so keep its loading/tracking position current here.
+        if (!isRemoved()) serverLevel().getChunkSource().move(this);
     }
 
     private static final class LocalListener extends ServerGamePacketListenerImpl {

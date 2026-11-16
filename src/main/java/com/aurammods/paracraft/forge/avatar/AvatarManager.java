@@ -24,6 +24,8 @@ public final class AvatarManager {
     private final MinecraftServer server;
     private final AvatarSavedData saved;
     private final Map<UUID, CompanionPlayer> active = new HashMap<>();
+    private final com.aurammods.paracraft.forge.execution.JobManager jobs =
+            new com.aurammods.paracraft.forge.execution.JobManager(this);
 
     public AvatarManager(MinecraftServer server) {
         this.server = server;
@@ -35,6 +37,7 @@ public final class AvatarManager {
     public CompanionPlayer actor(UUID id) { return active.get(id); }
     public AvatarEntry entry(UUID id) { return saved.get(id); }
     public int activeCount() { return active.size(); }
+    public com.aurammods.paracraft.forge.execution.JobManager jobs() { return jobs; }
 
     public AvatarEntry spawn(UUID owner, ServerLevel level, Vec3 position, String name) {
         if (!name.matches("[A-Za-z0-9_]{1,16}"))
@@ -78,6 +81,7 @@ public final class AvatarManager {
     public void disconnectOwner(UUID owner) {
         for (AvatarEntry entry : saved.entries()) {
             if (entry.authority.owner().equals(owner)) {
+                jobs.cancel(entry.id, "Owner disconnected");
                 entry.authority.disconnect();
                 CompanionPlayer player = active.get(entry.id);
                 // Closing first returns carried/crafting stacks before the snapshot is saved.
@@ -127,6 +131,7 @@ public final class AvatarManager {
 
     public void destroy(UUID owner, UUID id) {
         AvatarEntry entry = owned(owner, id);
+        jobs.forget(id);
         CompanionPlayer player = active.get(id);
         if (player == null) player = loadPlayer(entry);
         player.closeContainer();
@@ -139,6 +144,7 @@ public final class AvatarManager {
     public void pause(UUID owner, UUID id, boolean paused) {
         AvatarEntry entry = owned(owner, id);
         entry.paused = paused;
+        if (paused) jobs.pause(id); else jobs.resume(id);
         entry.authority.disconnect();
         if (!paused && active.containsKey(id)) entry.authority.connect();
         saved.setDirty();

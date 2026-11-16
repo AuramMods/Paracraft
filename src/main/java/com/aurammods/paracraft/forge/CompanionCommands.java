@@ -65,6 +65,7 @@ public final class CompanionCommands {
                                 });
                             }))));
         }
+        com.aurammods.paracraft.forge.execution.JobCommands.register(root);
         event.getDispatcher().register(root);
     }
 

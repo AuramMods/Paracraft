@@ -37,9 +37,12 @@ public final class ServerEvents {
     }
     @SubscribeEvent
     public static void tick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.END && event.getServer().getTickCount() % 100 == 0) {
+        if (event.phase == TickEvent.Phase.END) {
             AvatarManager manager = MANAGERS.get(event.getServer());
-            if (manager != null) manager.checkpointAll();
+            if (manager != null) {
+                manager.jobs().tick();
+                if (event.getServer().getTickCount() % 100 == 0) manager.checkpointAll();
+            }
         }
     }
     @SubscribeEvent

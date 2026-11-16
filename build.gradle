@@ -47,4 +47,9 @@ tasks.named('processResources', ProcessResources) {
 }
 tasks.named('test', Test) { useJUnitPlatform() }
 tasks.named('jar', Jar) { finalizedBy 'reobfJar' }
+// Every headless suite gets an isolated disposable world. Restart-persistence QA
+// uses a separate server workspace; ordinary GameTests must not inherit old drops.
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doFirst { project.delete(project.layout.projectDirectory.dir('run/gametest/world')) }
+}
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
