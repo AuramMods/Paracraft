@@ -19,6 +19,9 @@ public final class FoundationGameTests {
         helper.assertTrue(helper.getLevel().getSeed() == 0
                 && helper.getLevel().getChunkSource().getGenerator() instanceof net.minecraft.world.level.levelgen.FlatLevelSource,
                 "The running QA world uses seed zero and flat generation");
+        helper.assertTrue(helper.getLevel().getServer().getPlayerList().getViewDistance() == 8
+                && helper.getLevel().getServer().getPlayerList().getSimulationDistance() == 8,
+                "The actual GameTest PlayerList uses the intended view/simulation distance rather than its zero defaults");
         Paracraft.LOG.info("QA_EVT {\"event\":\"deterministic_flat_qa_world\",\"status\":\"pass\"}");
         helper.succeed();
     }

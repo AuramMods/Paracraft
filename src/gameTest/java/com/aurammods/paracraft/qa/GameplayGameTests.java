@@ -260,6 +260,8 @@ public final class GameplayGameTests {
             requireRunning(helper, follow);
             if (follow.state() == JobState.SUCCEEDED && combat[0] == null) {
                 helper.assertTrue(actor.position().distanceTo(start) > 15 && actor.distanceTo(cow) < 2.8, "Follow reacts to the actual moved target");
+                helper.assertTrue(cow.tickCount > 60 && helper.getLevel().isPositionEntityTicking(cow.blockPosition()),
+                        "The moved target receives native entity ticks beyond the GameTest template's forced chunks");
                 combat[0] = submit(manager, owner, entry, "{\"steps\":[{\"op\":\"attack_entity\",\"target\":\"" + cow.getUUID() + "\",\"ticks\":400,\"saveAs\":\"combat\"}]}");
             }
             if (combat[0] == null) return; requireRunning(helper, combat[0]); if (combat[0].state() != JobState.SUCCEEDED) return;

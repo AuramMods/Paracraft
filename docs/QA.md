@@ -10,7 +10,7 @@ Select a Java 17 JDK using `JAVA_HOME`, then run from the repository root:
 ./scripts/qa.sh
 ```
 
-The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds its disposable `run/gametest/world` and writes QA-only `server.properties` for seed zero, flat terrain, and no generated structures. The running generator/seed are asserted by a GameTest. This matters because searches include every height in the nine chunks; normal random terrain can otherwise add unrelated loot chests above an arena. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
+The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds its disposable `run/gametest/world` and writes QA-only `server.properties` for seed zero, flat terrain, and no generated structures. The running generator/seed are asserted by a GameTest. This matters because searches include every height in the nine chunks; normal random terrain can otherwise add unrelated loot chests above an arena. The QA-only server-start adapter also sets the actual minimal GameTest player list's view/simulation distances to eight, with runtime assertions. Its zero defaults otherwise leave targets outside the template's forced chunks frozen even though properties specify a distance. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
 
 The GameTest server terminates on completion. To interrupt a foreground run, use Ctrl-C and allow Gradle to terminate the child JVM. No persistent background server is created by this script. A retained interactive QA server will be added with the gameplay scenario.
 
@@ -32,7 +32,7 @@ The inventory-job suite additionally covers:
 
 The program suite executes search-to-collection-to-delivery through named results, nested partial-result recovery, interrupt/append/explicit-resume, cancellation bypassing catches, syntax rejection before mutation, and reconnect with a pending collection preserved through NBT. The separate restart suite verifies pending transfers, native inventory/chest state, stable request IDs, and stale-session rejection across two real Forge JVMs.
 
-Real client login/logout, rendering, automatic death respawn, and the in-game client runtime remain unverified or incomplete. Server scenarios submit through the same execution service exposed by manual controls. See [PROGRAMS.md](PROGRAMS.md) for program syntax.
+Real client login/logout, rendering, and the in-game client runtime still require native client verification. Server scenarios submit through the same execution service exposed by manual controls. See [PROGRAMS.md](PROGRAMS.md) for program syntax.
 
 The decision-loop core also has deterministic JUnit scenarios with a virtual clock and stubbed server replies. They check five-second routing/continuations, slow-response serialization, forbidden Light tools, session cancellation, coalescing, event/timer waits, on-disk memory, durable pending turns and request IDs, progress without replacement, task interruption/resumption, and returning to idle. See [HARNESS.md](HARNESS.md) for the boundary and scripted grammar.
 
@@ -59,6 +59,8 @@ The gameplay suite uses actual Minecraft operations for:
 
 See [GAMEPLAY.md](GAMEPLAY.md) for program examples and current adapter limits. These checks run headlessly; no visual mining animation, client control, or arbitrary modpack compatibility is inferred from them.
 
+The survival suite adds actual native death/drop/vanishing/experience checks, repeated-death protection, cancellation of current/parked/queued work, normal bed respawn, keep-inventory and broken-bed fallback, saved dead-body restoration, Forge-cancelled rescue, clone/respawn hooks, native brief sleeping/occupancy, initial daytime bed setting/persistence, spawn-hook denial, food use/remainder, rejected food use, disconnect during eating, and owner pause surviving eating completion. The client harness also verifies that a saved unfinished old-body decision is discarded on respawn while tasks/request context remain. See [SURVIVAL.md](SURVIVAL.md) for behavior and verification limits.
+
 ## Current manual controls
 
 The following player commands exist in the foundation build:
@@ -82,9 +84,9 @@ The following player commands exist in the foundation build:
 /paracraft program Josh {"steps":[{"op":"wait_ticks","ticks":20},{"op":"report_result"}]}
 ```
 
-Names use Minecraft player-name syntax and must be unique among saved companions and connected players. A companion UUID can replace its name in commands other than spawn. Only the owner can use these management operations. Trust data is persisted for the upcoming chat harness; it does not give another player management control now. Pausing revokes the control lease while survival ticking continues.
+Names use Minecraft player-name syntax and must be unique among saved companions and connected players. A companion UUID can replace its name in commands other than spawn. Only the owner can use these management operations. Trusted players may instruct through chat but do not gain management control. Pausing revokes the control lease while survival ticking continues.
 
-For a later manual session: spawn Josh, inspect status/list output, disconnect/reconnect to check the saved location, and destroy Josh to inspect inventory drops. Native player-info packets are sent, but appearance and animations remain unverified until a client session is deliberately tested. Automatic bed selection and death respawn remain incomplete; use a disposable world when exploring this prototype.
+For a later manual session: spawn Josh, inspect status/list output, disconnect/reconnect to check the saved location, and destroy Josh to inspect inventory drops. Native player-info packets are sent, but appearance and animations remain unverified until a client session is deliberately tested. Automatic initial bed selection and death respawn run on the server; use a disposable world when exploring the prototype.
 
 To inspect physical inventory work in a later manual session:
 
@@ -120,6 +122,8 @@ For an owner-initiated graphical session:
 7. From a second client, mention Josh before/after the owner grants trust, then revoke trust. Expect only authorized instructions to wake the owner's harness; the other client should not gain owner controls or memory.
 8. Disconnect while Josh is traveling. Expect the body to disappear, then restore at its saved location on reconnect with inventory/task state retained. Confirm it is not moved to the owner's new position and completed transfers are not repeated.
 9. Destroy through the owner controls in a disposable scenario and inspect carried/equipped item drops. Check that the body does not return on reconnect.
+10. In a separate disposable scenario, create an available bed near a newly spawned companion. Expect an initial attempt to set spawn; daytime can set spawn without sleep. Use a `set_spawn` program to select another bed and inspect the reported result. Check occupied/obstructed beds as well as visible sleeping/waking.
+11. Supply food, let hunger fall, and expect actual eating without inference controlling every tick. Pause ordinary work during eating and confirm eating completion does not resume it. Then deliberately cause a normal death: check drops, bed/fallback respawn, interrupted work, and the new body. Repeat with your server's keep-inventory rules. Do not infer client animations from the automated server tests.
 
 Return the client and server `logs/latest.log` files, screenshots at problematic GUI scales, and a note for each failed step. Default development-client logs are `run/development/logs/latest.log`; local cognitive files are under that game directory's `paracraft/memory`. Never include credentials. Native client observations have not been supplied yet; passing headless tests does not substitute for these checks.
 

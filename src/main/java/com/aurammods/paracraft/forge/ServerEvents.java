@@ -40,6 +40,7 @@ public final class ServerEvents {
         if (event.phase == TickEvent.Phase.END) {
             AvatarManager manager = MANAGERS.get(event.getServer());
             if (manager != null) {
+                manager.tickLifecycle();
                 manager.jobs().tick();
                 manager.control().tick();
                 manager.endpoint().tick();

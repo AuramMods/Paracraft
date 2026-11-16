@@ -70,7 +70,8 @@ public final class ServerControl {
         thread(); AvatarEntry entry;
         try {
             entry = avatars.owned(actualOwner, avatar);
-            if (!entry.authority.controls(actualOwner, session) || entry.paused || avatars.actor(avatar) == null)
+            var body = avatars.actor(avatar);
+            if (!entry.authority.controls(actualOwner, session) || entry.paused || body == null || !body.isAlive() || body.isRemoved() || body.deathCommitted())
                 return CompletableFuture.completedFuture(error("AUTHORITY_LOST", "Control session is inactive or stale"));
         } catch (IllegalArgumentException denied) { return CompletableFuture.completedFuture(error("AUTHORITY_LOST", denied.getMessage())); }
         JsonObject signature = new JsonObject(); signature.addProperty("tool", tool); signature.add("arguments", args.deepCopy()); signature.addProperty("trigger", triggerEvent);
@@ -112,7 +113,7 @@ public final class ServerControl {
                 case "resume_program" -> result = avatars.jobs().resumeRequest(actualOwner, avatar, session, UUID.fromString(string(args, "id"))).view();
                 case "pause_program", "cancel_program" -> {
                     GameJob job = args.has("id") ? avatars.jobs().request(avatar, UUID.fromString(string(args, "id"))) : avatars.jobs().get(avatar);
-                    if (job != null) { if (tool.equals("pause_program")) job.pause(); else job.cancel("Cancelled by client harness"); result = job.view(); }
+                    if (job != null) { if (tool.equals("pause_program")) avatars.jobs().pauseRequest(avatar, job.id); else job.cancel("Cancelled by client harness"); result = job.view(); }
                     else result = new JsonObject();
                 }
                 case "chat" -> {

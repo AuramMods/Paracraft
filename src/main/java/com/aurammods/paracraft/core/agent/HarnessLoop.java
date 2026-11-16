@@ -45,6 +45,21 @@ public final class HarnessLoop implements AutoCloseable {
         String nextSession = snapshot.has("session") && !snapshot.get("session").isJsonNull() ? snapshot.get("session").getAsString() : "";
         boolean nextActive = !nextSession.isEmpty() && !snapshot.get("paused").getAsBoolean();
         if (!session.equals(nextSession) || !nextActive) abortFutures();
+        long life = snapshot.has("lifeRevision") ? snapshot.get("lifeRevision").getAsLong() : 0;
+        if (state.lifeRevision != life) {
+            if (state.lifeRevision >= 0) {
+                abortFutures();
+                if (state.turn != null) {
+                    boolean pending = !state.turn.has("calls") || state.turn.get("cursor").getAsInt() < state.turn.getAsJsonArray("calls").size();
+                    JsonObject original = state.turn.getAsJsonObject("trigger");
+                    if (pending && original.get("type").getAsString().equals("chat") && state.inbox.stream().noneMatch(e -> e.get("id").equals(original.get("id")))) state.enqueue(original);
+                    state.turn = null;
+                }
+                state.wakeEvent = ""; state.wakeAtMillis = 0;
+                state.history("lifecycle", "Respawn discarded the previous body's unfinished decision; tasks and original pending chat remain for fresh planning.");
+            }
+            state.lifeRevision = life; save.run();
+        }
         session = nextSession; latest = snapshot.deepCopy(); active = nextActive;
         if (!snapshot.has("events")) return;
         var incoming = new ArrayList<JsonObject>();

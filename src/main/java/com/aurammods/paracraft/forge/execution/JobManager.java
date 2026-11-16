@@ -16,6 +16,7 @@ public final class JobManager {
     private final Map<UUID, GameJob> jobs = new HashMap<>();
     private final Map<UUID, Map<UUID, GameJob>> requests = new HashMap<>();
     private final Map<UUID, ArrayDeque<GameJob>> queues = new HashMap<>();
+    private final Map<UUID, UUID> reflexHeld = new HashMap<>();
     public JobManager(AvatarManager avatars) { this.avatars = avatars; }
     public GameJob get(UUID avatar) { return jobs.get(avatar); }
     public GameJob request(UUID avatar, UUID id) { return requests.getOrDefault(avatar, Map.of()).get(id); }
@@ -54,6 +55,8 @@ public final class JobManager {
     private void authorize(UUID sender, UUID avatar, UUID session) {
         var entry = avatars.owned(sender, avatar);
         if (!entry.authority.controls(sender, session) || entry.paused) throw new IllegalArgumentException("Control session is inactive or stale");
+        var body = avatars.actor(avatar);
+        if (body == null || !body.isAlive() || body.isRemoved() || body.deathCommitted() || body.isSpectator()) throw new IllegalStateException("Avatar is not an active living participant");
     }
     public GameJob resumeRequest(UUID sender, UUID avatar, UUID session, UUID id) {
         authorize(sender, avatar, session);
@@ -68,22 +71,37 @@ public final class JobManager {
     public void tick() {
         for (var entry : List.copyOf(jobs.entrySet())) {
             UUID avatar = entry.getKey(); GameJob current = entry.getValue();
+            if (avatars.reflexBusy(avatar)) { holdForReflex(avatar); continue; }
+            UUID held = reflexHeld.remove(avatar); var owner = avatars.entry(avatar);
+            if (current.id.equals(held) && current.state() == JobState.PAUSED && owner != null
+                    && !owner.paused && owner.authority.session() != null) current.resume();
             current.tick();
-            var queue = queues.get(avatar); var owner = avatars.entry(avatar);
+            var queue = queues.get(avatar);
             if (current.state() == JobState.SUCCEEDED && queue != null && !queue.isEmpty() && owner != null && !owner.paused
                     && avatars.actor(avatar) != null && owner.authority.session() != null) {
                 GameJob next = queue.remove(); next.resume(); jobs.put(avatar, next);
             }
         }
     }
-    public void pause(UUID avatar) { var job = jobs.get(avatar); if (job != null) job.pause(); }
+    public void holdForReflex(UUID avatar) {
+        var job = jobs.get(avatar);
+        if (job != null && job.state() == JobState.RUNNING) { job.pause(); reflexHeld.put(avatar, job.id); }
+    }
+    public void pause(UUID avatar) { reflexHeld.remove(avatar); var job = jobs.get(avatar); if (job != null) job.pause(); }
+    public void pauseRequest(UUID avatar, UUID request) { reflexHeld.remove(avatar, request); var job = request(avatar, request); if (job != null) job.pause(); }
     public void resume(UUID avatar) { var job = jobs.get(avatar); if (job != null) job.resume(); }
     private void cancelQueue(UUID avatar, String reason) {
         var queue = queues.remove(avatar); if (queue != null) queue.forEach(job -> job.cancel(reason));
     }
-    public void cancel(UUID avatar, String reason) { var job = jobs.get(avatar); if (job != null) job.cancel(reason); cancelQueue(avatar, reason); }
+    public void cancel(UUID avatar, String reason) { reflexHeld.remove(avatar); var job = jobs.get(avatar); if (job != null) job.cancel(reason); cancelQueue(avatar, reason); }
+    public void cancelAll(UUID avatar, String reason) {
+        reflexHeld.remove(avatar);
+        requests.getOrDefault(avatar, Map.of()).values().forEach(job -> job.cancel(reason));
+        queues.remove(avatar);
+    }
     public void unbind(UUID avatar) { pause(avatar); jobs.remove(avatar); requests.remove(avatar); queues.remove(avatar); }
     public void forget(UUID avatar) {
+        reflexHeld.remove(avatar);
         for (GameJob job : requests.getOrDefault(avatar, Map.of()).values()) job.cancel("Avatar destroyed");
         jobs.remove(avatar); requests.remove(avatar); queues.remove(avatar);
     }

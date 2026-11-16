@@ -10,14 +10,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.block.state.BlockState;
 
-final class CarriedItems {
+public final class CarriedItems {
     private CarriedItems() { }
     static int find(CompanionPlayer actor, ItemSelector selector) {
         if (selector.matches(actor.getMainHandItem())) return actor.getInventory().selected;
         for (int i = 0; i < actor.getInventory().items.size(); i++) if (selector.matches(actor.getInventory().getItem(i))) return i;
         throw new IllegalStateException("No carried item matches " + selector.expression());
     }
-    static void select(CompanionPlayer actor, int slot) {
+    public static void select(CompanionPlayer actor, int slot) {
         var inventory = actor.getInventory();
         if (slot < 9) inventory.selected = slot;
         else {

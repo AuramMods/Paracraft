@@ -10,6 +10,7 @@ public final class OperationSyntax {
     public static void validate(JsonObject spec) {
         String op = string(spec, "op");
         switch (op) {
+            case "set_spawn" -> com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("bed"));
             case "travel" -> coordinates(spec);
             case "search_containers", "collect_items" -> {
                 string(spec, "item");

@@ -16,6 +16,7 @@ public final class AgentState {
     final List<JsonObject> inbox = new ArrayList<>();
     JsonObject turn;
     long eventCursor, cycleCounter, lastInferenceMillis;
+    long lifeRevision = -1;
     boolean paused;
     String lastError = "";
     public String personality = "Helpful, practical companion.";
@@ -87,6 +88,7 @@ public final class AgentState {
         JsonObject value = context(); value.addProperty("schema", 1); value.addProperty("eventCursor", eventCursor); value.addProperty("cycleCounter", cycleCounter);
         value.addProperty("lastInferenceMillis", lastInferenceMillis); value.addProperty("wakeAtMillis", wakeAtMillis); value.addProperty("wakeEvent", wakeEvent);
         value.addProperty("paused", paused); value.addProperty("lastError", lastError);
+        value.addProperty("lifeRevision", lifeRevision);
         value.addProperty("lightModel", lightModel); value.addProperty("lightEffort", lightEffort);
         value.addProperty("planningModel", planningModel); value.addProperty("planningEffort", planningEffort);
         if (turn != null) value.add("turn", turn.deepCopy());
@@ -100,6 +102,7 @@ public final class AgentState {
         state.history = value.getAsJsonArray("history").deepCopy(); state.historyCounts = value.getAsJsonObject("compactedHistoryCounts").deepCopy();
         state.eventCursor = value.get("eventCursor").getAsLong(); state.cycleCounter = value.get("cycleCounter").getAsLong();
         state.lastInferenceMillis = value.get("lastInferenceMillis").getAsLong();
+        state.lifeRevision = value.has("lifeRevision") ? value.get("lifeRevision").getAsLong() : -1;
         state.paused = value.get("paused").getAsBoolean(); state.lastError = value.get("lastError").getAsString();
         state.wakeAtMillis = value.get("wakeAtMillis").getAsLong(); state.wakeEvent = value.get("wakeEvent").getAsString();
         state.lightModel = required(value, "lightModel"); state.lightEffort = required(value, "lightEffort");

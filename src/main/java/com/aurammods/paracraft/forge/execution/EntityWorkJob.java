@@ -43,6 +43,9 @@ public final class EntityWorkJob extends GameJob {
         float before = living.getHealth(); actor.attack(living); actor.swing(InteractionHand.MAIN_HAND); sinceAttack = 0; attempts++;
         if (living.getHealth() < before || !living.isAlive()) { hits++; refused = 0; } else refused++;
         result.addProperty("attempts", attempts); result.addProperty("hits", hits); result.addProperty("targetHealth", living.getHealth());
+        result.addProperty("targetEntityTicks", living.tickCount); result.addProperty("targetInvulnerableTicks", living.invulnerableTime);
+        result.addProperty("targetHurtTicks", living.hurtTime); result.addProperty("targetOnGround", living.onGround());
+        result.addProperty("actorAttackDamage", actor.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE));
         if (refused >= 10) throw new IllegalStateException("Ten native attack attempts caused no observable damage");
     }
     @Override protected void onStop() { equipped = false; }

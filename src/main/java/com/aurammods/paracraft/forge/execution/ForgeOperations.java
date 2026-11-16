@@ -13,7 +13,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     public ForgeOperations(CompanionPlayer actor) { this.actor = actor; }
     @Override public Set<String> operations() {
         return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items",
-                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity");
+                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn");
     }
     @Override public void validate(JsonObject specification) { OperationSyntax.validate(specification); }
     @Override public ProgramMachine.Operation start(UUID id, JsonObject specification, ProgramMachine.Context context, JsonObject checkpoint) {
@@ -36,6 +36,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
         String op = spec.get("op").getAsString();
         return switch (op) {
             case "travel" -> new TravelJob(id, actor, JobJson.vector(spec.get("destination")));
+            case "set_spawn" -> new BedSpawnJob(id, actor, JobJson.position(spec.get("bed")));
             case "search_containers" -> { checkScope(spec); yield new SearchJob(id, actor, new ItemSelector(spec.get("item").getAsString())); }
             case "collect_items" -> {
                 checkScope(spec);

@@ -16,6 +16,37 @@ import java.util.Set;
 
 /** Real survival player, ticked by its level; it has no socket or authenticated account. */
 public final class CompanionPlayer extends ServerPlayer {
+    private boolean insideDeath, deathCommitted;
+    private String sleepProblem = "";
+    public String sleepProblem() { return sleepProblem; }
+    public void clearSleepProblem() { sleepProblem = ""; }
+    @Override public com.mojang.datafixers.util.Either<net.minecraft.world.entity.player.Player.BedSleepingProblem, net.minecraft.util.Unit>
+            startSleepInBed(net.minecraft.core.BlockPos position) {
+        var response = super.startSleepInBed(position);
+        sleepProblem = response.left().map(Enum::name).orElse(""); return response;
+    }
+    public boolean deathCommitted() { return deathCommitted; }
+
+    @Override public void die(net.minecraft.world.damagesource.DamageSource source) {
+        if (deathCommitted) return;
+        // Return cursor/crafting items before the native death-loot path sees the inventory.
+        closeContainer();
+        insideDeath = true;
+        try { super.die(source); }
+        finally { insideDeath = false; }
+    }
+    @Override public void setLastDeathLocation(java.util.Optional<net.minecraft.core.GlobalPos> location) {
+        super.setLastDeathLocation(location);
+        // ServerPlayer reaches this native completion point only after an uncancelled
+        // death, including its loot, XP, Forge hooks, and death statistics.
+        if (insideDeath) deathCommitted = true;
+    }
+    @Override public void addAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+        super.addAdditionalSaveData(tag); tag.putBoolean("ParacraftDeathCommitted", deathCommitted);
+    }
+    @Override public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
+        super.readAdditionalSaveData(tag); deathCommitted = tag.getBoolean("ParacraftDeathCommitted");
+    }
     private final java.util.Set<java.util.function.Consumer<net.minecraft.world.item.ItemStack>> pickupObservers = new java.util.HashSet<>();
     public Runnable observePickups(java.util.function.Consumer<net.minecraft.world.item.ItemStack> observer) {
         pickupObservers.add(observer); return () -> pickupObservers.remove(observer);

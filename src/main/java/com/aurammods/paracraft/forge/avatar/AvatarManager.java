@@ -26,6 +26,7 @@ public final class AvatarManager {
     private final com.aurammods.paracraft.forge.control.ServerControl control;
     private final com.aurammods.paracraft.forge.control.ControlEndpoint endpoint;
     private final Map<UUID, CompanionPlayer> active = new HashMap<>();
+    private final Map<UUID, SurvivalController> survival = new HashMap<>();
     private final com.aurammods.paracraft.forge.execution.JobManager jobs =
             new com.aurammods.paracraft.forge.execution.JobManager(this);
 
@@ -47,7 +48,8 @@ public final class AvatarManager {
     public com.aurammods.paracraft.forge.control.ControlEndpoint endpoint() { return endpoint; }
     public void renewController(UUID owner) {
         for (AvatarEntry entry : saved.entries()) if (entry.authority.owner().equals(owner) && active.containsKey(entry.id)) {
-            jobs.pause(entry.id); entry.authority.disconnect(); if (!entry.paused) entry.authority.connect();
+            jobs.pause(entry.id); entry.authority.disconnect();
+            if (!entry.paused && active.get(entry.id).isAlive() && !active.get(entry.id).deathCommitted()) entry.authority.connect();
         }
         saved.setDirty();
     }
@@ -57,6 +59,55 @@ public final class AvatarManager {
         }
     }
     public com.aurammods.paracraft.forge.execution.JobManager jobs() { return jobs; }
+    public boolean reflexBusy(UUID avatar) {
+        SurvivalController reflex = survival.get(avatar); return reflex != null && reflex.busy();
+    }
+
+    public void tickLifecycle() {
+        for (var pair : List.copyOf(active.entrySet())) {
+            AvatarEntry entry = saved.get(pair.getKey()); CompanionPlayer body = pair.getValue();
+            if (body.deathCommitted()) {
+                if (!entry.control.has("lifecycle") || !entry.control.getAsJsonObject("lifecycle").get("state").getAsString().equals("dead")) {
+                    survival.get(entry.id).onDeath(); jobs.cancelAll(entry.id, "Avatar died"); entry.authority.disconnect();
+                    var death = new com.google.gson.JsonObject(); death.addProperty("state", "dead");
+                    death.addProperty("dimension", body.serverLevel().dimension().location().toString());
+                    death.add("position", com.aurammods.paracraft.forge.execution.JobJson.vector(body.position()));
+                    death.addProperty("keepInventory", body.level().getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_KEEPINVENTORY));
+                    entry.control.add("lifecycle", death); control.event(entry.id, "death", death); checkpoint(entry);
+                }
+                if (body.deathTime >= 20) respawn(entry, body);
+            } else if (body.isAlive() && !body.isRemoved()) survival.get(entry.id).tick();
+        }
+    }
+
+    private void respawn(AvatarEntry entry, CompanionPlayer old) {
+        var spawnLevel = server.getLevel(old.getRespawnDimension()); var bed = old.getRespawnPosition();
+        var location = spawnLevel != null && bed != null ? net.minecraft.world.entity.player.Player.findRespawnPositionAndUseSpawnBlock(
+                spawnLevel, bed, old.getRespawnAngle(), old.isRespawnForced(), false) : java.util.Optional.<Vec3>empty();
+        ServerLevel destination = location.isPresent() ? spawnLevel : server.overworld();
+        var execution = jobs.checkpoint(entry.id); jobs.unbind(entry.id); detach(entry.id);
+        CompanionPlayer fresh = new CompanionPlayer(destination, old.getGameProfile());
+        fresh.restoreFrom(old, false); fresh.setId(old.getId()); fresh.setMainArm(old.getMainArm()); old.getTags().forEach(fresh::addTag);
+        if (location.isPresent()) {
+            Vec3 point = location.get(); float angle = old.getRespawnAngle(); var state = destination.getBlockState(bed);
+            if (state.is(net.minecraft.tags.BlockTags.BEDS) || state.is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR)) {
+                Vec3 away = Vec3.atBottomCenterOf(bed).subtract(point).normalize();
+                angle = (float)net.minecraft.util.Mth.wrapDegrees(Math.toDegrees(Math.atan2(away.z, away.x)) - 90);
+            }
+            fresh.moveTo(point.x, point.y, point.z, angle, 0);
+            fresh.setRespawnPosition(destination.dimension(), bed, old.getRespawnAngle(), old.isRespawnForced(), false);
+        }
+        while (!destination.noCollision(fresh) && fresh.getY() < destination.getMaxBuildHeight()) fresh.setPos(fresh.getX(), fresh.getY() + 1, fresh.getZ());
+        if (server.isHardcore()) fresh.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+        entry.control.addProperty("lifeRevision", entry.control.has("lifeRevision") ? entry.control.get("lifeRevision").getAsLong() + 1 : 1);
+        entry.execution = execution; attach(entry, fresh, true);
+        var result = new com.google.gson.JsonObject(); result.addProperty("state", "alive"); result.addProperty("usedSpawnBlock", location.isPresent());
+        result.addProperty("invalidSpawnBlock", bed != null && location.isEmpty()); result.addProperty("dimension", destination.dimension().location().toString());
+        result.add("position", com.aurammods.paracraft.forge.execution.JobJson.vector(fresh.position()));
+        entry.control.add("lifecycle", result);
+        net.minecraftforge.event.ForgeEventFactory.firePlayerRespawnEvent(fresh, false);
+        control.event(entry.id, "respawn", result); checkpoint(entry);
+    }
 
     public AvatarEntry spawn(UUID owner, ServerLevel level, Vec3 position, String name) {
         if (!name.matches("[A-Za-z0-9_]{1,16}"))
@@ -78,14 +129,18 @@ public final class AvatarManager {
     }
 
     private void attach(AvatarEntry entry, CompanionPlayer player) {
+        attach(entry, player, false);
+    }
+    private void attach(AvatarEntry entry, CompanionPlayer player, boolean respawn) {
         server.getPlayerList().broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player)));
-        player.serverLevel().addNewPlayer(player);
+        if (respawn) player.serverLevel().addRespawnedPlayer(player); else player.serverLevel().addNewPlayer(player);
         if (player.serverLevel().getEntity(player.getUUID()) != player) {
             server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
             throw new IllegalStateException("Avatar spawn was rejected by the world");
         }
         active.put(entry.id, player);
-        if (!entry.paused) entry.authority.connect();
+        survival.put(entry.id, new SurvivalController(this, entry, player));
+        if (!entry.paused && player.isAlive() && !player.deathCommitted()) entry.authority.connect();
         jobs.restore(entry.id, entry.execution);
     }
 
@@ -108,6 +163,7 @@ public final class AvatarManager {
                 jobs.pause(entry.id);
                 entry.authority.disconnect();
                 CompanionPlayer player = active.get(entry.id);
+                SurvivalController reflex = survival.get(entry.id); if (reflex != null) reflex.close();
                 // Closing first returns carried/crafting stacks before the snapshot is saved.
                 if (player != null) player.closeContainer();
                 checkpoint(entry);
@@ -118,6 +174,7 @@ public final class AvatarManager {
     }
 
     private void detach(UUID id) {
+        SurvivalController reflex = survival.remove(id); if (reflex != null) reflex.close();
         CompanionPlayer player = active.remove(id);
         if (player == null) return;
         player.closeContainer();
@@ -172,7 +229,7 @@ public final class AvatarManager {
         if (!paused) entry.control.remove("controllerStatus");
         if (paused) jobs.pause(id); else jobs.resume(id);
         entry.authority.disconnect();
-        if (!paused && active.containsKey(id)) entry.authority.connect();
+        if (!paused && active.containsKey(id) && active.get(id).isAlive() && !active.get(id).deathCommitted()) entry.authority.connect();
         saved.setDirty();
     }
 

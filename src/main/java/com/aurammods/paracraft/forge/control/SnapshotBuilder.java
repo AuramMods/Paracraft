@@ -21,9 +21,12 @@ final class SnapshotBuilder {
         frame.add("operations", operations);
         frame.addProperty("worldId", avatars.worldId().toString()); frame.addProperty("ownerId", entry.authority.owner().toString());
         frame.addProperty("avatarId", entry.id.toString()); frame.addProperty("name", entry.name); frame.addProperty("paused", entry.paused);
+        frame.addProperty("lifeRevision", control.has("lifeRevision") ? control.get("lifeRevision").getAsLong() : 0);
         if (entry.authority.session() != null) frame.addProperty("session", entry.authority.session().toString());
         frame.add("events", control.getAsJsonArray("events").deepCopy()); frame.add("compactedEvents", control.getAsJsonObject("compactedEvents").deepCopy());
         if (control.has("controllerStatus")) frame.add("controllerStatus", control.get("controllerStatus").deepCopy());
+        if (control.has("survival")) frame.add("survival", control.get("survival").deepCopy());
+        if (control.has("lifecycle")) frame.add("lifecycle", control.get("lifecycle").deepCopy());
         JsonArray programs = new JsonArray(); avatars.jobs().requests(entry.id).forEach(job -> programs.add(job.view())); frame.add("programs", programs);
         JsonArray trusted = new JsonArray(); entry.authority.trusted().stream().sorted().forEach(p -> trusted.add(p.toString())); frame.add("trustedPlayers", trusted);
         JsonArray observations = new JsonArray();

@@ -14,6 +14,7 @@ public final class JobCodec {
         UUID id = UUID.fromString(checkpoint.get("id").getAsString());
         String type = checkpoint.get("type").getAsString(); JsonObject data = checkpoint.getAsJsonObject("data");
         GameJob job = switch (type) {
+            case "set_spawn" -> new BedSpawnJob(id, actor, JobJson.position(data.get("bed")));
             case "travel" -> new TravelJob(id, actor, JobJson.vector(data.get("destination")));
             case "search_containers" -> new SearchJob(id, actor, new ItemSelector(data.getAsJsonObject("search").get("selector").getAsString()));
             case "collect_items" -> new CollectJob(id, actor, new ItemSelector(data.get("selector").getAsString()), data.get("quantity").getAsLong());

@@ -9,6 +9,27 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HarnessLoopTest {
+    @Test void respawnDiscardsDurableOldBodyEffectsButRetainsRequestAndTasksForFreshPlanning() {
+        Clock clock = new Clock(); Provider provider = new Provider(clock); Sink sink = new Sink(); AgentState state = new AgentState();
+        state.mutate("task_upsert", json("{\"id\":\"gather\",\"goal\":\"finish gathering\",\"status\":\"INACTIVE\"}"));
+        var lostAck = new Uncancellable<JsonObject>(); sink.reply = ignored -> lostAck;
+        provider.answer = request -> CompletableFuture.completedFuture(decision("chat", json("{\"message\":\"old body decision\"}")));
+        try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, sink, () -> {})) {
+            JsonObject before = frame(chat(1, "Josh, gather diamonds")); before.addProperty("lifeRevision", 0); loop.accept(before); pump(loop);
+            assertEquals(1, sink.sent.size()); assertNotNull(state.turn);
+        }
+        AgentState restored = AgentState.load(state.save()); assertEquals(0, restored.lifeRevision);
+        provider.answer = ignored -> CompletableFuture.completedFuture(new InferenceProvider.Decision(List.of())); clock.advance(10_000);
+        try (HarnessLoop loop = new HarnessLoop(BINDING, restored, provider, clock, sink, () -> {})) {
+            JsonObject after = frame(chat(1, "Josh, gather diamonds"), event(2, "respawn")); after.addProperty("lifeRevision", 1); after.addProperty("session", "new-body-lease");
+            loop.accept(after); lostAck.complete(ok(new JsonObject())); pump(loop);
+            assertEquals(1, sink.sent.size(), "Old body's pending effect must not be retried under the new lease");
+            var replanned = provider.requests.get(provider.requests.size() - 1);
+            assertEquals(InferenceProvider.Route.LIGHT, replanned.route()); assertEquals(1, replanned.trigger().get("id").getAsInt());
+            assertEquals(1, replanned.snapshot().get("lifeRevision").getAsLong()); assertTrue(restored.hasWork());
+            assertEquals(1, AgentState.load(restored.save()).lifeRevision);
+        }
+    }
     @Test void slowInferenceNeverOverlapsAndEscalationRetainsRequestButUsesFreshPhysicalState() {
         Clock clock = new Clock(); Provider provider = new Provider(clock); Sink sink = new Sink();
         CompletableFuture<InferenceProvider.Decision> slow = new CompletableFuture<>();
