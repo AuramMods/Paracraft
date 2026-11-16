@@ -15,6 +15,10 @@ final class SnapshotBuilder {
     private SnapshotBuilder() { }
     static JsonObject build(AvatarManager avatars, AvatarEntry entry, JsonObject control) {
         JsonObject frame = new JsonObject(); frame.addProperty("schema", 1);
+        JsonArray operations = new JsonArray();
+        // Capabilities are adapter-owned; a provider cannot invent executable operations.
+        new com.aurammods.paracraft.forge.execution.ForgeOperations(avatars.actor(entry.id)).operations().stream().sorted().forEach(operations::add);
+        frame.add("operations", operations);
         frame.addProperty("worldId", avatars.worldId().toString()); frame.addProperty("ownerId", entry.authority.owner().toString());
         frame.addProperty("avatarId", entry.id.toString()); frame.addProperty("name", entry.name); frame.addProperty("paused", entry.paused);
         if (entry.authority.session() != null) frame.addProperty("session", entry.authority.session().toString());

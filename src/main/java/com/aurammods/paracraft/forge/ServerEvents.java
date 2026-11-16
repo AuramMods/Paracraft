@@ -73,6 +73,7 @@ public final class ServerEvents {
     @SubscribeEvent
     public static void pickup(PlayerEvent.ItemPickupEvent event) {
         if (event.getEntity() instanceof CompanionPlayer actor) {
+            actor.recordPickup(event.getStack());
             var details = new com.google.gson.JsonObject(); details.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(event.getStack().getItem()).toString());
             details.addProperty("count", event.getStack().getCount()); avatars(actor.server).control().event(actor.getUUID(), "pickup", details);
         }

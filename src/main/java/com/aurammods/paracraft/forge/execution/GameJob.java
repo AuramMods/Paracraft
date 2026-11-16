@@ -27,9 +27,8 @@ public abstract class GameJob {
     public JsonObject result() { return result.deepCopy(); }
     public final void tick() {
         if (state != JobState.RUNNING) return;
-        if (!actor.isAlive() || actor.isRemoved()) { cancel("Avatar died or was removed"); return; }
-        if (!allowsDimensionChange() && actor.serverLevel().dimension() != dimension) { cancel("Avatar changed dimension"); return; }
-        try { advance(); }
+        if (invalidateControl()) return;
+        try { advance(); invalidateControl(); }
         catch (IllegalStateException | IllegalArgumentException failure) { fail(failure.getMessage()); }
         catch (RuntimeException failure) {
             Paracraft.LOG.error("Unexpected error in {} job {}", type, id, failure);
@@ -37,6 +36,15 @@ public abstract class GameJob {
         }
     }
     protected abstract void advance();
+    private boolean invalidateControl() {
+        String reason = !actor.isAlive() || actor.isRemoved() ? "Avatar died or was removed"
+                : !allowsDimensionChange() && actor.serverLevel().dimension() != dimension ? "Avatar changed dimension" : null;
+        if (reason == null) return false;
+        // A native hook can change life/dimension during this tick's indivisible action.
+        // Preserve its actual result, but stop the program before any catch/next action.
+        if (state.terminal() && state != JobState.CANCELLED) state = JobState.RUNNING;
+        cancel(reason); return true;
+    }
     protected boolean allowsDimensionChange() { return false; }
     protected boolean navigate(Vec3 target, double reach) {
         if (actor.position().distanceTo(target) <= reach) { stopMoving(); return true; }
@@ -47,10 +55,11 @@ public abstract class GameJob {
     protected void stopMoving() {
         if (navigator != null) { navigator.close(); navigator = null; }
     }
-    protected void succeed(JsonObject result) { this.result = result; state = JobState.SUCCEEDED; phase = "complete"; stopMoving(); actor.closeContainer(); }
-    protected void fail(String error) { this.error = error; state = JobState.FAILED; phase = "failed"; stopMoving(); actor.closeContainer(); }
-    public void cancel(String reason) { if (state.terminal()) return; error = reason; state = JobState.CANCELLED; phase = "cancelled"; stopMoving(); actor.closeContainer(); }
-    public void pause() { if (state == JobState.RUNNING) { state = JobState.PAUSED; stopMoving(); actor.closeContainer(); onPause(); } }
+    protected void succeed(JsonObject result) { this.result = result; if (invalidateControl()) return; state = JobState.SUCCEEDED; phase = "complete"; stopMoving(); onStop(); actor.closeContainer(); }
+    protected void fail(String error) { if (invalidateControl()) return; this.error = error; state = JobState.FAILED; phase = "failed"; stopMoving(); onStop(); actor.closeContainer(); }
+    public void cancel(String reason) { if (state.terminal()) return; error = reason; state = JobState.CANCELLED; phase = "cancelled"; stopMoving(); onStop(); actor.closeContainer(); }
+    public void pause() { if (state == JobState.RUNNING) { state = JobState.PAUSED; stopMoving(); onStop(); actor.closeContainer(); onPause(); } }
+    protected void onStop() { }
     protected void onPause() { }
     public void resume() { if (state == JobState.PAUSED || state == JobState.QUEUED) state = JobState.RUNNING; }
     public void enqueue() { state = JobState.QUEUED; }

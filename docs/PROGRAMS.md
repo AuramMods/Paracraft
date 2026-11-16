@@ -1,10 +1,10 @@
 # Structured action programs
 
-Programs execute server-side through the same jobs used by manual controls. They contain finite sequences and nested recovery blocks, not executable Java, shell commands, or scripts in another language. The simulated provider already produces this schema in headless service scenarios; Forge client transport is pending.
+Programs execute server-side through the same jobs used by manual controls. They contain finite sequences and nested recovery blocks, not executable Java, shell commands, or scripts in another language. The simulated provider produces this schema through the wired client harness; native client connection/visual checks remain unverified.
 
 ## Submission and identity
 
-Use `/paracraft program <companion> <json>` as the owner. `JobManager.submitProgram` checks owner and current control-session ID. The client-facing `ServerControl` service additionally checks instruction provenance/revocation, request content identity, and server observation receipts. Trusted-player service routing is implemented; connected-client transport remains pending.
+Use `/paracraft program <companion> <json>` as the owner. `JobManager.submitProgram` checks owner and current control-session ID. The client-facing `ServerControl` service additionally checks instruction provenance/revocation, request content identity, and server observation receipts. Forge transport derives its owner from the native connection; actual TCP/client verification remains pending.
 
 An optional `schema` is currently `1`. Supply a stable UUID in `id` to retry a request safely; if omitted, the manual command generates one and reports it. Reusing an accepted ID acknowledges its existing state/result and does not execute another copy, including after save/reconnect or a clean server restart. `taskId` associates the program with an intention; the server does not mark that intention complete automatically.
 
@@ -48,6 +48,14 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `report_failure` | Returns the current caught failure, including partial results |
 | `fail` | Optional `message`; explicit ordinary failure, useful for QA/recovery paths |
 | `rethrow` | Propagates the current caught failure to an outer handler |
+| `mine_blocks` | `block`, `blocks`, or `cuboid`; native tool selection, timed breaking, pickup ledger |
+| `place_blocks` | `placements` with `position` and `item`; physical placement and actual consumption |
+| `farm` | Same target forms as mining, optional `plant`; mature crop harvest/pickup/replant |
+| `equip` | `item`, `slot`; native armor/offhand rules or main-hand selection |
+| `follow` | `target` entity UUID, optional `distance`/`ticks`; moving-target following |
+| `attack_entity` | Living `target` UUID, optional `distance`/`ticks`; basic native melee |
+
+See [GAMEPLAY.md](GAMEPLAY.md) for the block target forms, detailed examples, result semantics, protection/persistence checks, and current adapter limits.
 
 Items accept registry IDs or `#tags`. A supplied inventory `scope` must currently be `{ "kind": "neighbor_chunks", "radius": 1 }`. `containersFrom` refers to a prior search result, avoiding another scan; its dimension, selector, original coverage, and timestamps stay explicit. Collection and transfer operations still resolve the real inventory and its rules when executing.
 

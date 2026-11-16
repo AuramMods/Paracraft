@@ -21,6 +21,10 @@ public final class JobCodec {
             case "deliver_items" -> new DeliverJob(id, actor, UUID.fromString(data.get("recipient").getAsString()), JobJson.stacks(data.getAsJsonArray("remaining")));
             case "wait_ticks" -> new WaitJob(id, actor, data.get("remaining").getAsLong());
             case "program" -> new ProgramJob(id, actor, data.getAsJsonObject("machine").getAsJsonObject("program"));
+            case "mine_blocks", "farm" -> new BlockWorkJob(id, actor, type, data.getAsJsonObject("specification"));
+            case "place_blocks" -> new PlaceBlocksJob(id, actor, data.getAsJsonArray("placements"));
+            case "equip" -> new EquipJob(id, actor, data.get("item").getAsString(), data.get("slot").getAsString());
+            case "follow", "attack_entity" -> new EntityWorkJob(id, actor, type, UUID.fromString(data.get("target").getAsString()), data.get("distance").getAsDouble(), data.get("duration").getAsLong());
             case "chat", "report_result", "report_failure", "fail" -> new ImmediateJob(id, actor, data.getAsJsonObject("specification"),
                     new ProgramMachine.Context(data.getAsJsonObject("results"), data.has("caught") ? data.getAsJsonObject("caught") : null));
             default -> throw new IllegalArgumentException("Unsupported saved operation: " + type);

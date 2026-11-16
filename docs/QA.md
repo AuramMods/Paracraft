@@ -47,6 +47,18 @@ These checks use actual Minecraft state through an in-process client/service bri
 
 The client transport suite additionally runs the actual coordinator with local JSON files through native Minecraft custom-payload constructors and Forge buffer codecs. It forces multi-fragment snapshots with valid large item metadata, asks for progress, marks gathering inactive for a real travel program, resumes the same gathering request, delivers the items, and remains idle across heartbeat polls. It verifies native-sender authority and controller expiry after a missed heartbeat. Its clock is virtual and its endpoint delivery is in-process; it does not simulate a real TCP login.
 
+The gameplay suite uses actual Minecraft operations for:
+
+- Single/list/cuboid mining, effective tool selection and wear, real drop pickup/ledger delivery, and disconnect/NBT/body restoration between blocks.
+- Pause/resume/cancel with the Forge start/abort lifecycle and no delayed destruction; wrong tool tiers, canceled left clicks/breaks, and full inventories preserving world drops.
+- Death state raised inside a native break hook canceling the program before catches or later instructions.
+- Placement cursor restoration and native canceled-place rollback of world and item changes.
+- Mature-crop harvest/pickup/replant with actual seed conservation and skipped immature crops.
+- Native armor/offhand slots, invalid-slot rejection, binding curses, already-equipped acknowledgment, and protected attacks.
+- Following a moved entity, native melee cooldown/damage/durability, and bare-hand combat.
+
+See [GAMEPLAY.md](GAMEPLAY.md) for program examples and current adapter limits. These checks run headlessly; no visual mining animation, client control, or arbitrary modpack compatibility is inferred from them.
+
 ## Current manual controls
 
 The following player commands exist in the foundation build:

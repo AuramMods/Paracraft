@@ -13,7 +13,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     public ForgeOperations(CompanionPlayer actor) { this.actor = actor; }
     @Override public Set<String> operations() {
         return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items",
-                "chat", "report_result", "report_failure", "fail", "wait_ticks");
+                "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity");
     }
     @Override public void validate(JsonObject specification) { OperationSyntax.validate(specification); }
     @Override public ProgramMachine.Operation start(UUID id, JsonObject specification, ProgramMachine.Context context, JsonObject checkpoint) {
@@ -53,6 +53,11 @@ public final class ForgeOperations implements ProgramMachine.Factory {
                 yield new DeliverJob(id, actor, UUID.fromString(recipient), JobJson.stacks(items.getAsJsonArray("acquiredStacks")));
             }
             case "wait_ticks" -> new WaitJob(id, actor, spec.get("ticks").getAsLong());
+            case "mine_blocks", "farm" -> new BlockWorkJob(id, actor, op, spec);
+            case "place_blocks" -> new PlaceBlocksJob(id, actor, spec.getAsJsonArray("placements"));
+            case "equip" -> new EquipJob(id, actor, spec.get("item").getAsString(), spec.get("slot").getAsString());
+            case "follow", "attack_entity" -> new EntityWorkJob(id, actor, op, UUID.fromString(spec.get("target").getAsString()),
+                    spec.has("distance") ? spec.get("distance").getAsDouble() : 2.0, spec.has("ticks") ? spec.get("ticks").getAsLong() : 0);
             case "chat", "report_result", "report_failure", "fail" -> new ImmediateJob(id, actor, spec, context);
             default -> throw new IllegalArgumentException("Unsupported operation: " + op);
         };

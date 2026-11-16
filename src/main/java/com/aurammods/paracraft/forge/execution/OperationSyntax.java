@@ -31,6 +31,28 @@ public final class OperationSyntax {
                 UUID.fromString(recipient);
             }
             case "wait_ticks" -> integer(spec, "ticks");
+            case "mine_blocks", "farm" -> {
+                new com.aurammods.paracraft.core.program.BlockTargets(spec);
+                if (spec.has("plant")) string(spec, "plant");
+            }
+            case "place_blocks" -> {
+                if (!spec.has("placements") || !spec.get("placements").isJsonArray()) throw new IllegalArgumentException("placements must be an array");
+                for (var element : spec.getAsJsonArray("placements")) {
+                    JsonObject placement = element.getAsJsonObject(); string(placement, "item");
+                    com.aurammods.paracraft.core.program.BlockTargets.position(placement.get("position"));
+                }
+            }
+            case "equip" -> {
+                string(spec, "item");
+                if (!java.util.Set.of("mainhand", "offhand", "head", "chest", "legs", "feet").contains(string(spec, "slot")))
+                    throw new IllegalArgumentException("Unknown equipment slot");
+            }
+            case "follow", "attack_entity" -> {
+                UUID.fromString(string(spec, "target")); if (spec.has("ticks")) integer(spec, "ticks");
+                if (spec.has("distance") && (!spec.get("distance").isJsonPrimitive() || !spec.getAsJsonPrimitive("distance").isNumber()
+                        || !Double.isFinite(spec.get("distance").getAsDouble()) || spec.get("distance").getAsDouble() < 0.5))
+                    throw new IllegalArgumentException("distance must be finite and at least 0.5");
+            }
             case "chat" -> string(spec, "text");
             case "fail" -> { if (spec.has("message")) string(spec, "message"); }
             case "report_result", "report_failure" -> { }

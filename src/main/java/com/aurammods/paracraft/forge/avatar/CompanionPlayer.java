@@ -16,6 +16,13 @@ import java.util.Set;
 
 /** Real survival player, ticked by its level; it has no socket or authenticated account. */
 public final class CompanionPlayer extends ServerPlayer {
+    private final java.util.Set<java.util.function.Consumer<net.minecraft.world.item.ItemStack>> pickupObservers = new java.util.HashSet<>();
+    public Runnable observePickups(java.util.function.Consumer<net.minecraft.world.item.ItemStack> observer) {
+        pickupObservers.add(observer); return () -> pickupObservers.remove(observer);
+    }
+    public void recordPickup(net.minecraft.world.item.ItemStack stack) {
+        if (!stack.isEmpty()) for (var observer : java.util.List.copyOf(pickupObservers)) observer.accept(stack.copy());
+    }
     public CompanionPlayer(ServerLevel level, GameProfile profile) {
         super(level.getServer(), level, profile);
         connection = new LocalListener(this);
