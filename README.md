@@ -2,7 +2,7 @@
 
 Server-owned Minecraft companions with a client-owned decision harness. Initial target: Forge 1.20.1, Java 17.
 
-Implementation is in progress. See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), and [QA instructions](docs/QA.md). Authentication and live AI usage are not connected; the planned foundation provider is explicitly simulated.
+Implementation is in progress. See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), and [QA instructions](docs/QA.md). Authentication and live AI usage are not connected; the planned foundation provider is explicitly simulated.
 
 ## Build
 

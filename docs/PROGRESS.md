@@ -14,9 +14,9 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 | Area | Required work |
 | --- | --- |
 | Avatar | Client rendering verification, actor compatibility beyond the tested vanilla interactions, validated capacity limits |
-| Lifecycle | Real client login/logout verification, restart restoration, death/bed respawn, command interruption and item-drop edge cases |
+| Lifecycle | Real client login/logout verification, death/bed respawn, further command interruption and item-drop edge cases; pending execution now survives tested orderly process restart |
 | Observations | Full client snapshots/events, block/entity queries, further inventory compatibility; basic nine-chunk inventory search is implemented |
-| Execution | Nested recovery interpreter, persisted program checkpoints/request results, following and broader terrain recovery; basic travel/collection/deposit/delivery jobs are implemented |
+| Execution | Following, additional gameplay operations and broader terrain recovery; structured programs and persisted execution/request results are implemented |
 | Harness | Client transport, simulated provider, Light/planning routes, cadence, tasks, waits, memory/personality/history |
 | Authority | Owner/trusted chat instructions, delegation, normal player command execution and delayed outcomes |
 | Gameplay | Mining, farming, combat/reflexes, equipment, placement, chunk traversal, explicit dimension travel, idle routines |
@@ -42,3 +42,13 @@ Live authentication and actual AI usage are outside this foundation goal and rem
 - Headless QA now resets only its disposable `run/gametest/world` before each suite; the development server workspace is separate. Added original generated arena fixtures and their reproducible generator.
 - Validation: `./scripts/qa.sh` succeeded with two JUnit tests and all eleven required Forge GameTests passing. The delivery test verified twelve acquired diamonds reached the recipient while three pre-existing diamonds stayed with the actor, over more than twenty blocks of measured movement and chunk-boundary tracking. Freshness, pause/resume, source conservation, server-hook denial, request deduplication, and command serialization passed. The 67,113-byte mod JAR excludes test code and fixtures. No graphical client was launched.
 - This cycle does not yet supply the client inference harness, a full action-program interpreter, persisted job recovery, universal mod compatibility, or terrain construction/navigation recovery.
+
+## Cycle 4: Structured programs and durable recovery
+
+- Added a Minecraft-independent interpreter with bounded work, deterministic action IDs, named/partial results, nested try/catch, rethrow, and cancellation that bypasses recovery. Syntax is validated before execution; dynamic world conditions remain operation-time checks.
+- Connected structured programs to the native search, collection, delivery, deposit, travel, report/chat, and wait jobs. Search observations feed collection without a second scan; collection ledgers feed delivery without including pre-existing belongings.
+- Added append, replace, interrupt, and explicit resume-by-ID. Failed execution does not advance appended work. Interrupted requests remain selectable, and existing IDs acknowledge persisted results instead of replaying operations.
+- Added execution checkpoints to avatar NBT, including pending operation progress, queues, error scopes, and named results. Disconnect pauses/saves/unbinds jobs; restoration binds new runtime objects to the new physical body and awaits explicit resumption.
+- Added `/paracraft program`, [program documentation](PROGRAMS.md), and a separate two-process headless restart runner. The restart workspace is distinct from normal GameTests and the development world.
+- Validation: the normal suite passed seventeen required Minecraft GameTests and eight JUnit tests. The restart runner passed one actual writer assertion in JVM 61984 and one actual reader assertion in JVM 62147: pending collection resumed from disk without repeating extraction, old control tokens were invalid, and the accepted request ID was retained. These are orderly-restart/service-path checks, not proof of real client connections or arbitrary cross-mod crash transactions.
+- Client inference routing, snapshots/transport/UI, tasks/memory, remaining gameplay/reflexes, and broader avatar compatibility/capacity validation remain required before foundation completion.

@@ -6,7 +6,7 @@ import com.aurammods.paracraft.forge.inventory.ItemSelector;
 import java.util.UUID;
 
 public final class SearchJob extends GameJob {
-    private final InventorySearch search;
+    private InventorySearch search;
     public SearchJob(UUID id, CompanionPlayer actor, ItemSelector selector) {
         super(id, "search_containers", actor);
         search = new InventorySearch(actor.serverLevel(), actor.chunkPosition(), selector);
@@ -16,4 +16,8 @@ public final class SearchJob extends GameJob {
         search.tick(); result = search.result();
         if (search.done()) succeed(search.result());
     }
+    @Override protected com.google.gson.JsonObject writeData() {
+        var value = new com.google.gson.JsonObject(); value.add("search", search.checkpoint()); return value;
+    }
+    @Override protected void readData(com.google.gson.JsonObject data) { search = InventorySearch.restore(actor.serverLevel(), data.getAsJsonObject("search")); }
 }

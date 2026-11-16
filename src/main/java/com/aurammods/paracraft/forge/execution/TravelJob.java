@@ -12,4 +12,5 @@ public final class TravelJob extends GameJob {
         phase = "traveling";
         if (navigate(destination, 0.7)) succeed(new JsonObject());
     }
+    @Override protected JsonObject writeData() { JsonObject value = new JsonObject(); value.add("destination", JobJson.vector(destination)); return value; }
 }

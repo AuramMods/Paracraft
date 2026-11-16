@@ -47,4 +47,11 @@ public final class DeliverJob extends GameJob {
         }
         if (!found) throw new IllegalStateException("Acquired items are no longer in the avatar inventory");
     }
+    @Override protected JsonObject writeData() {
+        JsonObject value = new JsonObject(); value.addProperty("recipient", recipient.toString());
+        value.add("remaining", JobJson.stacks(remaining)); value.addProperty("delivered", delivered); return value;
+    }
+    @Override protected void readData(JsonObject value) {
+        remaining.clear(); remaining.addAll(JobJson.stacks(value.getAsJsonArray("remaining"))); delivered = value.get("delivered").getAsLong();
+    }
 }

@@ -14,6 +14,7 @@ public final class AvatarEntry {
     public final ControlAuthority authority;
     public boolean paused;
     public CompoundTag physical = new CompoundTag();
+    public com.google.gson.JsonObject execution = new com.google.gson.JsonObject();
 
     public AvatarEntry(UUID id, UUID owner, String name) {
         this.id = id;
@@ -28,6 +29,7 @@ public final class AvatarEntry {
         tag.putString("name", name);
         tag.putBoolean("paused", paused);
         tag.put("physical", physical.copy());
+        tag.putByteArray("execution", execution.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         ListTag trusted = new ListTag();
         authority.trusted().forEach(p -> trusted.add(StringTag.valueOf(p.toString())));
         tag.put("trusted", trusted);
@@ -38,6 +40,8 @@ public final class AvatarEntry {
         AvatarEntry entry = new AvatarEntry(tag.getUUID("id"), tag.getUUID("owner"), tag.getString("name"));
         entry.paused = tag.getBoolean("paused");
         entry.physical = tag.getCompound("physical").copy();
+        if (tag.contains("execution", Tag.TAG_BYTE_ARRAY)) entry.execution = com.google.gson.JsonParser.parseString(
+                new String(tag.getByteArray("execution"), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
         ListTag trusted = tag.getList("trusted", Tag.TAG_STRING);
         for (int i = 0; i < trusted.size(); i++) entry.authority.trust(UUID.fromString(trusted.getString(i)));
         // Runtime control sessions are deliberately never restored from disk.

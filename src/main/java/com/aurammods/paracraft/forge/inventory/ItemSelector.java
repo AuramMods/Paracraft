@@ -14,6 +14,7 @@ public record ItemSelector(String expression) {
         ResourceLocation key = ResourceLocation.tryParse(id);
         if (key == null || (!expression.startsWith("#") && !ForgeRegistries.ITEMS.containsKey(key)))
             throw new IllegalArgumentException("Unknown item selector: " + expression);
+        expression = (expression.startsWith("#") ? "#" : "") + key;
     }
     public boolean matches(ItemStack stack) {
         if (stack.isEmpty()) return false;

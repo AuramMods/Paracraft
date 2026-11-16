@@ -26,8 +26,10 @@ minecraft {
         client {}
         server { args '--nogui' }
         gameTestServer {
-            workingDirectory project.file('run/gametest')
-            property 'forge.enabledGameTestNamespaces', 'paracraft'
+            def restartPhase = providers.gradleProperty('restartPhase').getOrElse('')
+            workingDirectory project.file(restartPhase ? 'run/restart-qa' : 'run/gametest')
+            property 'forge.enabledGameTestNamespaces', restartPhase ? 'paracraft_restart' : 'paracraft'
+            property 'paracraft.qa.restartPhase', restartPhase
             mods { paracraft { source sourceSets.gameTest } }
         }
     }
@@ -50,6 +52,8 @@ tasks.named('jar', Jar) { finalizedBy 'reobfJar' }
 // Every headless suite gets an isolated disposable world. Restart-persistence QA
 // uses a separate server workspace; ordinary GameTests must not inherit old drops.
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
-    doFirst { project.delete(project.layout.projectDirectory.dir('run/gametest/world')) }
+    doFirst {
+        if (!project.hasProperty('restartPhase')) project.delete(project.layout.projectDirectory.dir('run/gametest/world'))
+    }
 }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

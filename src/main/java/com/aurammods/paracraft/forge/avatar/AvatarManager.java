@@ -66,12 +66,14 @@ public final class AvatarManager {
         }
         active.put(entry.id, player);
         if (!entry.paused) entry.authority.connect();
+        jobs.restore(entry.id, entry.execution);
     }
 
     public void checkpoint(AvatarEntry entry) {
         CompanionPlayer player = active.get(entry.id);
         if (player != null) {
             entry.physical = player.saveWithoutId(new CompoundTag());
+            entry.execution = jobs.checkpoint(entry.id);
             saved.setDirty();
         }
     }
@@ -81,12 +83,13 @@ public final class AvatarManager {
     public void disconnectOwner(UUID owner) {
         for (AvatarEntry entry : saved.entries()) {
             if (entry.authority.owner().equals(owner)) {
-                jobs.cancel(entry.id, "Owner disconnected");
+                jobs.pause(entry.id);
                 entry.authority.disconnect();
                 CompanionPlayer player = active.get(entry.id);
                 // Closing first returns carried/crafting stacks before the snapshot is saved.
                 if (player != null) player.closeContainer();
                 checkpoint(entry);
+                jobs.unbind(entry.id);
                 detach(entry.id);
             }
         }

@@ -76,4 +76,43 @@ public final class InventorySearch {
         for (ChunkPos pos : positions) { JsonArray pair = new JsonArray(); pair.add(pos.x); pair.add(pos.z); array.add(pair); }
         return array;
     }
+    public JsonObject checkpoint() {
+        JsonObject value = result(); value.add("pendingChunks", encode(new ArrayList<>(chunks)));
+        JsonArray pendingBlocks = new JsonArray(), identities = new JsonArray();
+        for (BlockPos pos : blocks) pendingBlocks.add(com.aurammods.paracraft.forge.execution.JobJson.position(pos));
+        for (BlockPos pos : seen) identities.add(com.aurammods.paracraft.forge.execution.JobJson.position(pos));
+        value.add("pendingBlocks", pendingBlocks); value.add("seen", identities); return value;
+    }
+    public static InventorySearch restore(ServerLevel level, JsonObject saved) {
+        if (!level.dimension().location().toString().equals(saved.get("dimension").getAsString()))
+            throw new IllegalStateException("Inventory search belongs to another dimension");
+        InventorySearch search = new InventorySearch(level,
+                new ChunkPos(saved.get("centerChunkX").getAsInt(), saved.get("centerChunkZ").getAsInt()),
+                new ItemSelector(saved.get("selector").getAsString()));
+        search.chunks.clear();
+        decodeChunks(saved.getAsJsonArray("pendingChunks"), search.chunks);
+        decodeChunks(saved.getAsJsonArray("coveredChunks"), search.covered);
+        decodeChunks(saved.getAsJsonArray("missingChunks"), search.missing);
+        for (var e : saved.getAsJsonArray("pendingBlocks")) search.blocks.add(com.aurammods.paracraft.forge.execution.JobJson.position(e));
+        for (var e : saved.getAsJsonArray("seen")) search.seen.add(com.aurammods.paracraft.forge.execution.JobJson.position(e));
+        for (var e : saved.getAsJsonArray("containers")) search.matches.add(decodeMatch(e.getAsJsonObject()));
+        search.observedAt = saved.get("observedAt").getAsLong(); return search;
+    }
+    public static InventorySearch fromObservation(ServerLevel level, JsonObject observation) {
+        JsonObject saved = observation.deepCopy(); saved.add("pendingChunks", new JsonArray());
+        saved.add("pendingBlocks", new JsonArray()); saved.add("seen", new JsonArray());
+        return restore(level, saved);
+    }
+    private static void decodeChunks(JsonArray values, java.util.Collection<ChunkPos> target) {
+        for (var e : values) { var a = e.getAsJsonArray(); target.add(new ChunkPos(a.get(0).getAsInt(), a.get(1).getAsInt())); }
+    }
+    public static JsonObject encodeMatch(Match match) {
+        JsonObject value = new JsonObject(); value.addProperty("x", match.position().getX()); value.addProperty("y", match.position().getY());
+        value.addProperty("z", match.position().getZ()); value.addProperty("count", match.count());
+        value.addProperty("countCertain", match.countCertain()); value.addProperty("observedAt", match.observedAt()); return value;
+    }
+    public static Match decodeMatch(JsonObject value) {
+        return new Match(new BlockPos(value.get("x").getAsInt(), value.get("y").getAsInt(), value.get("z").getAsInt()),
+                value.get("count").getAsLong(), value.get("countCertain").getAsBoolean(), value.get("observedAt").getAsLong());
+    }
 }

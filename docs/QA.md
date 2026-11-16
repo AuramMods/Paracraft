@@ -30,7 +30,9 @@ The inventory-job suite additionally covers:
 - A retried old collection request acknowledging its existing result after a newer job, without extracting twice or replacing the newer job.
 - Native command-tree serialization/deserialization including Paracraft's custom argument type.
 
-Real client login/logout, rendering, automatic death respawn, the client decision loop, and the chat-to-Light-to-planning diamond workflow remain unverified or incomplete. The physical inventory scenario currently submits jobs directly through the same server service exposed by manual controls.
+The program suite executes search-to-collection-to-delivery through named results, nested partial-result recovery, interrupt/append/explicit-resume, cancellation bypassing catches, syntax rejection before mutation, and reconnect with a pending collection preserved through NBT. The separate restart suite verifies pending transfers, native inventory/chest state, stable request IDs, and stale-session rejection across two real Forge JVMs.
+
+Real client login/logout, rendering, automatic death respawn, the client decision loop, and the chat-to-Light-to-planning diamond workflow remain unverified or incomplete. Server scenarios submit through the same execution service exposed by manual controls. See [PROGRAMS.md](PROGRAMS.md) for program syntax.
 
 ## Current manual controls
 
@@ -52,6 +54,7 @@ The following player commands exist in the foundation build:
 /paracraft deliver Josh <online-player> minecraft:diamond
 /paracraft job Josh
 /paracraft cancel Josh
+/paracraft program Josh {"steps":[{"op":"wait_ticks","ticks":20},{"op":"report_result"}]}
 ```
 
 Names use Minecraft player-name syntax and must be unique among saved companions and connected players. A companion UUID can replace its name in commands other than spawn. Only the owner can use these management operations. Trust data is persisted for the upcoming chat harness; it does not give another player management control now. Pausing revokes the control lease while survival ticking continues.
@@ -65,9 +68,17 @@ To inspect physical inventory work in a later manual session:
 3. Run `/paracraft collect Josh minecraft:diamond`. Expect physical travel and collection, with progress visible through `/paracraft job Josh`.
 4. Use pause/resume during a trip; expect movement to stop and the same job to continue on resume. An explicit new manual job replaces the previous one; reading status does not.
 5. Run the deliver command to drop all currently carried matching items at that player's feet, or deposit a quantity in a chosen chest. The lower-level delivery API also accepts a precise collection ledger, as exercised by the automated scenario.
-6. Cancel an operation or disconnect. Expect current movement to stop and inventory to be conserved. In-flight jobs are cancelled on disconnect; durable program resumption is upcoming work.
+6. Cancel an operation or disconnect. Expect current movement to stop and inventory to be conserved. Disconnect saves pending execution and restores it paused on reconnect; explicitly resume it using its request ID or the resume command. Cancelling is terminal and never runs a catch.
 
 Return `run/development/logs/latest.log` and notes/screenshots for visual behavior. Do not infer UI/rendering success from the headless checks. To regenerate original NBT fixtures after editing their dimensions, run `python3 scripts/generate-test-templates.py`; the empty fixture has no floor and the arena's template floor sits one block above its structure-block origin.
+
+## Fresh-process recovery QA
+
+With Java 17 selected, run `./scripts/restart-qa.sh`. It deletes only its generated `run/restart-qa` workspace, starts one headless writer process, waits for its actual completion, then starts a different reader process against the saved world. It does not reset the world between those two processes.
+
+The writer stops a program after collecting three of six diamonds but before depositing them. The reader must load the avatar/program from world storage, observe three diamonds remaining in the source and three carried, reject the old lease, acknowledge the same request ID, then resume to leave three in the source, three in the destination, and none carried. The marker file stores expected identifiers and the first process ID; it is not used as replacement inventory or program state.
+
+Expected events: `cold_restart_write` and `cold_restart_read`, each with pass status and different process IDs. A zero-test run cannot satisfy the script. Logs to return are `build/qa/restart/write.log` and `build/qa/restart/read.log`; the native second-process log is `run/restart-qa/logs/latest.log`.
 
 ## Visual checks
 

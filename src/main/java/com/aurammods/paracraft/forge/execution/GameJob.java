@@ -17,14 +17,18 @@ public abstract class GameJob {
     protected String phase = "starting", error = "";
     protected JsonObject result = new JsonObject();
     private PlayerNavigator navigator;
+    private final net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension;
 
-    protected GameJob(UUID id, String type, CompanionPlayer actor) { this.id = id; this.type = type; this.actor = actor; }
+    protected GameJob(UUID id, String type, CompanionPlayer actor) {
+        this.id = id; this.type = type; this.actor = actor; this.dimension = actor.serverLevel().dimension();
+    }
     public CompanionPlayer actor() { return actor; }
     public JobState state() { return state; }
     public JsonObject result() { return result.deepCopy(); }
     public final void tick() {
         if (state != JobState.RUNNING) return;
         if (!actor.isAlive() || actor.isRemoved()) { cancel("Avatar died or was removed"); return; }
+        if (!allowsDimensionChange() && actor.serverLevel().dimension() != dimension) { cancel("Avatar changed dimension"); return; }
         try { advance(); }
         catch (IllegalStateException | IllegalArgumentException failure) { fail(failure.getMessage()); }
         catch (RuntimeException failure) {
@@ -33,6 +37,7 @@ public abstract class GameJob {
         }
     }
     protected abstract void advance();
+    protected boolean allowsDimensionChange() { return false; }
     protected boolean navigate(Vec3 target, double reach) {
         if (actor.position().distanceTo(target) <= reach) { stopMoving(); return true; }
         if (navigator == null) navigator = new PlayerNavigator(actor);
@@ -47,7 +52,25 @@ public abstract class GameJob {
     public void cancel(String reason) { if (state.terminal()) return; error = reason; state = JobState.CANCELLED; phase = "cancelled"; stopMoving(); actor.closeContainer(); }
     public void pause() { if (state == JobState.RUNNING) { state = JobState.PAUSED; stopMoving(); actor.closeContainer(); onPause(); } }
     protected void onPause() { }
-    public void resume() { if (state == JobState.PAUSED) state = JobState.RUNNING; }
+    public void resume() { if (state == JobState.PAUSED || state == JobState.QUEUED) state = JobState.RUNNING; }
+    public void enqueue() { state = JobState.QUEUED; }
+    protected JsonObject writeData() { return new JsonObject(); }
+    protected void readData(JsonObject data) { }
+    public final JsonObject checkpoint() {
+        JsonObject value = view(); value.addProperty("schema", 1); value.addProperty("dimension", dimension.location().toString());
+        value.add("data", writeData()); return value;
+    }
+    public final void restore(JsonObject checkpoint) {
+        if (checkpoint.get("schema").getAsInt() != 1 || !id.toString().equals(checkpoint.get("id").getAsString())
+                || !type.equals(checkpoint.get("type").getAsString())) throw new IllegalArgumentException("Incompatible job checkpoint");
+        JobState restoredState = JobState.valueOf(checkpoint.get("state").getAsString());
+        if (!restoredState.terminal() && !dimension.location().toString().equals(checkpoint.get("dimension").getAsString()))
+            throw new IllegalStateException("Saved operation belongs to another dimension");
+        state = restoredState;
+        if (state == JobState.RUNNING) state = JobState.PAUSED;
+        phase = checkpoint.get("phase").getAsString(); error = checkpoint.get("error").getAsString();
+        result = checkpoint.getAsJsonObject("result").deepCopy(); readData(checkpoint.getAsJsonObject("data"));
+    }
     public JsonObject view() {
         JsonObject value = new JsonObject();
         value.addProperty("id", id.toString()); value.addProperty("type", type); value.addProperty("state", state.name());

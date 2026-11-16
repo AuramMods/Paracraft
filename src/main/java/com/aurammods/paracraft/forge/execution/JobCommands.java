@@ -17,6 +17,7 @@ import java.util.UUID;
 public final class JobCommands {
     private JobCommands() { }
     public static void register(LiteralArgumentBuilder<CommandSourceStack> root) {
+        ProgramCommands.register(root);
         for (String command : new String[]{"search", "collect"}) {
             root.then(Commands.literal(command).then(Commands.argument("companion", StringArgumentType.word())
                     .then(Commands.argument("item", new ItemSelectorArgument()).executes(ctx -> run(ctx, (entry, actor) -> {
@@ -74,7 +75,7 @@ public final class JobCommands {
             owner.sendSystemMessage(Component.literal("Started " + job.type + " " + job.id)); return 1;
         } catch (IllegalArgumentException | IllegalStateException failure) { ctx.getSource().sendFailure(Component.literal(failure.getMessage())); return 0; }
     }
-    private static AvatarEntry find(CommandContext<CommandSourceStack> ctx, AvatarManager manager, UUID owner) {
+    static AvatarEntry find(CommandContext<CommandSourceStack> ctx, AvatarManager manager, UUID owner) {
         String name = StringArgumentType.getString(ctx, "companion");
         return manager.entries().stream().filter(e -> e.authority.owner().equals(owner)
                 && (e.name.equalsIgnoreCase(name) || e.id.toString().equals(name))).findFirst()

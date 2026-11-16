@@ -17,7 +17,7 @@ import java.util.UUID;
 public final class CollectJob extends GameJob {
     private final ItemSelector selector;
     private final long quantity;
-    private final InventorySearch search;
+    private InventorySearch search;
     private List<InventorySearch.Match> sources;
     private final List<ItemStack> acquired = new ArrayList<>();
     private long count, fromSource, requested;
@@ -32,6 +32,10 @@ public final class CollectJob extends GameJob {
         search = new InventorySearch(actor.serverLevel(), actor.chunkPosition(), selector);
     }
     public List<ItemStack> acquired() { return acquired.stream().map(ItemStack::copy).toList(); }
+    public void useObservation(JsonObject observation) {
+        if (!selector.expression().equals(observation.get("selector").getAsString())) throw new IllegalArgumentException("Search result selects a different item");
+        search = InventorySearch.fromObservation(actor.serverLevel(), observation);
+    }
     @Override protected void onPause() { opened = false; }
     @Override protected void advance() {
         if (sources == null) {
@@ -80,5 +84,19 @@ public final class CollectJob extends GameJob {
         JsonArray stacks = new JsonArray();
         for (ItemStack stack : acquired) stacks.add(stack.save(new net.minecraft.nbt.CompoundTag()).toString());
         result.add("acquiredStacks", stacks);
+    }
+    @Override protected JsonObject writeData() {
+        JsonObject value = new JsonObject(); value.addProperty("selector", selector.expression()); value.addProperty("quantity", quantity);
+        value.add("search", search.checkpoint()); value.add("acquiredStacks", JobJson.stacks(acquired));
+        value.addProperty("count", count); value.addProperty("fromSource", fromSource); value.addProperty("requested", requested); value.addProperty("visited", visited);
+        if (sources != null) { JsonArray list = new JsonArray(); sources.forEach(source -> list.add(InventorySearch.encodeMatch(source))); value.add("sources", list); }
+        return value;
+    }
+    @Override protected void readData(JsonObject data) {
+        search = InventorySearch.restore(actor.serverLevel(), data.getAsJsonObject("search"));
+        acquired.clear(); acquired.addAll(JobJson.stacks(data.getAsJsonArray("acquiredStacks")));
+        count = data.get("count").getAsLong(); fromSource = data.get("fromSource").getAsLong(); requested = data.get("requested").getAsLong(); visited = data.get("visited").getAsInt();
+        if (data.has("sources")) { sources = new ArrayList<>(); for (var e : data.getAsJsonArray("sources")) sources.add(InventorySearch.decodeMatch(e.getAsJsonObject())); }
+        opened = false;
     }
 }

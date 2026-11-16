@@ -28,4 +28,9 @@ public final class DepositJob extends GameJob {
         if (moved == 0) fail("Destination refused remaining items or avatar has insufficient matching items");
     }
     @Override protected void onPause() { opened = false; }
+    @Override protected com.google.gson.JsonObject writeData() {
+        var value = new com.google.gson.JsonObject(); value.add("destination", JobJson.position(destination));
+        value.addProperty("selector", selector.expression()); value.addProperty("quantity", quantity); value.addProperty("deposited", deposited); return value;
+    }
+    @Override protected void readData(com.google.gson.JsonObject value) { deposited = value.get("deposited").getAsInt(); opened = false; }
 }
