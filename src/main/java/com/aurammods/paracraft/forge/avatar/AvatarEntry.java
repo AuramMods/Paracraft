@@ -15,6 +15,7 @@ public final class AvatarEntry {
     public boolean paused;
     public CompoundTag physical = new CompoundTag();
     public com.google.gson.JsonObject execution = new com.google.gson.JsonObject();
+    public com.google.gson.JsonObject control = new com.google.gson.JsonObject();
 
     public AvatarEntry(UUID id, UUID owner, String name) {
         this.id = id;
@@ -30,6 +31,7 @@ public final class AvatarEntry {
         tag.putBoolean("paused", paused);
         tag.put("physical", physical.copy());
         tag.putByteArray("execution", execution.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        tag.putByteArray("control", control.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         ListTag trusted = new ListTag();
         authority.trusted().forEach(p -> trusted.add(StringTag.valueOf(p.toString())));
         tag.put("trusted", trusted);
@@ -42,6 +44,8 @@ public final class AvatarEntry {
         entry.physical = tag.getCompound("physical").copy();
         if (tag.contains("execution", Tag.TAG_BYTE_ARRAY)) entry.execution = com.google.gson.JsonParser.parseString(
                 new String(tag.getByteArray("execution"), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+        if (tag.contains("control", Tag.TAG_BYTE_ARRAY)) entry.control = com.google.gson.JsonParser.parseString(
+                new String(tag.getByteArray("control"), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
         ListTag trusted = tag.getList("trusted", Tag.TAG_STRING);
         for (int i = 0; i < trusted.size(); i++) entry.authority.trust(UUID.fromString(trusted.getString(i)));
         // Runtime control sessions are deliberately never restored from disk.

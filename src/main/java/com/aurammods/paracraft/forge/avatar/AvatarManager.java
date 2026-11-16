@@ -23,6 +23,7 @@ import java.util.UUID;
 public final class AvatarManager {
     private final MinecraftServer server;
     private final AvatarSavedData saved;
+    private final com.aurammods.paracraft.forge.control.ServerControl control;
     private final Map<UUID, CompanionPlayer> active = new HashMap<>();
     private final com.aurammods.paracraft.forge.execution.JobManager jobs =
             new com.aurammods.paracraft.forge.execution.JobManager(this);
@@ -31,12 +32,16 @@ public final class AvatarManager {
         this.server = server;
         saved = server.overworld().getDataStorage().computeIfAbsent(
                 AvatarSavedData::load, AvatarSavedData::new, "paracraft_avatars");
+        control = new com.aurammods.paracraft.forge.control.ServerControl(this, server);
     }
 
     public Collection<AvatarEntry> entries() { return saved.entries(); }
     public CompanionPlayer actor(UUID id) { return active.get(id); }
     public AvatarEntry entry(UUID id) { return saved.get(id); }
     public int activeCount() { return active.size(); }
+    public UUID worldId() { return saved.worldId(); }
+    public void dirty() { saved.setDirty(); }
+    public com.aurammods.paracraft.forge.control.ServerControl control() { return control; }
     public com.aurammods.paracraft.forge.execution.JobManager jobs() { return jobs; }
 
     public AvatarEntry spawn(UUID owner, ServerLevel level, Vec3 position, String name) {
@@ -53,6 +58,7 @@ public final class AvatarManager {
         player.moveTo(position.x, position.y, position.z, 0, 0);
         attach(entry, player);
         saved.put(entry);
+        control.event(entry.id, "spawn", new com.google.gson.JsonObject());
         checkpoint(entry);
         return entry;
     }
@@ -81,6 +87,7 @@ public final class AvatarManager {
     public void checkpointAll() { saved.entries().forEach(this::checkpoint); }
 
     public void disconnectOwner(UUID owner) {
+        control.disconnect(owner);
         for (AvatarEntry entry : saved.entries()) {
             if (entry.authority.owner().equals(owner)) {
                 jobs.pause(entry.id);

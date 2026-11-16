@@ -15,12 +15,12 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 | --- | --- |
 | Avatar | Client rendering verification, actor compatibility beyond the tested vanilla interactions, validated capacity limits |
 | Lifecycle | Real client login/logout verification, death/bed respawn, further command interruption and item-drop edge cases; pending execution now survives tested orderly process restart |
-| Observations | Full client snapshots/events, block/entity queries, further inventory compatibility; basic nine-chunk inventory search is implemented |
+| Observations | Client delivery of implemented server snapshots/events, block queries, further inventory compatibility; nine-chunk inventory observations/receipts are implemented |
 | Execution | Following, additional gameplay operations and broader terrain recovery; structured programs and persisted execution/request results are implemented |
-| Harness | Forge client transport/runtime, actual snapshots/events, combined gameplay scenario; the independent simulated-provider/scheduler/task/memory core is tested |
-| Authority | Owner/trusted chat instructions, delegation, normal player command execution and delayed outcomes |
+| Harness | Forge client transport/runtime/storage/UI and helper-loss lease handling; the loop-to-actual-world service scenario passes headlessly |
+| Authority | Actual connected-client instruction/control verification, normal player command execution and delayed outcomes; authoritative chat/delegation/receipt service is tested |
 | Gameplay | Mining, farming, combat/reflexes, equipment, placement, chunk traversal, explicit dimension travel, idle routines |
-| QA | Client-driven end-to-end diamond retrieval, task interruption/resumption, further edge cases, capacity evidence, client checklist |
+| QA | Native client transport/rendering checks, combined actual-world task interruption/resumption, further edge cases, capacity evidence, client checklist |
 | Account UI | Clearly disconnected status and extension point for later sign-in/live inference |
 
 Live authentication and actual AI usage are outside this foundation goal and remain unverified.
@@ -62,3 +62,13 @@ Live authentication and actual AI usage are outside this foundation goal and rem
 - The first full QA run hit an intermittent timeout in the existing nested-recovery fixture. Its diamond search could overlap concurrent fixtures, and its floorless delivery recipient was exactly at the reach cutoff. The fixture now selects a unique item, keeps a reach margin, and asserts exactly three recovered items reach the recipient. Two subsequent suites passed with this correction.
 - Validation: final `./scripts/qa.sh` passed 25 JUnit tests and all 17 required actual Minecraft GameTests, producing the mod JAR with no QA classes/fixtures included. The new decision-loop tests use virtual time and stubbed service replies; they do not verify a real client connection, in-game chat routing, account UI, or live AI. No graphical client or sign-in browser was launched.
 - Next: connect authoritative snapshots/event journals, chat/delegation, observation receipts, server deduplication, Forge packets, the client runtime/storage, and disconnected account-status controls. [HARNESS.md](HARNESS.md) documents the current core and integration obligations. Broader gameplay/lifecycle/capacity requirements remain open; the foundation goal is not complete.
+
+## Cycle 6: Authoritative observations and actual-world harness integration
+
+- Added a persistent world UUID, server snapshots of native physical state/equipment/nearby entities/programs, bounded wake journals, native damage/pickup hooks, authorized name mentions, and terminal program events. Outgoing responses remain history-only so they cannot wake their own loop.
+- Added a server-thread control service with live owner/session checks, instruction revocation checks, owner-only delegation administration, persistent request fingerprints/acknowledgments, and independent incremental inventory queries. Actual packets/client runtime remain pending; the transport must supply the real connected sender.
+- Observation receipts persist with the avatar. Programs bind named results from those server-owned receipts; invented receipt IDs and client-provided initial results do not supply inventory data. Actual transfers re-read changed contents and preserve partial results.
+- Added a headless in-process bridge from the real simulated harness to Minecraft. An owner mention escalates, searches real chests, physically collects/delivers twelve diamonds, answers progress without replacing the request, marks its task complete, and stays idle across multiple decision intervals. The actor retains three pre-existing diamonds and walks more than twenty blocks. The clock is explicitly virtual and no TCP/client/sign-in/live model use is claimed.
+- Added service authority, NBT receipt recovery, query disconnect/retry, frozen observation/changing-source, native health/equipment snapshot, and native damage-event assertions. An initial new damage assertion ran during normal spawn protection; it was moved into the established delayed survival test.
+- Validation: `./scripts/qa.sh` passed 26 JUnit tests and all 20 required Minecraft GameTests. `./scripts/restart-qa.sh` passed writer JVM 85566 and reader JVM 85981, retaining world identity, a chat acknowledgment without repeating its effect, and the pending real inventory transfer. The 160,847-byte mod JAR excludes QA classes/fixtures. QA events were collected into the ignored local session. No graphical client was launched.
+- Next: Forge networking, client runtime/local persistence, disconnected account/status controls, controller liveness, then the remaining gameplay/reflex/lifecycle/capacity work. The goal remains active and incomplete.

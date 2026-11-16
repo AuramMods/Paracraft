@@ -1,10 +1,10 @@
 # Structured action programs
 
-Programs execute server-side through the same jobs used by manual controls. They contain finite sequences and nested recovery blocks, not executable Java, shell commands, or scripts in another language. A later client provider will produce this schema.
+Programs execute server-side through the same jobs used by manual controls. They contain finite sequences and nested recovery blocks, not executable Java, shell commands, or scripts in another language. The simulated provider already produces this schema in headless service scenarios; Forge client transport is pending.
 
 ## Submission and identity
 
-Use `/paracraft program <companion> <json>` as the owner. The controller-facing Java service is `JobManager.submitProgram`; it checks the authenticated owner and current control-session ID. Trusted-player instruction routing is later client-harness work.
+Use `/paracraft program <companion> <json>` as the owner. `JobManager.submitProgram` checks owner and current control-session ID. The client-facing `ServerControl` service additionally checks instruction provenance/revocation, request content identity, and server observation receipts. Trusted-player service routing is implemented; connected-client transport remains pending.
 
 An optional `schema` is currently `1`. Supply a stable UUID in `id` to retry a request safely; if omitted, the manual command generates one and reports it. Reusing an accepted ID acknowledges its existing state/result and does not execute another copy, including after save/reconnect or a clean server restart. `taskId` associates the program with an intention; the server does not mark that intention complete automatically.
 
@@ -50,6 +50,8 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `rethrow` | Propagates the current caught failure to an outer handler |
 
 Items accept registry IDs or `#tags`. A supplied inventory `scope` must currently be `{ "kind": "neighbor_chunks", "radius": 1 }`. `containersFrom` refers to a prior search result, avoiding another scan; its dimension, selector, original coverage, and timestamps stay explicit. Collection and transfer operations still resolve the real inventory and its rules when executing.
+
+The control service can also bind `observationRefs: { "found": "<server-observation-receipt-UUID>" }` at submission, allowing `containersFrom: "found"` without a new search step. Receipts belong to the avatar and persist server-side. Client-invented initial inventory results are ignored. The manual command does not resolve external receipt references; its example below performs an explicit search inside the program.
 
 The program below is a template: replace the recipient UUID before use. It performs search, collection, and delivery with no model decisions between individual containers:
 

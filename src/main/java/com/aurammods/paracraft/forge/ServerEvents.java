@@ -41,6 +41,7 @@ public final class ServerEvents {
             AvatarManager manager = MANAGERS.get(event.getServer());
             if (manager != null) {
                 manager.jobs().tick();
+                manager.control().tick();
                 if (event.getServer().getTickCount() % 100 == 0) manager.checkpointAll();
             }
         }
@@ -56,4 +57,23 @@ public final class ServerEvents {
     }
     @SubscribeEvent
     public static void stopped(ServerStoppedEvent event) { MANAGERS.remove(event.getServer()); }
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void chat(net.minecraftforge.event.ServerChatEvent event) {
+        if (!(event.getPlayer() instanceof CompanionPlayer)) avatars(event.getPlayer().server).control().chat(event.getPlayer().getUUID(), event.getRawText());
+    }
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void damage(net.minecraftforge.event.entity.living.LivingDamageEvent event) {
+        if (event.getEntity() instanceof CompanionPlayer actor) {
+            var details = new com.google.gson.JsonObject(); details.addProperty("amount", event.getAmount());
+            if (event.getSource().getEntity() != null) details.addProperty("attackerUuid", event.getSource().getEntity().getUUID().toString());
+            avatars(actor.server).control().event(actor.getUUID(), "damage", details);
+        }
+    }
+    @SubscribeEvent
+    public static void pickup(PlayerEvent.ItemPickupEvent event) {
+        if (event.getEntity() instanceof CompanionPlayer actor) {
+            var details = new com.google.gson.JsonObject(); details.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(event.getStack().getItem()).toString());
+            details.addProperty("count", event.getStack().getCount()); avatars(actor.server).control().event(actor.getUUID(), "pickup", details);
+        }
+    }
 }

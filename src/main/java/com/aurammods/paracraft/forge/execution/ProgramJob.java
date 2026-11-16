@@ -8,7 +8,10 @@ import java.util.UUID;
 public final class ProgramJob extends GameJob {
     private ProgramMachine machine;
     public ProgramJob(UUID id, CompanionPlayer actor, JsonObject program) {
-        super(id, "program", actor); machine = new ProgramMachine(id, program, new ForgeOperations(actor));
+        this(id, actor, program, new JsonObject());
+    }
+    public ProgramJob(UUID id, CompanionPlayer actor, JsonObject program, JsonObject initialResults) {
+        super(id, "program", actor); machine = new ProgramMachine(id, program, new ForgeOperations(actor), initialResults);
     }
     @Override protected void advance() {
         machine.tick(16); phase = machine.currentOperation(); result = machine.view();

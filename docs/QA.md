@@ -32,9 +32,18 @@ The inventory-job suite additionally covers:
 
 The program suite executes search-to-collection-to-delivery through named results, nested partial-result recovery, interrupt/append/explicit-resume, cancellation bypassing catches, syntax rejection before mutation, and reconnect with a pending collection preserved through NBT. The separate restart suite verifies pending transfers, native inventory/chest state, stable request IDs, and stale-session rejection across two real Forge JVMs.
 
-Real client login/logout, rendering, automatic death respawn, the client decision loop, and the chat-to-Light-to-planning diamond workflow remain unverified or incomplete. Server scenarios submit through the same execution service exposed by manual controls. See [PROGRAMS.md](PROGRAMS.md) for program syntax.
+Real client login/logout, rendering, automatic death respawn, and the in-game client runtime remain unverified or incomplete. Server scenarios submit through the same execution service exposed by manual controls. See [PROGRAMS.md](PROGRAMS.md) for program syntax.
 
-The decision-loop core also has deterministic JUnit scenarios with a virtual clock and stubbed server replies. They check five-second routing/continuations, slow-response serialization, forbidden Light tools, session cancellation, coalescing, event/timer waits, on-disk memory, durable pending turns and request IDs, progress without replacement, task interruption/resumption, and returning to idle. See [HARNESS.md](HARNESS.md) for the boundary and scripted grammar. These are component checks; in-game networking, account UI, and a combined actual-world harness scenario remain pending.
+The decision-loop core also has deterministic JUnit scenarios with a virtual clock and stubbed server replies. They check five-second routing/continuations, slow-response serialization, forbidden Light tools, session cancellation, coalescing, event/timer waits, on-disk memory, durable pending turns and request IDs, progress without replacement, task interruption/resumption, and returning to idle. See [HARNESS.md](HARNESS.md) for the boundary and scripted grammar.
+
+The harness GameTests additionally exercise:
+
+- A service-level owner mention through Light, planning, real inventory observation, physical collection/delivery, in-flight progress, task completion, and idle suppression. Exactly twelve new diamonds are delivered while three pre-existing diamonds remain carried. `QA_EVT` identifies the virtual clock, in-process transport, and absence of live AI usage.
+- Native damage events and snapshots of native health/equipment durability; unauthorized mentions, owner delegation, revoked late results, trusted administration denial, and control-lease separation.
+- Request receipt content conflicts, repeat acknowledgment after control NBT reload/session rotation, and persistent world binding.
+- Disconnect during observation, retry under a new lease, immutable completed observation receipts after reconnect, rejection of invented receipts, and actual partial collection when a five-item search becomes a three-item source.
+
+These checks use actual Minecraft state through an in-process client/service bridge. Signed client chat, actual packets, client UI, and live model usage are not exercised.
 
 ## Current manual controls
 
@@ -78,7 +87,7 @@ Return `run/development/logs/latest.log` and notes/screenshots for visual behavi
 
 With Java 17 selected, run `./scripts/restart-qa.sh`. It deletes only its generated `run/restart-qa` workspace, starts one headless writer process, waits for its actual completion, then starts a different reader process against the saved world. It does not reset the world between those two processes.
 
-The writer stops a program after collecting three of six diamonds but before depositing them. The reader must load the avatar/program from world storage, observe three diamonds remaining in the source and three carried, reject the old lease, acknowledge the same request ID, then resume to leave three in the source, three in the destination, and none carried. The marker file stores expected identifiers and the first process ID; it is not used as replacement inventory or program state.
+The writer stops a program after collecting three of six diamonds but before depositing them. The reader must load the avatar/program from world storage, observe three diamonds remaining in the source and three carried, reject the old lease, acknowledge the same request ID, then resume to leave three in the source, three in the destination, and none carried. It also verifies the persisted world UUID and a control-service chat receipt, acknowledging that receipt under the fresh lease without emitting another response event. The marker file stores expected identifiers and the first process ID; it is not used as replacement inventory, receipt, or program state.
 
 Expected events: `cold_restart_write` and `cold_restart_read`, each with pass status and different process IDs. A zero-test run cannot satisfy the script. Logs to return are `build/qa/restart/write.log` and `build/qa/restart/read.log`; the native second-process log is `run/restart-qa/logs/latest.log`.
 

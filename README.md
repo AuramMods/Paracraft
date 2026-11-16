@@ -2,7 +2,7 @@
 
 Server-owned Minecraft companions with a client-owned decision harness. Initial target: Forge 1.20.1, Java 17.
 
-Implementation is in progress. See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), [decision-loop core](docs/HARNESS.md), and [QA instructions](docs/QA.md). Authentication and live AI usage are not connected. The simulated decision-loop core is unit-tested; in-game client transport/UI are not connected yet.
+Implementation is in progress. See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), [decision harness](docs/HARNESS.md), and [QA instructions](docs/QA.md). Authentication and live AI usage are not connected. The simulated harness has headless actual-world integration checks; in-game client transport/UI are not connected yet.
 
 ## Build
 

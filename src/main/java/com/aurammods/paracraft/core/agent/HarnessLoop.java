@@ -53,7 +53,8 @@ public final class HarnessLoop implements AutoCloseable {
         boolean changed = false;
         for (JsonObject event : incoming) {
             long id = event.get("id").getAsLong(); if (id <= state.eventCursor) continue;
-            state.enqueue(event); state.eventCursor = id; state.history("event", event.toString()); changed = true;
+            if (!event.has("wake") || event.get("wake").getAsBoolean()) state.enqueue(event);
+            state.eventCursor = id; state.history("event", event.toString()); changed = true;
         }
         if (changed) save.run();
     }

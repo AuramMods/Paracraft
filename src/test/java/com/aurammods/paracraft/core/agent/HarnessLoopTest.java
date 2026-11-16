@@ -110,4 +110,13 @@ class HarnessLoopTest {
             assertEquals(20, provider.requests.get(0).snapshot().get("health").getAsInt());
         }
     }
+    @Test void historyOnlyEventsNeverWakeAnIdleModel() {
+        Clock clock = new Clock(); Provider provider = new Provider(clock); AgentState state = new AgentState();
+        try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, new Sink(), () -> {})) {
+            JsonObject response = event(1, "response"); response.addProperty("wake", false);
+            loop.accept(frame(response)); clock.advance(60_000); pump(loop);
+            assertTrue(provider.requests.isEmpty()); assertEquals(1, state.context().getAsJsonArray("history").size());
+            assertEquals(1, state.save().get("eventCursor").getAsInt());
+        }
+    }
 }

@@ -19,15 +19,19 @@ public final class JobManager {
     public JobManager(AvatarManager avatars) { this.avatars = avatars; }
     public GameJob get(UUID avatar) { return jobs.get(avatar); }
     public GameJob request(UUID avatar, UUID id) { return requests.getOrDefault(avatar, Map.of()).get(id); }
+    public List<GameJob> requests(UUID avatar) { return List.copyOf(requests.getOrDefault(avatar, Map.of()).values()); }
     public GameJob submit(UUID sender, UUID avatar, UUID session, GameJob job, boolean replace) {
         return submit(sender, avatar, session, job, replace ? "replace" : "reject");
     }
     public GameJob submitProgram(UUID sender, UUID avatar, UUID session, UUID id, JsonObject program, String mode) {
+        return submitProgram(sender, avatar, session, id, program, mode, new JsonObject());
+    }
+    public GameJob submitProgram(UUID sender, UUID avatar, UUID session, UUID id, JsonObject program, String mode, JsonObject initialResults) {
         authorize(sender, avatar, session);
         GameJob existing = request(avatar, id); if (existing != null) return existing;
         var actor = avatars.actor(avatar);
         if (actor == null) throw new IllegalStateException("Avatar is not active");
-        return submit(sender, avatar, session, new ProgramJob(id, actor, program), mode);
+        return submit(sender, avatar, session, new ProgramJob(id, actor, program, initialResults), mode);
     }
     public GameJob submit(UUID sender, UUID avatar, UUID session, GameJob job, String mode) {
         authorize(sender, avatar, session);

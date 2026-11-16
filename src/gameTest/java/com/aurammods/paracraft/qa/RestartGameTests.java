@@ -50,6 +50,10 @@ public final class RestartGameTests {
         UUID owner = UUID.randomUUID(), request = UUID.randomUUID();
         var entry = manager.spawn(owner, level, new Vec3(3000.5, 80, 3000.5), "RestartQA");
         manager.actor(entry.id).setNoGravity(true); UUID session = entry.authority.session();
+        UUID receipt = UUID.randomUUID();
+        JsonObject chat = new JsonObject(); chat.addProperty("message", "[SIMULATED] persisted receipt");
+        helper.assertTrue(manager.control().request(owner, entry.id, session, receipt, "chat", chat, 0).join().get("ok").getAsBoolean(),
+                "Writer accepts a durable control receipt");
         var job = manager.jobs().submitProgram(owner, entry.id, session, request, program(), "replace");
         helper.onEachTick(() -> {
             helper.assertTrue(job.state() != JobState.FAILED, "Writer program failed: " + job.view());
@@ -60,6 +64,7 @@ public final class RestartGameTests {
             helper.assertTrue(count(helper, SOURCE) == 3 && count(helper, DESTINATION) == 0, "Pending transfer captured between collection and deposit");
             JsonObject expected = new JsonObject(); expected.addProperty("owner", owner.toString()); expected.addProperty("avatar", entry.id.toString());
             expected.addProperty("request", request.toString()); expected.addProperty("oldSession", session.toString()); expected.addProperty("writePid", ProcessHandle.current().pid());
+            expected.addProperty("worldId", manager.worldId().toString()); expected.addProperty("receipt", receipt.toString());
             try { Files.writeString(MARKER, expected.toString()); }
             catch (java.io.IOException failure) { throw new AssertionError(failure); }
             Paracraft.LOG.info("QA_EVT {\"event\":\"cold_restart_write\",\"status\":\"pass\",\"context\":{\"pid\":{}}}", ProcessHandle.current().pid());
@@ -73,11 +78,16 @@ public final class RestartGameTests {
         UUID request = UUID.fromString(expected.get("request").getAsString());
         var manager = ServerEvents.avatars(helper.getLevel().getServer());
         var entry = manager.entry(id);
+        helper.assertTrue(manager.worldId().toString().equals(expected.get("worldId").getAsString()), "World binding survives a cold process restart");
         helper.assertTrue(entry != null && entry.authority.session() == null, "Loaded saved avatar without runtime lease");
         helper.assertTrue(manager.restoreOwner(owner).isEmpty(), "Loaded actor and execution from world storage");
         helper.assertTrue(manager.actor(id).getInventory().countItem(Items.DIAMOND) == 3, "Actual disk inventory contains collected items");
         helper.assertTrue(count(helper, SOURCE) == 3 && count(helper, DESTINATION) == 0, "Actual persisted containers match the checkpoint");
         helper.assertTrue(!entry.authority.controls(owner, UUID.fromString(expected.get("oldSession").getAsString())), "Previous process's lease is stale");
+        JsonObject chat = new JsonObject(); chat.addProperty("message", "[SIMULATED] persisted receipt");
+        int eventsBefore = entry.control.getAsJsonArray("events").size();
+        helper.assertTrue(manager.control().request(owner, id, entry.authority.session(), UUID.fromString(expected.get("receipt").getAsString()), "chat", chat, 0)
+                .join().get("ok").getAsBoolean() && entry.control.getAsJsonArray("events").size() == eventsBefore, "Cold receipt recovery acknowledges without repeating chat");
         var restored = manager.jobs().get(id);
         helper.assertTrue(restored != null && restored.id.equals(request) && restored.state() == JobState.PAUSED, "Pending program is restored without running automatically");
         helper.assertTrue(manager.jobs().submitProgram(owner, id, entry.authority.session(), request, program(), "replace") == restored,

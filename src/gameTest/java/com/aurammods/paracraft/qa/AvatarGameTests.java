@@ -106,6 +106,9 @@ public final class AvatarGameTests {
             float before = actor.getHealth();
             boolean hurt = actor.hurt(helper.getLevel().damageSources().generic(), 4);
             helper.assertTrue(hurt && actor.getHealth() < before, "Survival player is damageable after spawn grace");
+            helper.assertTrue(entry.control.getAsJsonArray("events").asList().stream().anyMatch(e -> e.getAsJsonObject().get("type").getAsString().equals("damage")),
+                    "Native damage produces a harness wake event");
+            helper.assertTrue(manager.control().snapshot(owner, entry.id).get("health").getAsFloat() == actor.getHealth(), "Snapshot reports native post-damage health");
             helper.assertTrue(actor.createCommandSourceStack().getEntity() == actor
                     && !actor.createCommandSourceStack().hasPermission(2), "Commands use actor identity without op elevation");
             manager.destroy(owner, entry.id);

@@ -53,6 +53,10 @@ public final class ProgramMachine {
             throw new IllegalArgumentException("Program requires a steps array");
         compile(program.getAsJsonArray("steps"), "steps");
     }
+    /** Initial results must come from the authoritative adapter, never from client-supplied inventory data. */
+    public ProgramMachine(UUID id, JsonObject program, Factory factory, JsonObject initialResults) {
+        this(id, program, factory); results = initialResults.deepCopy();
+    }
     public JobState state() { return state; }
     public JsonObject error() { return error.deepCopy(); }
     public JsonObject results() { return results.deepCopy(); }

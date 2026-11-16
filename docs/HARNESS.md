@@ -1,6 +1,6 @@
 # Client decision-loop foundation
 
-This describes the Minecraft-independent harness core in `core/agent`. It is implemented and tested with virtual time and a stubbed service. The Forge client transport, actual server snapshot service, chat event wiring, and account/status screen are still required. The current mod does not yet respond to in-game chat through this harness.
+This describes the Minecraft-independent harness core in `core/agent` and its authoritative Forge service in `forge/control`. Unit tests use virtual time and service fixtures; additional headless Forge GameTests connect the same loop to actual inventories and player movement. The Forge client transport/runtime and account/status screen are still required. The current mod records authorized chat events but does not yet run the loop on an in-game client.
 
 ## Provider and routing
 
@@ -21,13 +21,13 @@ A continuation (`think_harder` or `observe`) must be the sole tool call in a rep
 
 Snapshots are bound to persistent world, owner, and avatar UUIDs. Session changes or a server pause cancel pending futures. Results from an old future cannot be applied, including when a provider ignores cancellation. The turn remains saved for resumption under a valid lease.
 
-Events have monotonically increasing journal IDs. Repeated/unsorted snapshots do not replay IDs. Pending damage and pickup notifications coalesce by type; they retain the first/latest IDs and occurrence counts, and damage totals where supplied. The newest physical snapshot supplies actual inventory/health. Authorized chat events remain separate with their original text and sender UUID.
+Events have monotonically increasing journal IDs. Repeated/unsorted snapshots do not replay IDs. Pending damage and pickup notifications coalesce by type; they retain the first/latest IDs and occurrence counts, and damage totals where supplied. The newest physical snapshot supplies actual inventory/health. Authorized chat events remain separate with their original text and sender UUID. History-only events (`wake: false`), including outgoing responses, advance history/cursor without waking the model.
 
 Unfinished `QUEUED`, `ACTIVE`, `INACTIVE`, and `WAITING` tasks remain schedulable. `COMPLETED` and `FAILED` tasks do not create polling. A `wait` tool with an event and/or nonnegative integer duration suspends ordinary task polling. A matching event, timer, chat, damage, or pickup wakes it. A timer can wake an avatar even without a task. With no pending turn, events, unfinished tasks, or elapsed wait, inference stays off.
 
 Every turn stores its original trigger, planning continuation results, route/round, accepted tool batch, and acknowledgment cursor. State is saved before inference starts and before effects are sent. Restarting during inference reruns the pending route with the original trigger and fresh physical context. Restarting during a tool submission replays the recorded call using the same request UUID, without inferring another batch.
 
-`HarnessLoop.Sink` must persist authoritative request acknowledgments and deduplicate all server effects, including chat and observation receipts. IDs identify a turn/round/call rather than an ephemeral connection. The runtime must stamp the current lease and actual connected owner, reject revoked instructions, and reconcile accepted programs. Core tests demonstrate the retry contract against a deduplicating stub; they do not prove server-side integration yet.
+`HarnessLoop.Sink` routes effects through `ServerControl`, which persists authoritative acknowledgments and deduplicates server effects, including chat and observation receipts. IDs identify a turn/round/call rather than an ephemeral connection. The upcoming network adapter must stamp the current lease and actual connected owner. The service already checks ownership, lease validity, conflicting request content, and revoked instruction senders. GameTests exercise service-level retries/reconnect; real client transport remains unverified.
 
 Provider/tool failures pause the local loop and expose `lastError` for UI and control-session handling. The runtime adapter must stop/revoke server execution when its harness fails or disconnects. This lifecycle wiring is pending.
 
@@ -63,7 +63,7 @@ It writes a forced temporary file and replaces the destination atomically when t
 
 An inactive task remains eligible for automatic later resumption; `pause work` is not a permanent pause. Use an explicit wait or the runtime's owner pause control to suspend polling.
 
-The inventory observation continuation expects a server receipt ID and observed search data. The program refers to that receipt through `observationRefs.found`; its collection consumes the named result and its delivery consumes the acquired-stack ledger. The server adapter must bind its own observation, never accept client-invented inventory data. Program IDs derive from the avatar, original event ID, and scripted operation, preventing duplicate program identity when the same event is reconstructed.
+The inventory observation continuation receives a server receipt ID and observed search data. The program refers to that receipt through `observationRefs.found`; its collection consumes the named result and its delivery consumes the acquired-stack ledger. The server binds its own stored observation and ignores client-invented initial results. Program IDs derive from the avatar, original event ID, and scripted operation, preventing duplicate program identity when the same event is reconstructed.
 
 The simulator checks actual program snapshots to complete/fail tasks, reports real failure strings/delivered counts supplied there, and resumes existing program IDs. It does not implement general language understanding. Unknown/malformed script requests do not claim successful gameplay.
 
@@ -71,4 +71,16 @@ The simulator checks actual program snapshots to complete/fail tasks, reports re
 
 Run `./gradlew test` with Java 17 for virtual-clock scheduling, routing, cancellation, restart/retry, storage, scripted diamond/progress/completion, interruption/resumption, and idle checks. These tests use service replies supplied by test fixtures. They do not exercise real containers, network connections, UI, credentials, or live model usage.
 
-The separate Forge GameTests exercise the existing physical inventory/interpreter paths. Connecting these two verified components into one actual Minecraft snapshot-to-program scenario is the next cycle.
+The Forge GameTests also connect the loop and service into an actual Minecraft snapshot-to-program scenario: an authorized mention escalates, observes real chests, submits one collection/delivery program, answers progress during travel, completes the task, and remains idle for multiple virtual decision intervals. Source inventories, twelve delivered diamonds, three pre-existing diamonds, and more than twenty blocks of actual walking are asserted. The clock is virtual and transport is in-process; no connected client or live inference is claimed.
+
+## Authoritative Forge service
+
+`ServerControl` runs on the server thread. It records authorized owner/trusted mentions, damage, pickups, outgoing responses, and terminal program results. Name matching is case-insensitive and respects player-name boundaries. The server keeps 256 recent journal events with compacted type counts and a persistent sequence. New effects referring to expired or revoked instruction events fail explicitly. A previously accepted request can return its acknowledgment under a fresh valid owner lease without repeating its effect.
+
+Snapshots include the world binding, session, identity/permissions, physical location/dimension, health, hunger, oxygen, experience, carried/equipped stack data and durability, effects, bed spawn, nearby entities with explicit truncation, execution progress, events, and recent inventory observation receipts. The client adds cognitive context before each provider invocation.
+
+An inventory query advances incrementally over exactly the existing nine-chunk search scope, inspecting at most eight block entities per tick. Queries do not replace the running program. Disconnect interrupts an unfinished query; completed receipts survive in avatar NBT and can be acknowledged after reconnect. Search data retains its original timestamps and coverage. A program binds only receipts owned by that avatar; later transfers use actual changed contents and report partial results.
+
+Permission administration through the agent service requires an owner-origin instruction. Trusted users can instruct through the owner's harness but cannot gain its lease or administer the trust list. Raw owner commands remain available.
+
+World identity, journals, receipts, and published program states are saved with the existing avatar data. Current receipt/program histories are retained without pruning; long-running scale/storage optimization remains open. The two-process restart suite verifies world identity, recovery of a chat acknowledgment without repeating its effect, and the pending physical transfer. Completed observation receipt recovery is tested through NBT/body rebinds. These do not claim transactional crash recovery across arbitrary mod inventories. Real packets, native client login/logout, helper-failure lease handling, and account UI still need direct verification.
