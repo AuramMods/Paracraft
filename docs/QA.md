@@ -12,7 +12,7 @@ Select a Java 17 JDK using `JAVA_HOME`, then run from the repository root:
 
 The command runs `test`, `build`, and `runGameTestServer`. Its exit code is nonzero if the build or required GameTests fail. Runtime logs are in `run/gametest/logs/latest.log`; the combined output is captured in `build/qa/headless.log`. Each headless run deletes and rebuilds its disposable `run/gametest/world` and writes QA-only `server.properties` for seed zero, flat terrain, and no generated structures. The running generator/seed are asserted by a GameTest. This matters because searches include every height in the nine chunks; normal random terrain can otherwise add unrelated loot chests above an arena. The QA-only server-start adapter also sets the actual minimal GameTest player list's view/simulation distances to eight, with runtime assertions, and enables native PvP for player-interaction tests. Its zero distance defaults otherwise leave targets outside the template's forced chunks frozen even though properties specify a distance. Keep personal worlds outside that directory. The ordinary development server uses the separate `run/development` workspace.
 
-The GameTest server terminates on completion. To interrupt a foreground run, use Ctrl-C and allow Gradle to terminate the child JVM. No persistent background server is created by this script. A retained interactive QA server will be added with the gameplay scenario.
+The GameTest server terminates on completion. To interrupt a foreground run, use Ctrl-C and allow Gradle to terminate the child JVM. For immediate-return windowless start/status/stop controls, use [BACKGROUND.md](BACKGROUND.md). It manages the real QA process group and exits on completion; it does not provide a connectable public game server.
 
 ## Implemented scenarios
 
@@ -151,3 +151,5 @@ Return the client and server `logs/latest.log` files, screenshots at problematic
 ## Local development runtime
 
 The initial development run uses a verified Temurin 17.0.21+9 ARM64 JDK cached at `~/.cache/paracraft/java17/jdk-17.0.21+9/Contents/Home`. That path is local tooling, not a requirement for users. Any compatible Java 17 JDK can be selected instead. No credentials or external account sessions are needed for these tests.
+
+The final foundation result is recorded in [VALIDATION.md](VALIDATION.md): 46 unit tests, all 86 normal native GameTests, and separate writer/reader recovery passed. Background completion, duplicate exclusion, graceful stop, and cleanup were exercised through actual processes. Installation and server/client state paths are in [INSTALL.md](INSTALL.md).

@@ -1,6 +1,6 @@
 # Implementation progress
 
-The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful build alone is not foundation completion.
+The initial Forge foundation is implemented and ready for owner QA using the labeled simulator. [VALIDATION.md](VALIDATION.md) records the build, 46 unit tests, 86 native GameTests, cold-process recovery, and background-run evidence. Native client checks and real sign-in/live inference remain explicitly unverified follow-up work.
 
 ## Cycle 1: Forge build and headless QA bootstrap
 
@@ -9,7 +9,7 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 - Added the windowless QA command. No graphical client or authentication browser has been launched.
 - Validation: `./gradlew build` succeeded and produced the reobfuscated JAR; `./gradlew runGameTestServer` passed its one required test, placing and modifying a real chest. There are no ordinary unit tests yet. GameTest fixtures are excluded from the mod JAR. No client/UI or companion behavior has been verified.
 
-## Remaining implementation
+## Remaining verification and expansion
 
 | Area | Required work |
 | --- | --- |
@@ -20,7 +20,7 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 | Harness | Native client login/logout/UI verification and broader runtime recovery; Forge client runtime/storage/UI, packets, and controller expiry are implemented and checked headlessly where possible |
 | Authority | Actual connected-client instruction/control verification and external command-mod compatibility; native avatar command dispatch/delayed outcomes and authoritative chat/delegation/receipt service are tested |
 | Gameplay | Wider terrain/adapter and distributed-load evidence; native configured capacity, long independent chunk traversal, fall damage, terrain recovery, portals, commands, oxygen escape, reactions, idle patrols, native survival and initial gameplay operations now work |
-| QA | Native client TCP/rendering checks, further edge cases, capacity evidence; combined actual-world interruption/resumption passes, and the client checklist is documented |
+| QA | Native client TCP/rendering checks and broader load/modpack evidence; actual capacity/admission and combined interruption/resumption pass, and the client checklist is documented |
 | Account UI | Visual verification of the implemented disconnected status; real sign-in/live inference remain follow-up scope |
 
 Live authentication and actual AI usage are outside this foundation goal and remain unverified.
@@ -154,3 +154,12 @@ Live authentication and actual AI usage are outside this foundation goal and rem
 - The initial container fixtures placed bodies inside the arena floor; moving fixtures above actual support corrected that setup. The custom capability scenario then exposed real navigation bouncing on a half-height block. Per-axis native waypoint tolerances replaced the overly strict Euclidean point check, and the full suite verifies the correction.
 - Validation: `./scripts/qa.sh` passed 45 JUnit tests and all 86 required native Minecraft GameTests. The separate restart writer JVM 41172 and reader JVM 41253 passed durable inventory/receipt/behavior/issued-command recovery. Fixed-source transfer restoration is additionally checked through saved NBT/body replacement in one JVM. The 308,476-byte mod JAR excludes QA code/fixtures. All execution remained headless, without credentials, sign-in, or live inference.
 - Next: practical background-run/shutdown commands, final installation/configuration/validation handoff, and any material issues found in that final pass. Native client TCP/rendering/screens remain explicitly unverified owner checks. Authentication/live inference remain the follow-up phase.
+
+## Cycle 15: Background QA controls and foundation handoff
+
+- Added an optional macOS/Linux developer runner that immediately returns after launching the actual headless QA command, records real state/exit codes, and provides status/stop controls. An actual OS lock excludes duplicate workers; stop validates its owned worker, signals its process group, and retains ownership while native shutdown drains. No cached port/version/PID guess gates a build.
+- Exercised real background success, held-lock rejection, actual Forge launch/cancellation, graceful group shutdown, and subsequent normal/restart runs. The cancellation worker recorded exit -15, released its lock, and required no forced shutdown. Final process inspection found no remaining worker, GameTest JVM, or Gradle daemon.
+- Replaced giant simulator progress dumps with actual phase/count summaries. A meaningful new unit check verifies correct counts, a short labeled response, no inventory metadata/JSON dump, and no planning/program effect for a simple progress question.
+- Added [INSTALL.md](INSTALL.md), [BACKGROUND.md](BACKGROUND.md), and [VALIDATION.md](VALIDATION.md), updated the owner checklist and README, and retained the exact simulator/authentication/client-verification boundaries. No graphical launch was attempted; the documented owner checks use an explicitly started persistent client session.
+- Final validation through the background runner: 46 JUnit tests and all 86 required normal native GameTests passed. Normal worker 46188 and restart worker 47255 exited zero. Cold writer JVM 47463 and reader JVM 47908 passed separate actual-world assertions. The 309,162-byte reobfuscated JAR includes the access transformer and excludes QA code/fixtures; its checksum and local evidence paths are in the validation report.
+- The first-pass foundation handoff is complete. The installed mod is self-contained for the simulated harness; Python is optional developer QA tooling. Real client TCP/screens/rendering, broader modpack/load coverage, and the documented expansion areas remain unverified/later work. Supported client-only sign-in/provider integration and an owner-tested real inference request are the concrete next phase; no existing credentials were accessed.

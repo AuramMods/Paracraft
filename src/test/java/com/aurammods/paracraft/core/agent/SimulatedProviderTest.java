@@ -11,6 +11,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Script QA against a stubbed service; physical inventory behavior is covered separately by GameTests. */
 class SimulatedProviderTest {
+    @Test void progressReportsActualCountsWithoutDumpingInventoryMetadata(){
+        Clock clock=new Clock();Sink sink=new Sink();AgentState state=new AgentState();String id=UUID.randomUUID().toString();
+        state.mutate("task_upsert",json("{\"id\":\""+id+"\",\"programId\":\""+id+"\",\"goal\":\"Collect diamonds\",\"status\":\"ACTIVE\"}"));
+        var snapshot=frame(chat(1,"Josh, progress?"));var work=job(id,"RUNNING");work.getAsJsonObject("result").add("pending",json("{\"phase\":\"collecting\",\"result\":{\"acquired\":5,\"requested\":12,\"remainingSources\":1,\"inventory\":\"do_not_dump_metadata\"}}"));snapshot.getAsJsonArray("programs").add(work);
+        try(HarnessLoop loop=new HarnessLoop(BINDING,state,new SimulatedProvider(),clock,sink,()->{})){
+            loop.accept(snapshot);pump(loop);String message=sink.sent.get(0).args().get("message").getAsString();
+            assertTrue(message.contains("5 of 12") && message.contains("1 container remaining") && message.startsWith("[SIMULATED]"));assertTrue(message.length()<256);assertFalse(message.contains("do_not_dump") || message.contains("{"));assertEquals(0,loop.planningCalls());assertEquals(List.of("chat"),sink.sent.stream().map(Sent::tool).toList());
+        }
+    }
     @Test void commandScriptsEscalateAndSelectExplicitCompletionSemantics(){
         for(String instruction:List.of("Josh, execute command qa_identity","Josh, teleport command qa_home","Josh, discover commands qa_","Josh, use portal 12 64 -30","Josh, search blocks #minecraft:portals")){
             Clock clock=new Clock();Sink sink=new Sink();sink.reply=sent->CompletableFuture.completedFuture(ok(job(sent.args().get("id").getAsString(),"RUNNING")));

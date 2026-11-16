@@ -181,9 +181,17 @@ public final class SimulatedProvider implements InferenceProvider {
     }
     private static String progress(JsonObject frame) {
         JsonObject task = nextTask(frame); if (task == null) return "There are no unfinished tasks.";
-        JsonObject job = program(frame, task); if (job == null) return "Task " + task.get("id").getAsString() + " has no program state in this snapshot.";
-        return "Task " + task.get("id").getAsString() + ": " + job.get("state").getAsString() + ", "
-                + (job.has("phase") ? job.get("phase").getAsString() : "phase unavailable") + ". Actual progress: " + job.get("result");
+        JsonObject job = program(frame, task); if (job == null) return "The unfinished task has no execution status in this snapshot.";
+        JsonObject execution=job.getAsJsonObject("result"),current=execution;
+        String phase=job.has("phase")?job.get("phase").getAsString():"status unavailable";
+        if(execution.has("pending")){var pending=execution.getAsJsonObject("pending");if(pending.has("phase"))phase=pending.get("phase").getAsString();if(pending.has("result"))current=pending.getAsJsonObject("result");}
+        var counts=new ArrayList<String>();
+        if(current.has("acquired") && current.has("requested"))counts.add("collected "+current.get("acquired").getAsLong()+" of "+current.get("requested").getAsLong()+" items");
+        for(String key:List.of("deposited","delivered","broken","replanted","placed"))if(current.has(key))counts.add(key+" "+current.get(key).getAsLong());
+        if(current.has("remainingSources")){long remaining=current.get("remainingSources").getAsLong();counts.add(remaining+" container"+(remaining==1?"":"s")+" remaining");}
+        if(counts.size()>3)counts.subList(3,counts.size()).clear();
+        if(phase.length()>60)phase=phase.substring(0,60);
+        return "Task "+job.get("state").getAsString()+": "+phase.replace('_',' ')+". Actual progress: "+(counts.isEmpty()?"no item or block counts reported yet":String.join(", ",counts))+".";
     }
     private static JsonObject task(String id, String goal, String status, int priority) {
         JsonObject task = new JsonObject(); task.addProperty("id", id); task.addProperty("programId", id);

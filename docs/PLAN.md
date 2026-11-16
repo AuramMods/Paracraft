@@ -420,3 +420,5 @@ Behavioral acceptance checks:
 - Server processing stays responsive with multiple avatars and incremental searches/routes; configured 4/64 defaults are exercised as capacity targets, not assumed performance guarantees.
 
 This plan is the implementation reference. The exact simulated-player class, navigation engine, helper-process need, command names, schemas, and mod-specific adapters should be settled by the corresponding working prototypes, while preserving the behavior and ownership boundaries above.
+
+The initial Forge 1.20.1 foundation has now been implemented with a labeled simulated client harness, keeping real authentication/inference as the explicitly deferred next phase. See [VALIDATION.md](VALIDATION.md) for actual test evidence, remaining native-client checks, and current adapter/expansion limits; [INSTALL.md](INSTALL.md) and [BACKGROUND.md](BACKGROUND.md) describe installation and windowless QA. This status does not claim that every future capability in the broader vision, arbitrary modpacks, or live account usage has been verified.

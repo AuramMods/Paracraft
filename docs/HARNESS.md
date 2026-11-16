@@ -75,6 +75,8 @@ The inventory observation continuation receives a server receipt ID and observed
 
 The simulator checks actual program snapshots to complete/fail tasks, reports real failure strings/delivered counts supplied there, and resumes existing program IDs. It does not implement general language understanding. Unknown/malformed script requests do not claim successful gameplay.
 
+Progress replies summarize actual current counts and phase without dumping the full snapshot, named results, or inventory metadata into public chat. Detailed observations remain in the explicit program/snapshot state.
+
 ## Verification
 
 Run `./gradlew test` with Java 17 for virtual-clock scheduling, routing, cancellation, restart/retry, storage, scripted diamond/progress/completion, interruption/resumption, and idle checks. These tests use service replies supplied by test fixtures. They do not exercise real containers, network connections, UI, credentials, or live model usage.
