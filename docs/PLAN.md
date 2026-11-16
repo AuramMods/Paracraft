@@ -1,6 +1,6 @@
 # Paracraft implementation plan
 
-Status: agreed product direction and proposed implementation architecture; no gameplay implementation yet.
+Status: agreed product direction and proposed implementation architecture; foundation implementation in progress. See [PROGRESS.md](PROGRESS.md) for verified coverage and remaining work.
 
 Planning baseline: November 16, 2026. This document consolidates the initial concept and the owner's clarification pass. Defaults below are deliberate starting choices; items explicitly marked for prototyping are unresolved implementation details.
 

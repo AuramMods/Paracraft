@@ -13,8 +13,8 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 
 | Area | Required work |
 | --- | --- |
-| Avatar | Simulated player prototype, ownership, rendering, inventory/equipment, survival, spawn/destroy/pause/resume |
-| Lifecycle | Save/despawn, reconnect restore, death/bed respawn, control-session invalidation, exactly-once item drops |
+| Avatar | Client rendering verification, actor compatibility beyond the tested vanilla interactions, validated capacity limits |
+| Lifecycle | Real client login/logout verification, restart restoration, death/bed respawn, command interruption and item-drop edge cases |
 | Observations | Nine-chunk search, coverage/freshness, inventory adapters, snapshots, events |
 | Execution | Navigation, real collection/deposit/delivery, nested recovery interpreter, IDs, checkpoints, safe cancellation |
 | Harness | Client transport, simulated provider, Light/planning routes, cadence, tasks, waits, memory/personality/history |
@@ -24,3 +24,11 @@ The goal remains the full initial foundation in [PLAN.md](PLAN.md). A successful
 | Account UI | Clearly disconnected status and extension point for later sign-in/live inference |
 
 Live authentication and actual AI usage are outside this foundation goal and remain unverified.
+
+## Cycle 2: Persistent survival-player prototype
+
+- Added a distinct-profile `ServerPlayer` actor with a local packet listener and normal player tick/survival paths, avoiding Forge FakePlayer's invulnerability and disabled ticking.
+- Added owner-only raw lifecycle commands, instruction delegation data, revocable control sessions, saved physical NBT, periodic checkpoints, disconnect removal, reconnect restoration, and offline destruction drops.
+- Container closure occurs before saving/destroying so items carried on a menu cursor are returned/accounted for.
+- `./scripts/qa.sh` passed: one JUnit authority test and all four required Forge GameTests. The world tests cover real chest capability mutation, actor damage/ticking, disconnect/restore with 14 metadata-bearing diamonds including menu cursor items, and destruction of a saved avatar dropping nine real diamonds exactly once. Saved-state serialization is also round-tripped through compressed NBT.
+- These tests invoke the same manager paths used by login/logout events, but do not simulate real client connections or prove client rendering. The current prototype is registered in its level rather than the server's global PlayerList; compatibility with commands/mods requiring that list remains to be addressed. Automatic death respawn, bed seeking, navigation, reflexes, and action execution are not implemented yet.
