@@ -64,6 +64,8 @@ public final class JobManager {
         GameJob target = request(avatar, id);
         if (target == null) throw new IllegalArgumentException("No saved request matches " + id);
         if (target.state().terminal()) return target;
+        if(target instanceof ParkedJob parked){if(!parked.canBind())return parked;target=rebind(avatar,parked);}
+        if(target.requiredDimension()!=avatars.actor(avatar).serverLevel().dimension() && !target.allowsDimensionChange())return target;
         if (target.actor() != avatars.actor(avatar)) throw new IllegalStateException("Saved operation has not been rebound to the current body");
         GameJob current = jobs.get(avatar);
         if (current != target && current != null && !current.state().terminal()) current.pause();
@@ -80,7 +82,10 @@ public final class JobManager {
             var queue = queues.get(avatar);
             if (current.state() == JobState.SUCCEEDED && queue != null && !queue.isEmpty() && owner != null && !owner.paused
                     && avatars.actor(avatar) != null && owner.authority.session() != null) {
-                GameJob next = queue.remove(); next.resume(); jobs.put(avatar, next);
+                GameJob next = queue.peek();
+                if(next instanceof ParkedJob parked){if(!parked.canBind())continue;next=rebind(avatar,parked);queue=queues.get(avatar);}
+                if(next.requiredDimension()!=avatars.actor(avatar).serverLevel().dimension())continue;
+                queue.remove();next.resume(); jobs.put(avatar, next);
             }
         }
     }
@@ -90,7 +95,14 @@ public final class JobManager {
     }
     public void pause(UUID avatar) { reflexHeld.remove(avatar); var job = jobs.get(avatar); if (job != null) job.pause(); }
     public void pauseRequest(UUID avatar, UUID request) { reflexHeld.remove(avatar, request); var job = request(avatar, request); if (job != null) job.pause(); }
-    public void resume(UUID avatar) { var job = jobs.get(avatar); if (job != null) job.resume(); }
+    public void resume(UUID avatar) {
+        var job=jobs.get(avatar);if(job instanceof ParkedJob parked){if(!parked.canBind())return;job=rebind(avatar,parked);}
+        if(job!=null && (job.requiredDimension()==avatars.actor(avatar).serverLevel().dimension() || job.allowsDimensionChange()))job.resume();
+    }
+    private GameJob rebind(UUID avatar,ParkedJob parked){
+        GameJob bound=parked.bind();requests.get(avatar).put(bound.id,bound);if(jobs.get(avatar)==parked)jobs.put(avatar,bound);
+        var queue=queues.get(avatar);if(queue!=null){var updated=new ArrayDeque<GameJob>();for(var job:queue)updated.add(job==parked?bound:job);queues.put(avatar,updated);}return bound;
+    }
     private void cancelQueue(UUID avatar, String reason) {
         var queue = queues.remove(avatar); if (queue != null) queue.forEach(job -> job.cancel(reason));
     }

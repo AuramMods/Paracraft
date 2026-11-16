@@ -67,6 +67,8 @@ Prototype the exact `ServerPlayer`-based implementation against Forge 1.20.1 bef
 
 Rendering packets alone are insufficient to supply authoritative health, collisions, item ownership, or normal interaction behavior. The avatar must have a server-side actor regardless of its visual representation.
 
+Implementation evidence: the Forge adapter now uses a survival-ticking simulated `ServerPlayer` registered in the native global roster, with a local in-memory transport for native hooks. This supplies native command identity and lifecycle integration. Those entries currently count toward Minecraft's online-player/max-players behavior; configure the native server limit accordingly. They are not separate authenticated Minecraft connections. See [COMMANDS.md](COMMANDS.md) and the cycle validation record in [PROGRESS.md](PROGRESS.md).
+
 Compatibility goals:
 
 - Use normal player interaction paths and Forge hooks where applicable, including protection/claim checks and mod cancellation events.

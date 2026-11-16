@@ -13,7 +13,11 @@ public final class JobCodec {
             return new RecordedJob(actor, checkpoint);
         UUID id = UUID.fromString(checkpoint.get("id").getAsString());
         String type = checkpoint.get("type").getAsString(); JsonObject data = checkpoint.getAsJsonObject("data");
+        if(!actor.serverLevel().dimension().location().toString().equals(checkpoint.get("dimension").getAsString())
+                && !(type.equals("execute_command") && data.get("issued").getAsBoolean()) && !(type.equals("program") && pendingCommand(data.getAsJsonObject("machine"))))return new ParkedJob(actor,checkpoint);
         GameJob job = switch (type) {
+            case "execute_command" -> new CommandJob(id,actor,data.getAsJsonObject("specification"));
+            case "discover_commands" -> new CommandDiscoveryJob(id,actor,data.get("prefix").getAsString());
             case "set_spawn" -> new BedSpawnJob(id, actor, JobJson.position(data.get("bed")));
             case "travel" -> new TravelJob(id, actor, JobJson.vector(data.get("destination")));
             case "search_containers" -> new SearchJob(id, actor, new ItemSelector(data.getAsJsonObject("search").get("selector").getAsString()));
@@ -31,5 +35,9 @@ public final class JobCodec {
             default -> throw new IllegalArgumentException("Unsupported saved operation: " + type);
         };
         job.restore(checkpoint); return job;
+    }
+    static boolean pendingCommand(JsonObject machine){
+        if(!machine.has("pending"))return false;var pending=machine.getAsJsonObject("pending");
+        return pending.get("type").getAsString().equals("execute_command") && pending.getAsJsonObject("data").get("issued").getAsBoolean();
     }
 }

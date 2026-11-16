@@ -88,7 +88,10 @@ public final class CompanionCommands {
 
     private static int invoke(CommandContext<CommandSourceStack> ctx, Work work) throws CommandSyntaxException {
         ServerPlayer owner = ctx.getSource().getPlayerOrException();
-        try { return work.run(owner, ServerEvents.avatars(owner.server)); }
+        try {
+            if(owner instanceof com.aurammods.paracraft.forge.avatar.CompanionPlayer)throw new IllegalArgumentException("Companion management requires its connected owner");
+            return work.run(owner, ServerEvents.avatars(owner.server));
+        }
         catch (IllegalArgumentException | IllegalStateException failure) {
             ctx.getSource().sendFailure(Component.literal(failure.getMessage()));
             return 0;

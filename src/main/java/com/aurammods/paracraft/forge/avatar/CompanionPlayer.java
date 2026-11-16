@@ -16,6 +16,44 @@ import java.util.Set;
 
 /** Real survival player, ticked by its level; it has no socket or authenticated account. */
 public final class CompanionPlayer extends ServerPlayer {
+    private boolean retired, insideTeleport;
+    private long teleportSerial;
+    private boolean nativeTeleportSeen;
+    private String disconnectReason="";
+    private final java.util.Set<java.util.function.Consumer<Component>> messageObservers=new java.util.HashSet<>();
+    private java.util.function.Consumer<net.minecraft.nbt.CompoundTag> saveObserver;
+    public Runnable observeSave(java.util.function.Consumer<net.minecraft.nbt.CompoundTag> observer){saveObserver=observer;return ()->saveObserver=null;}
+    @Override public net.minecraft.nbt.CompoundTag saveWithoutId(net.minecraft.nbt.CompoundTag tag){
+        var saved=super.saveWithoutId(tag);if(saveObserver!=null)saveObserver.accept(saved.copy());return saved;
+    }
+    public boolean retired(){return retired;}
+    public void retire(){retired=true;if(connection!=null && connection.connection instanceof LocalConnection local)local.closeLocal();}
+    public String disconnectReason(){return disconnectReason;}
+    public long teleportSerial(){return teleportSerial;}
+    public Runnable observeMessages(java.util.function.Consumer<Component> observer){messageObservers.add(observer);return ()->messageObservers.remove(observer);}
+    @Override public void sendSystemMessage(Component message,boolean overlay){
+        for(var observer:java.util.List.copyOf(messageObservers))observer.accept(message.copy());
+        super.sendSystemMessage(message,overlay);
+    }
+    @Override public void displayClientMessage(Component message,boolean overlay){
+        for(var observer:java.util.List.copyOf(messageObservers))observer.accept(message.copy());
+        super.displayClientMessage(message,overlay);
+    }
+    private void localTeleport(){if(insideTeleport)nativeTeleportSeen=true;else teleportSerial++;}
+    private void requestDisconnect(Component reason){disconnectReason=reason.getString();disconnect();}
+    @Override public void teleportTo(ServerLevel destination,double x,double y,double z,float yaw,float pitch){
+        if(retired)return;
+        boolean outer=insideTeleport; if(!outer)nativeTeleportSeen=false; insideTeleport=true;
+        try{super.teleportTo(destination,x,y,z,yaw,pitch);}
+        finally{insideTeleport=outer; if(!outer && nativeTeleportSeen)teleportSerial++;}
+    }
+    @Override public net.minecraft.world.entity.Entity changeDimension(ServerLevel destination,net.minecraftforge.common.util.ITeleporter teleporter){
+        if(retired)return null;
+        boolean outer=insideTeleport;if(!outer)nativeTeleportSeen=false;insideTeleport=true;
+        try{return super.changeDimension(destination,teleporter);}
+        finally{insideTeleport=outer;if(!outer && nativeTeleportSeen){teleportSerial++;hasChangedDimension();gameMode.setLevel(serverLevel());}}
+    }
+    @Override public boolean canChangeDimensions(){return false;} // An explicit portal operation grants this in the portal adapter.
     private boolean needsAir, canRefillAir = true;
     private java.util.function.Consumer<net.minecraft.world.damagesource.DamageSource> damageObserver = source -> { };
     public boolean needsAir() { return needsAir; }
@@ -53,10 +91,10 @@ public final class CompanionPlayer extends ServerPlayer {
         if (insideDeath) deathCommitted = true;
     }
     @Override public void addAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
-        super.addAdditionalSaveData(tag); tag.putBoolean("ParacraftDeathCommitted", deathCommitted);
+        super.addAdditionalSaveData(tag); tag.putBoolean("ParacraftDeathCommitted", deathCommitted);tag.putLong("ParacraftTeleportSerial",teleportSerial);
     }
     @Override public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
-        super.readAdditionalSaveData(tag); deathCommitted = tag.getBoolean("ParacraftDeathCommitted");
+        super.readAdditionalSaveData(tag); deathCommitted = tag.getBoolean("ParacraftDeathCommitted");teleportSerial=tag.getLong("ParacraftTeleportSerial");
     }
     private final java.util.Set<java.util.function.Consumer<net.minecraft.world.item.ItemStack>> pickupObservers = new java.util.HashSet<>();
     public Runnable observePickups(java.util.function.Consumer<net.minecraft.world.item.ItemStack> observer) {
@@ -85,13 +123,13 @@ public final class CompanionPlayer extends ServerPlayer {
 
     private static final class LocalListener extends ServerGamePacketListenerImpl {
         private LocalListener(CompanionPlayer player) {
-            super(player.server, new Connection(PacketFlow.SERVERBOUND), player);
+            super(player.server, new LocalConnection(player), player);
         }
         @Override public void send(Packet<?> packet) { }
         @Override public void send(Packet<?> packet, PacketSendListener listener) { }
         @Override public void tick() { }
-        @Override public void disconnect(Component reason) { }
-        @Override public void onDisconnect(Component reason) { }
+        @Override public void disconnect(Component reason) { ((CompanionPlayer)player).requestDisconnect(reason); }
+        @Override public void onDisconnect(Component reason) { disconnect(reason); }
         @Override public void resetPosition() { }
         @Override
         public void teleport(double x, double y, double z, float yaw, float pitch) {
@@ -100,12 +138,27 @@ public final class CompanionPlayer extends ServerPlayer {
         @Override
         public void teleport(double x, double y, double z, float yaw, float pitch,
                              Set<RelativeMovement> relative) {
+            CompanionPlayer body=(CompanionPlayer)player;if(body.retired)return;
             player.absMoveTo(relative.contains(RelativeMovement.X) ? player.getX() + x : x,
                     relative.contains(RelativeMovement.Y) ? player.getY() + y : y,
                     relative.contains(RelativeMovement.Z) ? player.getZ() + z : z,
                     relative.contains(RelativeMovement.Y_ROT) ? player.getYRot() + yaw : yaw,
                     relative.contains(RelativeMovement.X_ROT) ? player.getXRot() + pitch : pitch);
             player.resetFallDistance();
+            body.localTeleport();
         }
+    }
+    /** Supplies native channel attributes without a socket, handshake, or outbound packet queue. */
+    private static final class LocalConnection extends Connection {
+        private final CompanionPlayer owner;
+        private final io.netty.channel.embedded.EmbeddedChannel embedded;
+        private boolean closing;
+        private LocalConnection(CompanionPlayer owner){super(PacketFlow.SERVERBOUND);this.owner=owner;embedded=new io.netty.channel.embedded.EmbeddedChannel(this);}
+        @Override public void send(Packet<?> packet){}
+        @Override public void send(Packet<?> packet,PacketSendListener listener){}
+        @Override public void tick(){}
+        @Override public boolean isMemoryConnection(){return true;}
+        @Override public void disconnect(Component reason){if(!closing && owner!=null)owner.requestDisconnect(reason);}
+        private void closeLocal(){if(!closing){closing=true;embedded.finishAndReleaseAll();}}
     }
 }

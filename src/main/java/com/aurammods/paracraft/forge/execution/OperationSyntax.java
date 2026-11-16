@@ -10,6 +10,19 @@ public final class OperationSyntax {
     public static void validate(JsonObject spec) {
         String op = string(spec, "op");
         switch (op) {
+            case "discover_commands" -> {
+                if(spec.has("prefix") && (!spec.get("prefix").isJsonPrimitive() || !spec.getAsJsonPrimitive("prefix").isString()))throw new IllegalArgumentException("Command prefix must be a string");
+            }
+            case "execute_command" -> {
+                string(spec,"command");
+                if(spec.has("await") && !java.util.Set.of("command","teleport").contains(string(spec,"await")))throw new IllegalArgumentException("await must be command or teleport");
+                if(spec.has("timeoutTicks"))integer(spec,"timeoutTicks");
+                if(spec.has("dimension"))string(spec,"dimension");
+                if(spec.has("destination"))coordinates(spec);
+                if(spec.has("playerUuid"))UUID.fromString(string(spec,"playerUuid"));
+                if(spec.has("tolerance") && (!spec.get("tolerance").isJsonPrimitive() || !spec.getAsJsonPrimitive("tolerance").isNumber()
+                        || !Double.isFinite(spec.get("tolerance").getAsDouble()) || spec.get("tolerance").getAsDouble()<0))throw new IllegalArgumentException("tolerance must be a finite nonnegative number");
+            }
             case "set_spawn" -> com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("bed"));
             case "travel" -> coordinates(spec);
             case "search_containers", "collect_items" -> {

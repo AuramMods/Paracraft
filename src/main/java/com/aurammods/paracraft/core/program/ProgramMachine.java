@@ -62,6 +62,7 @@ public final class ProgramMachine {
     public JsonObject results() { return results.deepCopy(); }
     public String taskId() { return program.has("taskId") ? program.get("taskId").getAsString() : id.toString(); }
     public String currentOperation() { return pc < code.size() && code.get(pc).action != null ? code.get(pc).action.get("op").getAsString() : "control"; }
+    public boolean hasPendingOperation(){return pending!=null || pendingCheckpoint!=null;}
 
     private void compile(JsonArray steps, String path) {
         for (int index = 0; index < steps.size(); index++) {

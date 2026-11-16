@@ -39,6 +39,7 @@ final class SnapshotBuilder {
         var actor = avatars.actor(entry.id); frame.addProperty("online", actor != null); if (actor == null) return frame;
         frame.addProperty("serverTick", actor.server.getTickCount()); frame.addProperty("observedAt", actor.level().getGameTime());
         frame.addProperty("dimension", actor.serverLevel().dimension().location().toString()); frame.add("position", vector(actor.position()));
+        frame.addProperty("teleportSerial",actor.teleportSerial());
         frame.addProperty("health", actor.getHealth()); frame.addProperty("maxHealth", actor.getMaxHealth()); frame.addProperty("alive", actor.isAlive());
         frame.addProperty("food", actor.getFoodData().getFoodLevel()); frame.addProperty("saturation", actor.getFoodData().getSaturationLevel());
         frame.addProperty("oxygen", actor.getAirSupply()); frame.addProperty("maxOxygen", actor.getMaxAirSupply());

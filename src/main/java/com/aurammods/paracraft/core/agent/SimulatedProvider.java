@@ -15,6 +15,8 @@ import java.util.regex.Pattern;
 public final class SimulatedProvider implements InferenceProvider {
     private static final Pattern TRAVEL = Pattern.compile("(?i)\\btravel to (-?\\d+(?:\\.\\d+)?) (-?\\d+(?:\\.\\d+)?) (-?\\d+(?:\\.\\d+)?)\\b");
     private static final Pattern BEHAVIOR = Pattern.compile("(?i)\\bbehavior (players|mobs) (passive|flee|neutral|aggressive)\\b");
+    private static final Pattern COMMAND=Pattern.compile("(?i)\\b(execute|teleport) command (.+)$");
+    private static final Pattern DISCOVER=Pattern.compile("(?i)\\bdiscover commands(?: (.*))?$");
     private static final Set<String> TERMINAL_TASK = Set.of("COMPLETED", "FAILED");
     @Override public String label() { return "SIMULATED — deterministic QA scripts, no AI usage"; }
     @Override public boolean simulated() { return true; }
@@ -33,11 +35,12 @@ public final class SimulatedProvider implements InferenceProvider {
         JsonObject task = nextTask(frame);
         if (request.route() == Route.LIGHT) {
             if (chat) {
+                if(COMMAND.matcher(text).find() || DISCOVER.matcher(text).find())return decision(call("think_harder",new JsonObject()));
                 if (lower.contains("progress") || lower.contains("status")) return say(progress(frame));
                 if (scriptedAction(text)) return decision(call("think_harder", new JsonObject()));
                 if (lower.contains("hello") || lower.contains("hey") || lower.contains("how's it going"))
                     return say("I'm here. This companion is running the deterministic QA simulator.");
-                return say("Simulation scripts: collect diamonds, progress, pause work, resume work, travel to X Y Z, behavior players|mobs passive|flee|neutral|aggressive, wait for EVENT, remember KEY=TEXT, personality TEXT, trust UUID, untrust UUID.");
+                return say("Simulation scripts: collect diamonds, progress, pause/resume work, travel to X Y Z, execute command TEXT, teleport command TEXT, discover commands PREFIX, behavior players|mobs REACTION, wait for EVENT, remember KEY=TEXT, personality TEXT, trust/untrust UUID.");
             }
             if (task == null) return decision();
             JsonObject job = program(frame, task);
@@ -46,6 +49,14 @@ public final class SimulatedProvider implements InferenceProvider {
             return decision();
         }
         if (chat) {
+            var command=COMMAND.matcher(text);var discover=DISCOVER.matcher(text);boolean execute=command.find(),discovery=discover.find();
+            if(execute || discovery){
+                String id=identity(frame,event,execute?"command":"commands");JsonObject program=baseProgram(id);JsonObject step=new JsonObject();
+                step.addProperty("op",execute?"execute_command":"discover_commands");step.addProperty("saveAs","command");
+                if(execute){step.addProperty("command",command.group(2));if(command.group(1).equalsIgnoreCase("teleport"))step.addProperty("await","teleport");}
+                else step.addProperty("prefix",discover.group(1)==null?"":discover.group(1));
+                JsonArray steps=new JsonArray();steps.add(step);program.add("steps",steps);return startTask(frame,task(id,text,"ACTIVE",-1),program);
+            }
             var behavior = BEHAVIOR.matcher(text);
             if (behavior.find()) {
                 JsonObject patch = new JsonObject(); patch.addProperty(behavior.group(1).toLowerCase(Locale.ROOT),behavior.group(2).toLowerCase(Locale.ROOT));
@@ -111,7 +122,7 @@ public final class SimulatedProvider implements InferenceProvider {
         String lower = text.toLowerCase(Locale.ROOT);
         return (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find"))) || TRAVEL.matcher(text).find()
                 || lower.contains("pause work") || lower.contains("resume work") || lower.contains("remember ") || lower.contains("personality ")
-                || lower.contains("wait for ") || lower.contains("trust ") || BEHAVIOR.matcher(text).find();
+                || lower.contains("wait for ") || lower.contains("trust ") || BEHAVIOR.matcher(text).find() || COMMAND.matcher(text).find() || DISCOVER.matcher(text).find();
     }
     private static Decision startTask(JsonObject frame, JsonObject task, JsonObject program) {
         List<Call> calls = new ArrayList<>();

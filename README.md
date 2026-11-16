@@ -2,7 +2,7 @@
 
 Server-owned Minecraft companions with a client-owned decision harness. Initial target: Forge 1.20.1, Java 17.
 
-Implementation is in progress. See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), [gameplay actions](docs/GAMEPLAY.md), [survival and respawn](docs/SURVIVAL.md), [server behavior](docs/BEHAVIOR.md), [decision harness](docs/HARNESS.md), [client runtime](docs/NETWORK.md), and [QA instructions](docs/QA.md). The mod wires the simulated client harness, Forge packets, controls screen, native survival, configurable attacker reactions, and idle patrols. Authentication and live AI usage are not connected; client rendering/login checks await manual verification.
+Implementation is in progress. See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), [gameplay actions](docs/GAMEPLAY.md), [survival and respawn](docs/SURVIVAL.md), [server behavior](docs/BEHAVIOR.md), [native commands](docs/COMMANDS.md), [decision harness](docs/HARNESS.md), [client runtime](docs/NETWORK.md), and [QA instructions](docs/QA.md). The mod wires the simulated client harness, Forge packets, controls screen, native survival, configurable attacker reactions, idle patrols, and native commands with delayed teleport outcomes. Authentication and live AI usage are not connected; client rendering/login checks await manual verification.
 
 ## Build
 

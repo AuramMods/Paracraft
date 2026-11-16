@@ -11,7 +11,7 @@ public final class ProgramJob extends GameJob {
         this(id, actor, program, new JsonObject());
     }
     public ProgramJob(UUID id, CompanionPlayer actor, JsonObject program, JsonObject initialResults) {
-        super(id, "program", actor); machine = new ProgramMachine(id, program, new ForgeOperations(actor), initialResults);
+        super(id, "program", actor); machine = new ProgramMachine(id, program, new ForgeOperations(actor,this::adoptDimension), initialResults);
     }
     @Override protected void advance() {
         machine.tick(16); phase = machine.currentOperation(); result = machine.view();
@@ -24,8 +24,10 @@ public final class ProgramJob extends GameJob {
         }
     }
     @Override public void cancel(String reason) { machine.cancel(reason); result = machine.view(); super.cancel(reason); }
+    @Override protected boolean allowsDimensionChange(){return machine.hasPendingOperation() && machine.currentOperation().equals("execute_command");}
+    @Override protected boolean allowsRestoredDimension(JsonObject checkpoint){return JobCodec.pendingCommand(checkpoint.getAsJsonObject("data").getAsJsonObject("machine"));}
     @Override protected void onPause() { machine.pause(); result = machine.view(); }
     @Override public void resume() { machine.resume(); super.resume(); }
     @Override protected JsonObject writeData() { JsonObject value = new JsonObject(); value.add("machine", machine.checkpoint()); return value; }
-    @Override protected void readData(JsonObject data) { machine = ProgramMachine.restore(data.getAsJsonObject("machine"), new ForgeOperations(actor)); result = machine.view(); }
+    @Override protected void readData(JsonObject data) { machine = ProgramMachine.restore(data.getAsJsonObject("machine"), new ForgeOperations(actor,this::adoptDimension)); result = machine.view(); }
 }

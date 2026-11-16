@@ -63,6 +63,8 @@ The survival suite adds actual native death/drop/vanishing/experience checks, re
 
 The reflex suite exercises an actual roofed water pool with a side exit, sealed-pool search failure and retry spacing, native water-breathing effects, neutral retaliation, passive stop/explicit resume, player fleeing, separate aggressive categories and authority exclusions, and canceled native attacks leaving ordinary work paused. It also connects an actual simulated harness to behavior changes and a repeated physical idle patrol: routine arrivals consume no inference, ordinary travel interrupts it, reconnect preserves progress, and owner pause stops movement. See [BEHAVIOR.md](BEHAVIOR.md) for exact configuration and limits.
 
+The native command suite adds ten scenarios: global roster/name/UUID visibility and avatar permissions, rollback after actual spawn refusal, delayed teleport acceptance and reconnect without reissue, timeout stopping dependent work, cross-dimension teleport followed by real placement, UUID-keyed home state after body restoration, parking/rebinding a previous-dimension checkpoint, native listener disconnect and owner recovery, simulated routed command/task completion, and Forge logout inventory/location mutations with exactly-once destruction drops. Commands use actual native dispatch and test-only fixtures; no external home/TPA mod is claimed as verified. The command tests run in their own batch to respect the production default of 64 active avatars during the larger suite. See [COMMANDS.md](COMMANDS.md).
+
 ## Current manual controls
 
 The following player commands exist in the foundation build:
@@ -111,6 +113,8 @@ The writer stops a program after collecting three of six diamonds but before dep
 
 Expected events: `cold_restart_write` and `cold_restart_read`, each with pass status and different process IDs. A zero-test run cannot satisfy the script. Logs to return are `build/qa/restart/write.log` and `build/qa/restart/read.log`; the native second-process log is `run/restart-qa/logs/latest.log`.
 
+The same writer also saves a second avatar with a native delayed command already issued. The reader resumes that checkpoint and verifies zero new dispatches. Because the test-only external pending request is not persisted across JVMs, the real expected outcome is timeout with the issued flag retained, rather than a fabricated teleport.
+
 ## Visual checks
 
 Client rendering, screens, animations, actual TCP/signed chat, and client login/logout remain unverified. No verified focus-preserving graphical-client launcher has been set up, so automated checks have remained headless. No window or sign-in browser is launched by the QA scripts.
@@ -130,6 +134,7 @@ For an owner-initiated graphical session:
 11. Supply food, let hunger fall, and expect actual eating without inference controlling every tick. Pause ordinary work during eating and confirm eating completion does not resume it. Then deliberately cause a normal death: check drops, bed/fallback respawn, interrupted work, and the new body. Repeat with your server's keep-inventory rules. Do not infer client animations from the automated server tests.
 12. Inspect `/paracraft behavior Josh`, then say `Josh, behavior players passive`. Expect Light escalation and a persisted category change visible in the screen/snapshot. Use a disposable scenario to compare passive, flee, and neutral responses; your server's PvP/claim rules still apply.
 13. Configure an idle patrol using the example in [BEHAVIOR.md](BEHAVIOR.md), replacing coordinates with your actual floor positions. Expect repeated movement without growing inference counts from routine arrivals. Interrupt it with work, pause, and reconnect. Test a safe pool with a surface/side exit to observe oxygen escape; sealed pools can fail and cause death normally.
+14. On a disposable server with your normal home/TPA mod, use `Josh, discover commands home`, then a permitted `Josh, teleport command home base`. Inspect actual feedback and arrival. Test a rejected request, delayed acceptance, and timeout. Confirm owner operator rights are not inherited and the next program action uses the actual destination dimension. Ensure native `max-players` leaves room for the avatar roster entries.
 
 Return the client and server `logs/latest.log` files, screenshots at problematic GUI scales, and a note for each failed step. Default development-client logs are `run/development/logs/latest.log`; local cognitive files are under that game directory's `paracraft/memory`. Never include credentials. Native client observations have not been supplied yet; passing headless tests does not substitute for these checks.
 

@@ -50,6 +50,9 @@ public final class RestartGameTests {
         UUID owner = UUID.randomUUID(), request = UUID.randomUUID();
         var entry = manager.spawn(owner, level, new Vec3(3000.5, 80, 3000.5), "RestartQA");
         manager.actor(entry.id).setNoGravity(true); UUID session = entry.authority.session();
+        var commandEntry=manager.spawn(owner,level,new Vec3(3002.5,80,3002.5),"RestartCommand");manager.actor(commandEntry.id).setNoGravity(true);UUID commandId=UUID.randomUUID();
+        var command=manager.jobs().submitProgram(owner,commandEntry.id,commandEntry.authority.session(),commandId,
+                JsonParser.parseString("{\"steps\":[{\"op\":\"execute_command\",\"command\":\"qa_tpa RestartQA\",\"await\":\"teleport\",\"timeoutTicks\":40,\"saveAs\":\"request\"}]}").getAsJsonObject(),"replace");
         manager.configureBehavior(owner,entry.id,JsonParser.parseString("{\"players\":\"passive\",\"mobs\":\"flee\",\"idle\":{\"waitTicks\":17,\"waypoints\":[[3000.5,80,3000.5]]}}").getAsJsonObject());
         UUID receipt = UUID.randomUUID();
         JsonObject chat = new JsonObject(); chat.addProperty("message", "[SIMULATED] persisted receipt");
@@ -61,11 +64,13 @@ public final class RestartGameTests {
             if (!job.result().has("pending")) return;
             var partial = job.result().getAsJsonObject("pending").getAsJsonObject("result");
             if (!partial.has("acquired") || partial.get("acquired").getAsInt() != 3) return;
+            if(CommandFixtures.calls(commandEntry.id)!=1)return;
             manager.disconnectOwner(owner);
             helper.assertTrue(count(helper, SOURCE) == 3 && count(helper, DESTINATION) == 0, "Pending transfer captured between collection and deposit");
             JsonObject expected = new JsonObject(); expected.addProperty("owner", owner.toString()); expected.addProperty("avatar", entry.id.toString());
             expected.addProperty("request", request.toString()); expected.addProperty("oldSession", session.toString()); expected.addProperty("writePid", ProcessHandle.current().pid());
             expected.addProperty("worldId", manager.worldId().toString()); expected.addProperty("receipt", receipt.toString());
+            expected.addProperty("commandAvatar",commandEntry.id.toString());expected.addProperty("commandRequest",commandId.toString());
             try { Files.writeString(MARKER, expected.toString()); }
             catch (java.io.IOException failure) { throw new AssertionError(failure); }
             Paracraft.LOG.info("QA_EVT {\"event\":\"cold_restart_write\",\"status\":\"pass\",\"context\":{\"pid\":{}}}", ProcessHandle.current().pid());
@@ -98,6 +103,10 @@ public final class RestartGameTests {
         helper.assertTrue(manager.jobs().submitProgram(owner, id, entry.authority.session(), request, program(), "replace") == restored,
                 "Persisted request ID deduplicates before resumption");
         manager.jobs().resumeRequest(owner, id, entry.authority.session(), request);
+        UUID commandAvatar=UUID.fromString(expected.get("commandAvatar").getAsString()),commandId=UUID.fromString(expected.get("commandRequest").getAsString());
+        var pendingCommand=manager.jobs().request(commandAvatar,commandId);
+        helper.assertTrue(pendingCommand!=null && pendingCommand.state()==JobState.PAUSED && pendingCommand.result().getAsJsonObject("pending").getAsJsonObject("result").get("issued").getAsBoolean(),"Issued command checkpoint survived actual process restart");
+        manager.jobs().resumeRequest(owner,commandAvatar,manager.entry(commandAvatar).authority.session(),commandId);
         helper.onEachTick(() -> {
             helper.assertTrue(restored.state() != JobState.FAILED, "Reader program failed: " + restored.view());
             if (restored.state() != JobState.SUCCEEDED) return;
@@ -105,6 +114,9 @@ public final class RestartGameTests {
                     && manager.actor(id).getInventory().countItem(Items.DIAMOND) == 0, "Fresh process resumed without replay, loss, or duplication");
             helper.assertTrue(restored.result().getAsJsonObject("results").getAsJsonObject("loot").get("acquired").getAsInt() == 3,
                     "Named result survived pending checkpoint recovery");
+            helper.assertTrue(CommandFixtures.calls(commandAvatar)==0,"Reader never reissues the already accepted command after restart");
+            if(pendingCommand.state()!=JobState.FAILED)return;
+            helper.assertTrue(pendingCommand.view().get("error").getAsString().contains("not observed"),"A request absent from the new command fixture expires honestly instead of pretending to have teleported");
             Paracraft.LOG.info("QA_EVT {\"event\":\"cold_restart_read\",\"status\":\"pass\",\"context\":{\"pid\":{},\"previousPid\":{}}}",
                     ProcessHandle.current().pid(), expected.get("writePid").getAsLong());
             helper.succeed();

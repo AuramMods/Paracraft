@@ -63,6 +63,9 @@ It writes a forced temporary file and replaces the destination atomically when t
 | `Josh, personality Brief and cheerful` | Planning personality update |
 | `Josh, trust <UUID>` / `Josh, untrust <UUID>` | Planning delegation request; the server must verify owner permission |
 | `Josh, behavior players passive` / `Josh, behavior mobs neutral` | Escalate and update the selected server reaction category; all four documented reactions are supported |
+| `Josh, discover commands home` | Escalate, create a command-discovery task/program, and report its actual outcome |
+| `Josh, execute command list` | Escalate and dispatch as the avatar; native command return completes the task |
+| `Josh, teleport command home base` | Escalate, dispatch once, and wait for an actual native teleport or timeout |
 
 An inactive task remains eligible for automatic later resumption; `pause work` is not a permanent pause. Use an explicit wait or the runtime's owner pause control to suspend polling.
 

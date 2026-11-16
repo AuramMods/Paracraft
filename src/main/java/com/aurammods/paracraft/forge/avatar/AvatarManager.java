@@ -88,6 +88,10 @@ public final class AvatarManager {
     public void tickLifecycle() {
         for (var pair : List.copyOf(active.entrySet())) {
             AvatarEntry entry = saved.get(pair.getKey()); CompanionPlayer body = pair.getValue();
+            if(body.hasDisconnected()){
+                pause(entry.authority.owner(),entry.id,true);entry.control.addProperty("controllerStatus","Avatar disconnected: "+body.disconnectReason());
+                survival.get(entry.id).close();checkpoint(entry);detach(entry.id);entry.execution=jobs.checkpoint(entry.id);jobs.unbind(entry.id);continue;
+            }
             if (body.deathCommitted()) {
                 if (!entry.control.has("lifecycle") || !entry.control.getAsJsonObject("lifecycle").get("state").getAsString().equals("dead")) {
                     survival.get(entry.id).onDeath(); jobs.cancelAll(entry.id, "Avatar died"); entry.authority.disconnect();
@@ -107,7 +111,7 @@ public final class AvatarManager {
         var location = spawnLevel != null && bed != null ? net.minecraft.world.entity.player.Player.findRespawnPositionAndUseSpawnBlock(
                 spawnLevel, bed, old.getRespawnAngle(), old.isRespawnForced(), false) : java.util.Optional.<Vec3>empty();
         ServerLevel destination = location.isPresent() ? spawnLevel : server.overworld();
-        var execution = jobs.checkpoint(entry.id); jobs.unbind(entry.id); detach(entry.id);
+        var execution = jobs.checkpoint(entry.id); jobs.unbind(entry.id); detach(entry.id,true);
         CompanionPlayer fresh = new CompanionPlayer(destination, old.getGameProfile());
         fresh.restoreFrom(old, false); fresh.setId(old.getId()); fresh.setMainArm(old.getMainArm()); old.getTags().forEach(fresh::addTag);
         if (location.isPresent()) {
@@ -154,16 +158,29 @@ public final class AvatarManager {
         attach(entry, player, false);
     }
     private void attach(AvatarEntry entry, CompanionPlayer player, boolean respawn) {
+        boolean registered=false;
+        try {
+        AvatarRoster.register(player);registered=true;
         server.getPlayerList().broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player)));
         if (respawn) player.serverLevel().addRespawnedPlayer(player); else player.serverLevel().addNewPlayer(player);
         if (player.serverLevel().getEntity(player.getUUID()) != player) {
-            server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
             throw new IllegalStateException("Avatar spawn was rejected by the world");
         }
         active.put(entry.id, player);
         survival.put(entry.id, new SurvivalController(this, entry, player));
         if (!entry.paused && player.isAlive() && !player.deathCommitted()) entry.authority.connect();
         jobs.restore(entry.id, entry.execution);
+        if(!respawn)AvatarRoster.loggedIn(player);
+        } catch(RuntimeException failure){
+            if(active.remove(entry.id,player)){
+                var runtime=survival.remove(entry.id);if(runtime!=null)runtime.close();jobs.unbind(entry.id);
+            }
+            player.retire();if(registered)AvatarRoster.rollback(player);
+            if(player.serverLevel().getEntity(player.getUUID())==player)player.serverLevel().removePlayerImmediately(player,Entity.RemovalReason.DISCARDED);
+            if(registered)AvatarRoster.failed(player,respawn || saved.get(entry.id)!=null);
+            server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(player.getUUID())));
+            throw failure;
+        }
     }
 
     public void checkpoint(AvatarEntry entry) {
@@ -189,21 +206,27 @@ public final class AvatarManager {
                 // Closing first returns carried/crafting stacks before the snapshot is saved.
                 if (player != null) player.closeContainer();
                 checkpoint(entry);
-                jobs.unbind(entry.id);
                 detach(entry.id);
+                if(player!=null)entry.execution=jobs.checkpoint(entry.id);jobs.unbind(entry.id);
             }
         }
     }
 
     private void detach(UUID id) {
+        detach(id,false);
+    }
+    private void detach(UUID id, boolean respawn) {
         SurvivalController reflex = survival.remove(id); if (reflex != null) reflex.close();
         CompanionPlayer player = active.remove(id);
         if (player == null) return;
         player.closeContainer();
         player.unRide();
-        player.serverLevel().removePlayerImmediately(player, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
-        player.getAdvancements().stopListening();
-        server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(id)));
+        AvatarEntry entry=saved.get(id);Runnable capture=entry!=null && !respawn?player.observeSave(tag->{entry.physical=tag;saved.setDirty();}):()->{};
+        try{
+            if(respawn)AvatarRoster.removeForRespawn(player);
+            else{player.disconnect();server.getPlayerList().remove(player);}
+        }finally{capture.run();player.retire();}
+        if(respawn)server.getPlayerList().broadcastAll(new ClientboundPlayerInfoRemovePacket(List.of(id)));
     }
 
     public List<String> restoreOwner(UUID owner) {
@@ -237,16 +260,23 @@ public final class AvatarManager {
         AvatarEntry entry = owned(owner, id);
         jobs.forget(id);
         CompanionPlayer player = active.get(id);
-        if (player == null) player = loadPlayer(entry);
+        boolean offline=player==null;
+        if (offline) player = loadPlayer(entry);
         player.closeContainer();
+        if(!offline)detach(id);
         player.getInventory().dropAll();
+        AvatarRoster.saveOfflineMirror(player);
         entry.authority.disconnect();
-        detach(id);
+        player.retire();
         saved.remove(id);
     }
 
     public void pause(UUID owner, UUID id, boolean paused) {
         AvatarEntry entry = owned(owner, id);
+        if(!paused && !active.containsKey(id)){
+            if(active.size()>=Paracraft.SERVER_LIMIT.get())throw new IllegalStateException("Active companion limit reached");
+            attach(entry,loadPlayer(entry));
+        }
         entry.paused = paused;
         if (!paused) entry.control.remove("controllerStatus");
         if (paused) jobs.pause(id); else jobs.resume(id);

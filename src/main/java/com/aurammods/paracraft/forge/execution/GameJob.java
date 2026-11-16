@@ -17,12 +17,14 @@ public abstract class GameJob {
     protected String phase = "starting", error = "";
     protected JsonObject result = new JsonObject();
     private PlayerNavigator navigator;
-    private final net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension;
+    private net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension;
 
     protected GameJob(UUID id, String type, CompanionPlayer actor) {
         this.id = id; this.type = type; this.actor = actor; this.dimension = actor.serverLevel().dimension();
     }
     public CompanionPlayer actor() { return actor; }
+    public net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> requiredDimension(){return dimension;}
+    protected final void adoptDimension(){dimension=actor.serverLevel().dimension();}
     public JobState state() { return state; }
     public JsonObject result() { return result.deepCopy(); }
     public final void tick() {
@@ -37,7 +39,7 @@ public abstract class GameJob {
     }
     protected abstract void advance();
     private boolean invalidateControl() {
-        String reason = !actor.isAlive() || actor.isRemoved() ? "Avatar died or was removed"
+        String reason = !actor.isAlive() || actor.isRemoved() || actor.retired() || actor.hasDisconnected() ? "Avatar died, disconnected, or was removed"
                 : !allowsDimensionChange() && actor.serverLevel().dimension() != dimension ? "Avatar changed dimension" : null;
         if (reason == null) return false;
         // A native hook can change life/dimension during this tick's indivisible action.
@@ -46,6 +48,7 @@ public abstract class GameJob {
         cancel(reason); return true;
     }
     protected boolean allowsDimensionChange() { return false; }
+    protected boolean allowsRestoredDimension(JsonObject checkpoint){return false;}
     protected boolean navigate(Vec3 target, double reach) {
         if (actor.position().distanceTo(target) <= reach) { stopMoving(); return true; }
         if (navigator == null) navigator = new PlayerNavigator(actor);
@@ -65,7 +68,7 @@ public abstract class GameJob {
     public void enqueue() { state = JobState.QUEUED; }
     protected JsonObject writeData() { return new JsonObject(); }
     protected void readData(JsonObject data) { }
-    public final JsonObject checkpoint() {
+    public JsonObject checkpoint() {
         JsonObject value = view(); value.addProperty("schema", 1); value.addProperty("dimension", dimension.location().toString());
         value.add("data", writeData()); return value;
     }
@@ -73,7 +76,7 @@ public abstract class GameJob {
         if (checkpoint.get("schema").getAsInt() != 1 || !id.toString().equals(checkpoint.get("id").getAsString())
                 || !type.equals(checkpoint.get("type").getAsString())) throw new IllegalArgumentException("Incompatible job checkpoint");
         JobState restoredState = JobState.valueOf(checkpoint.get("state").getAsString());
-        if (!restoredState.terminal() && !dimension.location().toString().equals(checkpoint.get("dimension").getAsString()))
+        if (!restoredState.terminal() && !dimension.location().toString().equals(checkpoint.get("dimension").getAsString()) && !allowsRestoredDimension(checkpoint))
             throw new IllegalStateException("Saved operation belongs to another dimension");
         state = restoredState;
         if (state == JobState.RUNNING) state = JobState.PAUSED;
@@ -84,6 +87,8 @@ public abstract class GameJob {
         JsonObject value = new JsonObject();
         value.addProperty("id", id.toString()); value.addProperty("type", type); value.addProperty("state", state.name());
         value.addProperty("phase", phase); value.addProperty("error", error); value.add("result", result());
+        value.addProperty("dimension",dimension.location().toString());
+        if(!state.terminal() && actor.serverLevel().dimension()!=dimension && !allowsDimensionChange())value.addProperty("blockedReason","Return to the saved dimension before resuming");
         return value;
     }
 }
