@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="paracraft"
+version="${version}"
+displayName="Paracraft"
+authors="Paracraft contributors"
+description='''Server-owned companions with a client-owned decision harness. Foundation builds use a labeled simulated provider; live authentication is not connected.'''
+
+[[dependencies.paracraft]]
+modId="forge"
+mandatory=true
+versionRange="[47.4.28,48)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.paracraft]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.20.2)"
+ordering="NONE"
+side="BOTH"
