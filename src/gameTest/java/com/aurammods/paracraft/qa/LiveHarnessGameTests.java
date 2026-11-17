@@ -35,7 +35,7 @@ public final class LiveHarnessGameTests {
         memory.lightEffort = "none"; memory.planningEffort = "xhigh";
         var provider = new LiveClientProcess.Remote();
         var loop = new HarnessLoop(new AgentBinding(manager.worldId(), owner, entry.id), memory, provider, AgentClock.SYSTEM,
-                (id, tool, arguments, trigger) -> control.request(owner, entry.id, entry.authority.session(), id, tool, arguments, trigger), () -> {});
+                (id, tool, arguments, trigger) -> control.request(owner, entry.id, entry.authority.session(), id, tool, arguments, trigger), () -> {}, output -> trace(entry.name,output));
         control.chat(owner, "Josh, collect all the diamonds in nearby containers and give them to me. Keep any diamonds you already owned.");
         Vec3[] previous = {actor.position()}; double[] distance = {0}; long[] idleAt = {0}, idleCalls = {0}; boolean[] finished = {false};
         helper.onEachTick(() -> {
@@ -76,6 +76,11 @@ public final class LiveHarnessGameTests {
             }
         });
     }
+    private static void trace(String name,com.google.gson.JsonObject output) {
+        if(!Paracraft.debugAgentOutput())return;
+        UUID id=UUID.randomUUID();var chunks=AgentOutput.chunks(output.toString());
+        for(int i=0;i<chunks.size();i++)Paracraft.LOG.info("[Agent {} output {} {}/{}] {}",name,id,i+1,chunks.size(),chunks.get(i));
+    }
     private static void chest(GameTestHelper helper, BlockPos position, int count) { helper.setBlock(position, Blocks.CHEST); ((ChestBlockEntity)helper.getLevel().getBlockEntity(helper.absolutePos(position))).setItem(0, new ItemStack(Items.DIAMOND, count)); }
     @GameTest(batch = "crafting", template = "arena", templateNamespace = "paracraft_live", timeoutTicks = 7200)
     public static void lunaUsesInternalAndTableCrafting(GameTestHelper helper) throws Exception {
@@ -87,7 +92,7 @@ public final class LiveHarnessGameTests {
         var memory = new AgentState(); memory.lightModel = memory.planningModel = "gpt-6-luna"; memory.lightEffort = "none"; memory.planningEffort = "xhigh";
         var provider = new LiveClientProcess.Remote();
         var loop = new HarnessLoop(new AgentBinding(manager.worldId(), owner, entry.id), memory, provider, AgentClock.SYSTEM,
-                (id, tool, arguments, trigger) -> control.request(owner, entry.id, entry.authority.session(), id, tool, arguments, trigger), () -> {});
+                (id, tool, arguments, trigger) -> control.request(owner, entry.id, entry.authority.session(), id, tool, arguments, trigger), () -> {}, output -> trace(entry.name,output));
         control.chat(owner, "CraftQA, craft exactly 8 oak planks from 2 of your 4 oak logs, then use 4 planks to craft exactly 8 new sticks. "
                 + "Then use 3 planks and 2 sticks to craft one wooden pickaxe at the crafting table at " + table.getX() + " " + table.getY() + " " + table.getZ()
                 + ". Keep everything in your inventory. Use your internal grid for the smaller recipes. Keep your 3 pre-existing sticks.");

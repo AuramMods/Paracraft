@@ -19,7 +19,11 @@ Forge creates `<world>/serverconfig/paracraft-server.toml`:
 ```toml
 avatarsPerOwner = 4
 activeAvatarsPerServer = 64
+navigationTerrainChanges = false
+debugAgentOutput = false
 ```
+
+Navigation preserves blocks unless terrain changes are explicitly enabled. `debugAgentOutput` logs visible agent output and tool calls; Gradle launches enable it automatically. See [navigation](NAVIGATION.md) and [debug/status controls](DEBUG.md).
 
 The owner limit counts saved companions, including offline ones. The server limit counts active bodies. Everyone may spawn by default, within these limits. Pause retains the body and survival ticking. Owner disconnect saves/despawns it and releases tracking; reconnect restores at its saved location when capacity allows. Destroy permanently removes the saved avatar and drops its carried/equipped items once.
 

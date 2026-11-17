@@ -22,6 +22,59 @@ import java.util.UUID;
 @GameTestHolder(Paracraft.ID)
 @PrefixGameTestTemplate(false)
 public final class NavigationGameTests {
+    @net.minecraft.gametest.framework.BeforeBatch(batch="terrain_recovery")
+    public static void enableTerrainRecovery(net.minecraft.server.level.ServerLevel level) { Paracraft.NAVIGATION_TERRAIN_CHANGES.set(true); }
+    @net.minecraft.gametest.framework.AfterBatch(batch="terrain_recovery")
+    public static void restorePreservingRoutes(net.minecraft.server.level.ServerLevel level) { Paracraft.NAVIGATION_TERRAIN_CHANGES.set(false); }
+
+    @GameTest(batch="navigation",template="arena",timeoutTicks=1000)
+    public static void fenceMazeUsesLongDetoursAndSprintingWithoutAlteringBuilds(GameTestHelper h) {
+        // Four alternating fence walls require walking the maze, rather than walking straight east.
+        for(int x=10;x<=46;x++)for(int z=10;z<=46;z++)if(x==10 || x==46 || z==10 || z==46)
+            for(int y=2;y<=4;y++)h.setBlock(new BlockPos(x,y,z),Blocks.STONE);
+        var fences=new java.util.ArrayList<BlockPos>();
+        for(int i=0;i<4;i++)for(int z=11;z<=45;z++)if(i%2==0 ? z<43 : z>13) {
+            var pos=new BlockPos(17+i*7,2,z);h.setBlock(pos,Blocks.OAK_FENCE);fences.add(pos);
+        }
+        var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(12.5,2,12.5));var actor=m.actor(entry.id);
+        actor.getInventory().setItem(0,new ItemStack(Items.IRON_AXE));actor.getInventory().setItem(1,new ItemStack(Items.COBBLESTONE,8));
+        var work=travel(h,m,owner,entry,new Vec3(43.5,2,12.5));boolean[] sprint={false};double[] distance={0};Vec3[] previous={actor.position()};
+        h.onEachTick(()->{check(h,work);sprint[0]|=actor.isSprinting();double step=actor.position().distanceTo(previous[0]);distance[0]+=step;previous[0]=actor.position();
+            h.assertTrue(step<1,"Maze movement stays physical");if(work.state()!=JobState.SUCCEEDED)return;
+            h.assertTrue(sprint[0] && !actor.isSprinting() && distance[0]>120,"Avatar sprinted through a real detour and stopped sprinting on arrival");
+            for(var pos:fences)h.assertTrue(h.getLevel().getBlockState(h.absolutePos(pos)).is(Blocks.OAK_FENCE),"Maze fences remain intact");
+            h.assertTrue(actor.getInventory().getItem(0).getDamageValue()==0 && actor.getInventory().countItem(Items.COBBLESTONE)==8,"Walking consumes neither tools nor building blocks");
+            clear(m,owner,entry);pass("navigation_fence_maze_sprint_preserves_build");h.succeed();});
+    }
+    @GameTest(batch="navigation",template="empty",timeoutTicks=220)
+    public static void sealedFenceFailsWithoutBreakingOrPlacingBlocks(GameTestHelper h) {
+        corridor(h,false);var fence=new BlockPos(6,2,3);h.setBlock(fence,Blocks.OAK_FENCE);
+        var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var actor=m.actor(entry.id);
+        actor.getInventory().setItem(0,new ItemStack(Items.IRON_AXE));actor.getInventory().setItem(1,new ItemStack(Items.COBBLESTONE,8));
+        var work=travel(h,m,owner,entry,new Vec3(10.5,2,3.5));h.onEachTick(()->{if(work.state()!=JobState.FAILED)return;
+            h.assertTrue(work.view().get("error").getAsString().contains("preserves blocks") && h.getLevel().getBlockState(h.absolutePos(fence)).is(Blocks.OAK_FENCE),"No route reports a useful failure while retaining the fence");
+            h.assertTrue(actor.getInventory().getItem(0).getDamageValue()==0 && actor.getInventory().countItem(Items.COBBLESTONE)==8 && !actor.isSprinting(),"Failure releases sprinting without consuming supplies");
+            clear(m,owner,entry);pass("navigation_no_route_preserves_fence");h.succeed();});
+    }
+    @GameTest(batch="navigation",template="empty",timeoutTicks=200)
+    public static void fenceGateOpensWithoutBreakingTheFence(GameTestHelper h) {
+        corridor(h,false);var gate=h.absolutePos(new BlockPos(6,2,3));
+        h.getLevel().setBlockAndUpdate(gate,Blocks.OAK_FENCE_GATE.defaultBlockState().setValue(net.minecraft.world.level.block.FenceGateBlock.FACING,net.minecraft.core.Direction.EAST));
+        var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var work=travel(h,m,owner,entry,new Vec3(10.5,2,3.5));
+        h.onEachTick(()->{check(h,work);if(work.state()!=JobState.SUCCEEDED)return;
+            h.assertTrue(h.getLevel().getBlockState(gate).is(Blocks.OAK_FENCE_GATE) && h.getLevel().getBlockState(gate).getValue(net.minecraft.world.level.block.FenceGateBlock.OPEN),"Native gate interaction opened and retained the actual gate");
+            clear(m,owner,entry);pass("navigation_native_fence_gate");h.succeed();});
+    }
+    @GameTest(batch="navigation",template="empty",timeoutTicks=200)
+    public static void hungryTravelWalksAndPauseReleasesSprint(GameTestHelper h) {
+        corridor(h,false);var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(2.5,2,3.5));var actor=m.actor(entry.id);
+        actor.getFoodData().setFoodLevel(6);var work=travel(h,m,owner,entry,new Vec3(11.5,2,3.5));boolean[] done={false};
+        h.onEachTick(()->{if(done[0])return;check(h,work);h.assertTrue(!actor.isSprinting(),"Hunger below native sprint threshold keeps walking");if(work.state()!=JobState.SUCCEEDED)return;
+            done[0]=true;actor.getFoodData().setFoodLevel(20);var next=travel(h,m,owner,entry,new Vec3(2.5,2,3.5));
+            h.runAfterDelay(3,()->{h.assertTrue(actor.isSprinting(),"Fed travel enables sprinting");next.pause();h.assertTrue(!actor.isSprinting(),"Pausing releases sprinting");clear(m,owner,entry);pass("navigation_hunger_and_sprint_pause");h.succeed();});
+        });
+    }
+
     @GameTest(batch="navigation",template="empty",timeoutTicks=200)
     public static void woodenDoorOpensThroughNativeInteraction(GameTestHelper h){
         corridor(h,false);var bottom=h.absolutePos(new BlockPos(6,2,3));var state=Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING,net.minecraft.core.Direction.EAST);
@@ -42,7 +95,7 @@ public final class NavigationGameTests {
         var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(2.5,3,3.5));var actor=m.actor(entry.id);Vec3 start=actor.position();var work=travel(h,m,owner,entry,new Vec3(10.5,3,3.5));
         h.onEachTick(()->{check(h,work);if(work.state()!=JobState.SUCCEEDED)return;h.assertTrue(actor.isInWater() && actor.position().distanceTo(start)>7,"Native physics swam through the actual water volume");clear(m,owner,entry);pass("navigation_native_swimming");h.succeed();});
     }
-    @GameTest(batch="navigation",template="empty",timeoutTicks=220)
+    @GameTest(batch="terrain_recovery",template="empty",timeoutTicks=220)
     public static void cancelledBridgePlacementPreservesItemsAndRestoresSneaking(GameTestHelper h){
         corridor(h,true);var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var actor=m.actor(entry.id);actor.getInventory().setItem(0,new ItemStack(Items.COBBLESTONE,8));int[] attempts={0};
         class Deny{@net.minecraftforge.eventbus.api.SubscribeEvent public void place(net.minecraftforge.event.level.BlockEvent.EntityPlaceEvent e){if(e.getEntity()!=null && e.getEntity().getUUID().equals(entry.id)){attempts[0]++;e.setCanceled(true);}}}
@@ -62,7 +115,7 @@ public final class NavigationGameTests {
             h.assertTrue(!initiallyLoaded && generatedAhead[0] && level.getChunkSource().getChunkNow(chunk.x,chunk.z)!=null && distance[0]>210 && actor.position().distanceTo(destination)<0.71,"Native avatar loading generated the absent destination chunk before the incremental fixture road touched it");
             h.assertTrue(level.getServer().getPlayerList().getPlayer(owner)==null && level.getChunkSource().chunkMap.getPlayers(chunk,false).contains(actor),"Native avatar tracking works without an owner body nearby");clear(m,owner,entry);h.assertTrue(!level.getChunkSource().chunkMap.getPlayers(chunk,false).contains(actor),"Native tracking is released on removal");pass("independent_long_travel_generation_tracking_release");h.succeed();});
     }
-    @GameTest(batch="navigation",template="empty",timeoutTicks=300)
+    @GameTest(batch="terrain_recovery",template="empty",timeoutTicks=300)
     public static void blockedRouteUsesActualToolAndBreaksObstructions(GameTestHelper h){
         corridor(h,false);for(int y=2;y<=3;y++)h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(6,y,3)),Blocks.DIRT.defaultBlockState());
         var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var actor=m.actor(entry.id);actor.getInventory().setItem(4,new ItemStack(Items.IRON_SHOVEL));
@@ -71,14 +124,14 @@ public final class NavigationGameTests {
             h.assertTrue(h.getLevel().getBlockState(h.absolutePos(new BlockPos(6,2,3))).isAir() && h.getLevel().getBlockState(h.absolutePos(new BlockPos(6,3,3))).isAir(),"Native route recovery removed both actual obstructions");
             h.assertTrue(actor.getMainHandItem().is(Items.IRON_SHOVEL) && actor.getMainHandItem().getDamageValue()==2,"Effective carried tool took normal durability");clear(m,owner,entry);pass("navigation_native_obstruction_breaking");h.succeed();});
     }
-    @GameTest(batch="navigation",template="empty",timeoutTicks=330)
+    @GameTest(batch="terrain_recovery",template="empty",timeoutTicks=330)
     public static void missingFloorIsBridgedUsingActualCarriedBlocks(GameTestHelper h){
         corridor(h,true);var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var actor=m.actor(entry.id);actor.getInventory().setItem(4,new ItemStack(Items.COBBLESTONE,8));
         var work=travel(h,m,owner,entry,new Vec3(10.5,2,3.5));
         h.onEachTick(()->{check(h,work);if(work.state()!=JobState.SUCCEEDED)return;int placed=0;for(int x=5;x<=7;x++)if(h.getLevel().getBlockState(h.absolutePos(new BlockPos(x,1,3))).is(Blocks.COBBLESTONE))placed++;
             h.assertTrue(placed==3 && actor.getInventory().countItem(Items.COBBLESTONE)==5 && !actor.isShiftKeyDown(),"Three real bridge blocks consumed once and restored sneaking state");clear(m,owner,entry);pass("navigation_native_bridge_consumption");h.succeed();});
     }
-    @GameTest(batch="navigation",template="empty",timeoutTicks=250)
+    @GameTest(batch="terrain_recovery",template="empty",timeoutTicks=250)
     public static void verticalRoutePillarsWithNativePlacementAndStableArrival(GameTestHelper h){
         floor(h);var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var actor=m.actor(entry.id);actor.getInventory().setItem(0,new ItemStack(Items.COBBLESTONE,8));
         var work=travel(h,m,owner,entry,new Vec3(3.5,5,3.5));boolean[] finished={false};

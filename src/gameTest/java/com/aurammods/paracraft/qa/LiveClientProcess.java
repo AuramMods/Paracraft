@@ -25,7 +25,9 @@ public final class LiveClientProcess {
                     var encoded = JsonParser.parseString(line).getAsJsonObject();
                     var request = new InferenceProvider.Request(InferenceProvider.Route.valueOf(encoded.get("route").getAsString()),
                             new InferenceProvider.ModelRoute(encoded.get("model").getAsString(), encoded.get("effort").getAsString()),
-                            encoded.getAsJsonObject("snapshot"), encoded.getAsJsonObject("trigger"), encoded.getAsJsonObject("observations"));
+                            encoded.getAsJsonObject("snapshot"), encoded.getAsJsonObject("trigger"), encoded.getAsJsonObject("observations"), item -> {
+                                var diagnostic=new JsonObject();diagnostic.add("agentOutput",item);System.out.println(diagnostic);System.out.flush();
+                            });
                     var decision = provider.infer(request).get(5, TimeUnit.MINUTES);
                     var calls = new JsonArray();
                     for (var call : decision.calls()) {
@@ -66,8 +68,13 @@ public final class LiveClientProcess {
                     var encoded = new JsonObject(); encoded.addProperty("route", request.route().name()); encoded.addProperty("model", request.model().model());
                     encoded.addProperty("effort", request.model().effort()); encoded.add("snapshot", request.snapshot()); encoded.add("trigger", request.trigger()); encoded.add("observations", request.observations());
                     output.write(encoded.toString()); output.newLine(); output.flush();
-                    String line = input.readLine(); if (line == null) throw new IOException("QA client exited; see run/live-qa/client.log");
-                    var reply = JsonParser.parseString(line).getAsJsonObject(); if (reply.has("error")) throw new IOException(reply.get("error").getAsString());
+                    JsonObject reply;
+                    while(true) {
+                        String line = input.readLine(); if (line == null) throw new IOException("QA client exited; see run/live-qa/client.log");
+                        reply = JsonParser.parseString(line).getAsJsonObject();
+                        if(reply.has("agentOutput")){request.emitOutput(reply.getAsJsonObject("agentOutput"));continue;}break;
+                    }
+                    if (reply.has("error")) throw new IOException(reply.get("error").getAsString());
                     var calls = new ArrayList<Call>();
                     for (var item : reply.getAsJsonArray("calls")) { var value = item.getAsJsonObject(); calls.add(new Call(value.get("tool").getAsString(), value.getAsJsonObject("arguments"))); }
                     return new Decision(calls);

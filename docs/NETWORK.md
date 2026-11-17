@@ -22,16 +22,19 @@ Pause/resume works through both raw commands and the screen. A server pause canc
 
 ## Wire format
 
-Forge `SimpleChannel` protocol `1` is required on both sides. Direction-specific registrations use `PLAY_TO_SERVER` and `PLAY_TO_CLIENT`; handlers enqueue work on the appropriate game thread. The server resolves the current native player/connection and ignores payload owner fields. Packets from a replaced native connection are dropped. See [Forge SimpleImpl](https://docs.minecraftforge.net/en/1.20.1/networking/simpleimpl/).
+Forge `SimpleChannel` protocol `2` (JSON envelope version `1`) is required on both sides. Direction-specific registrations use `PLAY_TO_SERVER` and `PLAY_TO_CLIENT`; handlers enqueue work on the appropriate game thread. The server resolves the current native player/connection and ignores payload owner fields. Packets from a replaced native connection are dropped. See [Forge SimpleImpl](https://docs.minecraftforge.net/en/1.20.1/networking/simpleimpl/).
 
 Logical JSON envelopes contain protocol, client-generation UUID, request UUID, and a message kind:
 
 | Kind | Purpose |
 | --- | --- |
-| `poll` / `snapshot` | Baseline observations and controller heartbeat |
+| `poll` / `snapshot` | Baseline observations, controller heartbeat, and public aggregate activity |
 | `effect` / `reply` | A routed harness tool request and authoritative acknowledgment |
 | `control` / `reply` | Explicit owner spawn/pause/resume/destroy |
 | `release` | Revoke a failed/stopped client controller |
+| `agent_output` | Owner/session-bound visible output chunks when server debugging is enabled |
+
+A separate server-to-client avatar-status packet supplies a bounded public label to tracking viewers. Changed labels are broadcast and newly tracking players receive the current label. Full task goals and memory stay local unless their tool arguments are emitted into deliberately enabled debug logs; see [DEBUG.md](DEBUG.md). Aggregate reports for an avatar deleted between heartbeats are ignored so its stale status cannot block the next baseline.
 
 Effect requests also identify the avatar, current lease, original event, tool, and arguments. A transport attempt UUID distinguishes a retry from an earlier canceled submission. The stable request UUID still deduplicates the actual server effect. Late attempt replies cannot complete the retry. Monotonic server snapshot revisions and client poll sequences prevent older baselines replacing newer state.
 

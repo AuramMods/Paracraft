@@ -24,7 +24,7 @@ Linked agents can also [craft items](docs/CRAFTING.md) in their internal 2×2 gr
 
 Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
 
-[Physical navigation](docs/NAVIGATION.md) includes independent native chunk tracking, basic swimming/ladder/door movement, and local obstacle/bridge/pillar recovery with carried tools and materials.
+[Physical navigation](docs/NAVIGATION.md) walks or sprints through existing routes, opens doors and fence gates, and preserves builds by default. Automatic breaking/bridging/pillaring requires a server opt-in. Look directly at an avatar to see Idle, Thinking, Traveling, or other activity with its unfinished task count above its name. [Agent output debugging](docs/DEBUG.md) is enabled for Gradle launches.
 
 [Container actions](docs/CONTAINERS.md) support broad collection/delivery and explicit open/take/deposit programs through vanilla inventories and sided Forge item capabilities. Admission at four saved avatars per owner and 64 active per server, plus configurable limits, has native QA coverage.
 

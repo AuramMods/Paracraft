@@ -108,6 +108,7 @@ public final class ForgeClientRuntime {
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut event) { disconnect(); }
     private static void disconnect() {
+        AvatarStatusOverlay.clear();
         if (coordinator != null) coordinator.close(); coordinator = null; connection = null; INCOMING.clear();
         KNOWN_AVATARS.clear(); receivedAvatars = false;
     }

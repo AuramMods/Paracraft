@@ -63,10 +63,12 @@ public final class ClientTransportGameTests {
         manager.control().chat(owner, entry.name + ", collect all the diamonds nearby and give them to me.");
         GameJob[] gathering = {null}; int[] stage = {0}, idleTicks = {0}; boolean[] inactive = {false}, resumed = {false}, progress = {false};
         long[] idleCalls = {-1}; Vec3[] previous = {actor.position()}; double[] distance = {0};
+        boolean[] sawTaskStatus={false};
         helper.onEachTick(() -> {
             clock.advance(250); client[0].tick(); client[0].tick();
             helper.assertTrue(!client[0].status().startsWith("Paused:"), "Coordinator transport failed: " + client[0].status());
             var views = client[0].views(); if (views.isEmpty()) return; var view = views.get(0);
+            String publicStatus=manager.statuses().label(entry.id);if(publicStatus.contains("task"))sawTaskStatus[0]=true;
             helper.assertTrue(!view.status().startsWith("Paused:"), "Avatar loop failed: " + view.status());
             double step = actor.position().distanceTo(previous[0]); distance[0] += step; previous[0] = actor.position();
             helper.assertTrue(step < 1, "Native program movement remains physical");
@@ -108,6 +110,7 @@ public final class ClientTransportGameTests {
             int delivered = nativeOwner.getInventory().countItem(Items.DIAMOND) + helper.getLevel().getEntitiesOfClass(ItemEntity.class, nativeOwner.getBoundingBox().inflate(3)).stream()
                     .filter(item -> item.getItem().is(Items.DIAMOND) && assigned(item, owner)).mapToInt(item -> item.getItem().getCount()).sum();
             helper.assertTrue(delivered == 12, "All twelve gathered diamonds reach the recipient after resumption");
+            helper.assertTrue(sawTaskStatus[0] && manager.statuses().label(entry.id).equals("Idle"),"Public status reflected real tasks and returned to idle");
             client[0].close(); actor.getInventory().clearContent(); nativeOwner.getInventory().clearContent();
             manager.destroy(owner, entry.id); manager.destroy(recipientOwner, recipient.id); manager.endpoint().disconnect(owner);
             try (var paths = Files.walk(memory)) { for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path); }
@@ -144,6 +147,41 @@ public final class ClientTransportGameTests {
             manager.endpoint().disconnect(owner); manager.endpoint().disconnect(other.id);
             Paracraft.LOG.info("QA_EVT {\"event\":\"native_sender_and_controller_expiry\",\"status\":\"pass\"}"); helper.succeed();
         });
+    }
+    @GameTest(template="empty",timeoutTicks=40)
+    public static void diagnosticsAndPublicActivityUseNativeOwnerAndActiveSession(GameTestHelper h) {
+        var manager=ServerEvents.avatars(h.getLevel().getServer());UUID root=UUID.randomUUID();
+        var ownerEntry=manager.spawn(root,h.getLevel(),h.absoluteVec(new Vec3(2.5,2,2.5)),name());UUID owner=ownerEntry.id;
+        var entry=manager.spawn(owner,h.getLevel(),h.absoluteVec(new Vec3(3.5,2,3.5)),name());var sender=manager.actor(owner);UUID client=UUID.randomUUID();
+        var poll=envelope(client,"poll");var activity=JsonParser.parseString("{\"phase\":\"THINKING\",\"tasks\":2}").getAsJsonObject();activity.addProperty("avatar",entry.id.toString());
+        var activities=new com.google.gson.JsonArray();activities.add(activity);poll.add("activities",activities);
+        manager.endpoint().receive(sender,poll,reply->h.assertTrue(reply.get("ok").getAsBoolean(),"Native owner reports aggregate activity"));
+        h.assertTrue(manager.statuses().label(entry.id).equals("Thinking · 2 tasks"),"Public status uses only aggregate phase/count");
+        var logs=new java.util.ArrayList<String>();
+        var logger=(org.apache.logging.log4j.core.Logger)org.apache.logging.log4j.LogManager.getLogger(Paracraft.LOG.getName());
+        var appender=new org.apache.logging.log4j.core.appender.AbstractAppender("qa-agent-output-"+entry.id,null,null,false,org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY) {
+            @Override public void append(org.apache.logging.log4j.core.LogEvent event){logs.add(event.getMessage().getFormattedMessage());}
+        };appender.start();var logConfig=logger.getContext().getConfiguration().getRootLogger();logConfig.addAppender(appender,null,null);logger.getContext().updateLoggers();String prior=System.getProperty("paracraft.debugAgentOutput");
+        try {
+            var trace=envelope(client,"agent_output");trace.addProperty("avatar",entry.id.toString());trace.addProperty("session",entry.authority.session().toString());
+            trace.addProperty("outputId",UUID.randomUUID().toString());trace.addProperty("part",1);trace.addProperty("parts",1);trace.addProperty("data","{\"visible\":\"native-output-test\"}");
+            System.setProperty("paracraft.debugAgentOutput","true");
+            manager.endpoint().receive(sender,trace,reply->{throw new AssertionError("Valid debug output should not require an acknowledgement: "+reply);});
+            h.assertTrue(logs.size()==1 && logs.get(0).contains("native-output-test") && logs.get(0).contains(entry.name),"Server logs every received visible output with avatar identity");
+            System.setProperty("paracraft.debugAgentOutput","false");manager.endpoint().receive(sender,trace,ignored->{});h.assertTrue(logs.size()==1,"Debug flag actually suppresses logging");
+            System.setProperty("paracraft.debugAgentOutput","true");trace.addProperty("session",UUID.randomUUID().toString());
+            manager.endpoint().receive(sender,trace,reply->h.assertTrue(!reply.get("ok").getAsBoolean(),"Stale avatar lease cannot relay diagnostics"));h.assertTrue(logs.size()==1,"Stale output is not logged");
+            var forged=envelope(client,"poll");activity.addProperty("avatar",ownerEntry.id.toString());forged.add("activities",activities);
+            manager.endpoint().receive(sender,forged,reply->h.assertTrue(!reply.get("ok").getAsBoolean(),"Payload cannot publish status for another owner's avatar"));
+            manager.pause(owner,entry.id,true);h.assertTrue(manager.statuses().label(entry.id).equals("Paused"),"Real server pause overrides client phase");
+            manager.endpoint().receive(sender,envelope(client,"release"),ignored->{});h.assertTrue(manager.endpoint().activity(entry.id).tasks()==0,"Release clears transient public task count");
+            activity.addProperty("avatar",UUID.randomUUID().toString());var stalePoll=envelope(client,"poll");stalePoll.add("activities",activities);
+            manager.endpoint().receive(sender,stalePoll,reply->h.assertTrue(reply.get("ok").getAsBoolean(),"Stale status for a removed avatar does not prevent fresh snapshots"));
+        } finally {
+            if(prior==null)System.clearProperty("paracraft.debugAgentOutput");else System.setProperty("paracraft.debugAgentOutput",prior);
+            logConfig.removeAppender(appender.getName());logger.getContext().updateLoggers();appender.stop();manager.destroy(owner,entry.id);manager.destroy(root,owner);manager.endpoint().disconnect(owner);
+        }
+        Paracraft.LOG.info("QA_EVT {\"event\":\"native_agent_output_debug_flag_authority_public_activity\",\"status\":\"pass\"}");h.succeed();
     }
     private static WireCodec.Frame nativeFrame(WireCodec.Frame frame, boolean serverbound) {
         FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.buffer()), encoded = new FriendlyByteBuf(Unpooled.buffer()); FriendlyByteBuf decoded = null;

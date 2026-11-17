@@ -17,11 +17,12 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import java.util.Optional;
 
 public final class ForgeNetwork {
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(new ResourceLocation(Paracraft.ID, "control"),
             () -> VERSION, VERSION::equals, VERSION::equals);
     public record ToServer(WireCodec.Frame frame) { }
     public record ToClient(WireCodec.Frame frame) { }
+    public record AvatarStatus(java.util.UUID avatar, String label) { }
     private ForgeNetwork() { }
     public static void register() {
         CHANNEL.registerMessage(0, ToServer.class, (m, b) -> write(m.frame, b), b -> new ToServer(read(b)), (message, context) -> {
@@ -38,6 +39,18 @@ public final class ForgeNetwork {
                     () -> () -> com.aurammods.paracraft.forge.client.ForgeClientRuntime.receive(message.frame)));
             ctx.setPacketHandled(true);
         }, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(2, AvatarStatus.class, (m, b) -> { b.writeUUID(m.avatar); b.writeUtf(m.label, 128); },
+                b -> new AvatarStatus(b.readUUID(), b.readUtf(128)), (message, context) -> {
+                    var ctx = context.get(); ctx.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                            () -> () -> com.aurammods.paracraft.forge.client.AvatarStatusOverlay.receive(message.avatar, message.label)));
+                    ctx.setPacketHandled(true);
+                }, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+    }
+    public static void status(ServerPlayer actor, String label) {
+        CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> actor), new AvatarStatus(actor.getUUID(), label));
+    }
+    public static void status(ServerPlayer viewer, java.util.UUID avatar, String label) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer), new AvatarStatus(avatar, label));
     }
     public static void toServer(JsonObject message) { for (var frame : WireCodec.encode(message)) CHANNEL.sendToServer(new ToServer(frame)); }
     public static void toClient(ServerPlayer player, JsonObject message) {

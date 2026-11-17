@@ -64,7 +64,11 @@ public final class SurvivalGameTests {
         helper.assertTrue(drops(helper, box, entry.id) == 10, "Inventory and menu cursor became exactly ten real tagged diamond drops");
         helper.assertTrue(helper.getLevel().getEntitiesOfClass(ItemEntity.class, box).stream().anyMatch(e -> e.getItem().is(Items.IRON_BOOTS))
                 && helper.getLevel().getEntitiesOfClass(ItemEntity.class, box).stream().noneMatch(e -> e.getItem().is(Items.DIAMOND_SWORD)), "Native equipment drops and vanishing curse applied");
-        helper.assertTrue(helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, actor.getBoundingBox().inflate(3)).stream().mapToInt(net.minecraft.world.entity.ExperienceOrb::getValue).sum() >= 35, "Native death emitted experience into the world");
+        helper.assertTrue(helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, actor.getBoundingBox().inflate(3)).stream().mapToInt(orb -> {
+            // Vanilla can merge equal-value orbs during award; Value is per orb in its Count.
+            var tag = new net.minecraft.nbt.CompoundTag(); orb.addAdditionalSaveData(tag);
+            return orb.getValue() * tag.getInt("Count");
+        }).sum() >= 35, "Native death emitted experience into the world");
         actor.die(actor.damageSources().genericKill());
         helper.assertTrue(drops(helper, box, entry.id) == 10, "Repeated death notification does not repeat loot");
         helper.runAfterDelay(25, () -> {

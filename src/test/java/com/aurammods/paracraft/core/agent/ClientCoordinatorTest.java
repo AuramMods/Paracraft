@@ -15,6 +15,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ClientCoordinatorTest {
     @TempDir Path temp;
+    @Test void outputRelayHonorsServerFlagAndHeartbeatSendsAggregateActivityOnly() {
+        Clock clock = new Clock(); Remote remote = new Remote();remote.snapshot.addProperty("debugAgentOutput",false);
+        remote.snapshot.getAsJsonArray("events").add(chat(1,"hello"));
+        try(var client=connect(remote,new AgentStore(temp),clock)) {
+            pump(client);assertTrue(remote.outbound.stream().noneMatch(m->m.get("kind").getAsString().equals("agent_output")));
+            remote.snapshot.addProperty("debugAgentOutput",true);remote.snapshot.getAsJsonArray("events").add(chat(2,"hello"));clock.advance(5000);pump(client);
+            var trace=remote.outbound.stream().filter(m->m.get("kind").getAsString().equals("agent_output")).findFirst().orElseThrow();
+            assertEquals(BINDING.avatar().toString(),trace.get("avatar").getAsString());assertEquals(remote.snapshot.get("session"),trace.get("session"));
+            assertTrue(trace.get("data").getAsString().contains("calls"));
+            var task=json("{\"id\":\"one\",\"goal\":\"private task\",\"status\":\"INACTIVE\"}");client.views().get(0).memory().mutate("task_upsert",task);
+            clock.advance(2000);client.tick();var poll=remote.outbound.stream().filter(m->m.get("kind").getAsString().equals("poll")).reduce((a,b)->b).orElseThrow();
+            var activity=poll.getAsJsonArray("activities").get(0).getAsJsonObject();assertEquals(1,activity.get("tasks").getAsInt());assertFalse(activity.toString().contains("private task"));
+        }
+    }
     @Test void runtimeCreatesScopedMemorySupportsPauseAndPersistsConfigurableRoutes() throws Exception {
         Clock clock = new Clock(); Remote remote = new Remote(); AgentStore store = new AgentStore(temp);
         try (ClientCoordinator client = connect(remote, store, clock)) {

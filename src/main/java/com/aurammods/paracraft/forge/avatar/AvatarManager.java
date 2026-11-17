@@ -21,6 +21,8 @@ import java.util.UUID;
 
 /** Server-thread-only service. Network handlers must obtain the owner from their authenticated sender. */
 public final class AvatarManager {
+    private final com.aurammods.paracraft.forge.control.AvatarStatuses statuses = new com.aurammods.paracraft.forge.control.AvatarStatuses(this);
+    public com.aurammods.paracraft.forge.control.AvatarStatuses statuses() { return statuses; }
     private final MinecraftServer server;
     private final AvatarSavedData saved;
     private final com.aurammods.paracraft.forge.control.ServerControl control;

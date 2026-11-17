@@ -31,6 +31,12 @@ public final class ServerEvents {
         }
     }
     @SubscribeEvent
+    public static void tracking(PlayerEvent.StartTracking event) {
+        if (event.getEntity() instanceof ServerPlayer viewer && !(viewer instanceof CompanionPlayer)
+                && event.getTarget() instanceof CompanionPlayer actor)
+            avatars(viewer.server).statuses().tracking(viewer, actor.getUUID());
+    }
+    @SubscribeEvent
     public static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player && !(player instanceof CompanionPlayer))
             avatars(player.server).disconnectOwner(player.getUUID());
@@ -44,6 +50,7 @@ public final class ServerEvents {
                 manager.jobs().tick();
                 manager.control().tick();
                 manager.endpoint().tick();
+                manager.statuses().tick();
                 if (event.getServer().getTickCount() % 100 == 0) manager.checkpointAll();
             }
         }

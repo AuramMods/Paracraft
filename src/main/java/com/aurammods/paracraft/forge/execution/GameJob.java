@@ -26,6 +26,7 @@ public abstract class GameJob {
     public net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> requiredDimension(){return dimension;}
     protected final void adoptDimension(){dimension=actor.serverLevel().dimension();}
     public JobState state() { return state; }
+    public String phase() { return phase; }
     public JsonObject result() { return result.deepCopy(); }
     public final void tick() {
         if (state != JobState.RUNNING) return;

@@ -13,6 +13,8 @@ public final class Paracraft {
     public static final Logger LOG = LogUtils.getLogger();
     public static final ForgeConfigSpec.IntValue OWNER_LIMIT;
     public static final ForgeConfigSpec.IntValue SERVER_LIMIT;
+    public static final ForgeConfigSpec.BooleanValue NAVIGATION_TERRAIN_CHANGES;
+    public static final ForgeConfigSpec.BooleanValue DEBUG_AGENT_OUTPUT;
     private static final ForgeConfigSpec CONFIG;
 
     static {
@@ -21,7 +23,15 @@ public final class Paracraft {
                 .defineInRange("avatarsPerOwner", 4, 1, Integer.MAX_VALUE);
         SERVER_LIMIT = builder.comment("Maximum simultaneously active companions.")
                 .defineInRange("activeAvatarsPerServer", 64, 1, Integer.MAX_VALUE);
+        NAVIGATION_TERRAIN_CHANGES = builder.comment("Allow navigation to break obstructions or place bridges/pillars. Default routes preserve builds.")
+                .define("navigationTerrainChanges", false);
+        DEBUG_AGENT_OUTPUT = builder.comment("Log agent-visible output and tool calls on this server. Gradle runs enable it through a JVM property.")
+                .define("debugAgentOutput", false);
         CONFIG = builder.build();
+    }
+    public static boolean debugAgentOutput() {
+        String override = System.getProperty("paracraft.debugAgentOutput");
+        return override == null ? DEBUG_AGENT_OUTPUT.get() : Boolean.parseBoolean(override);
     }
 
     public Paracraft() {

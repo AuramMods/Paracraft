@@ -1,6 +1,8 @@
 package com.aurammods.paracraft.forge.control;
 
 import com.aurammods.paracraft.core.protocol.WireCodec;
+import com.aurammods.paracraft.core.agent.AgentActivity;
+import com.aurammods.paracraft.Paracraft;
 import com.aurammods.paracraft.forge.avatar.AvatarManager;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
@@ -22,6 +24,7 @@ public final class ControlEndpoint {
     private final MinecraftServer server;
     private final Map<UUID, Lease> leases = new HashMap<>();
     private final Map<UUID, Receiver> receivers = new HashMap<>();
+    private final Map<UUID, AgentActivity> activities = new HashMap<>();
     private long snapshotRevision;
     public ControlEndpoint(AvatarManager avatars, MinecraftServer server) { this.avatars = avatars; this.server = server; }
     public void receiveFrame(ServerPlayer sender, WireCodec.Frame frame, Consumer<JsonObject> reply) {
@@ -44,7 +47,14 @@ public final class ControlEndpoint {
             String kind = message.get("kind").getAsString(); Lease lease = leases.get(owner);
             if (kind.equals("poll")) {
                 if (lease == null || lease.connection != sender.connection || !lease.client.equals(client)) {
+                    clearActivities(owner);
                     avatars.renewController(owner); lease = new Lease(sender.connection, client, server.getTickCount()); leases.put(owner, lease);
+                }
+                if (message.has("activities")) for (var element : message.getAsJsonArray("activities")) {
+                    var activity = element.getAsJsonObject(); UUID avatar = UUID.fromString(activity.get("avatar").getAsString());
+                    // A raw owner command can destroy a body before its client sees the next snapshot.
+                    if (avatars.entry(avatar) == null) continue;
+                    avatars.owned(owner, avatar); activities.put(avatar, AgentActivity.parse(activity));
                 }
                 lease.lastTick = server.getTickCount(); response.addProperty("kind", "snapshot");
                 response.add("sequence", message.get("sequence").deepCopy()); response.addProperty("ok", true); snapshots(owner, response); send.accept(response); return;
@@ -52,8 +62,19 @@ public final class ControlEndpoint {
             if (lease == null || lease.connection != sender.connection || !lease.client.equals(client))
                 throw new IllegalArgumentException("Client controller is not acquired or has expired");
             if (kind.equals("release")) {
+                clearActivities(owner);
                 avatars.suspendController(owner, "Client harness released control"); leases.remove(owner);
                 response.addProperty("ok", true); send.accept(response); return;
+            }
+            if (kind.equals("agent_output")) {
+                UUID avatar = UUID.fromString(message.get("avatar").getAsString()); var entry = avatars.owned(owner, avatar);
+                if (!entry.authority.controls(owner, UUID.fromString(message.get("session").getAsString())))
+                    throw new IllegalArgumentException("Agent output session is stale");
+                String data = message.get("data").getAsString(); UUID output = UUID.fromString(message.get("outputId").getAsString());
+                int part = message.get("part").getAsBigDecimal().intValueExact(), parts = message.get("parts").getAsBigDecimal().intValueExact();
+                if (data.length() > 4096 || part < 1 || parts < part) throw new IllegalArgumentException("Invalid agent output chunk");
+                if (Paracraft.debugAgentOutput()) Paracraft.LOG.info("[Agent {} output {} {}/{}] {}", entry.name, output, part, parts, data);
+                return;
             }
             if (kind.equals("effect")) {
                 UUID avatar = UUID.fromString(message.get("avatar").getAsString()), session = UUID.fromString(message.get("session").getAsString());
@@ -94,10 +115,14 @@ public final class ControlEndpoint {
         response.add("snapshots", avatars.control().snapshots(owner));
     }
     public void tick() {
+        activities.keySet().removeIf(id -> avatars.entry(id) == null);
         for (UUID owner : List.copyOf(leases.keySet())) if (server.getTickCount() - leases.get(owner).lastTick >= 200) {
+            clearActivities(owner);
             avatars.suspendController(owner, "Client harness heartbeat expired"); leases.remove(owner);
         }
         long now = System.nanoTime(); receivers.values().forEach(r -> r.assembler.expire(now));
     }
-    public void disconnect(UUID owner) { leases.remove(owner); receivers.remove(owner); }
+    public AgentActivity activity(UUID avatar) { return activities.getOrDefault(avatar, new AgentActivity(AgentActivity.Phase.IDLE, 0)); }
+    private void clearActivities(UUID owner) { avatars.entries().stream().filter(e -> e.authority.owner().equals(owner)).forEach(e -> activities.remove(e.id)); }
+    public void disconnect(UUID owner) { clearActivities(owner); leases.remove(owner); receivers.remove(owner); }
 }

@@ -20,8 +20,10 @@ public interface InferenceProvider {
     }
     record Decision(List<Call> calls) { public Decision { calls = List.copyOf(calls); } }
     /** Every invocation is independent. Providers receive explicit context, never an implicit conversation. */
-    record Request(Route route, ModelRoute model, JsonObject snapshot, JsonObject trigger, JsonObject observations) {
-        public Request { snapshot = snapshot.deepCopy(); trigger = trigger.deepCopy(); observations = observations.deepCopy(); }
+    record Request(Route route, ModelRoute model, JsonObject snapshot, JsonObject trigger, JsonObject observations, java.util.function.Consumer<JsonObject> onOutput) {
+        public Request(Route route, ModelRoute model, JsonObject snapshot, JsonObject trigger, JsonObject observations) { this(route, model, snapshot, trigger, observations, ignored -> {}); }
+        public Request { snapshot = snapshot.deepCopy(); trigger = trigger.deepCopy(); observations = observations.deepCopy(); java.util.Objects.requireNonNull(onOutput); }
+        public void emitOutput(JsonObject output) { try { onOutput.accept(output.deepCopy()); } catch (RuntimeException ignored) { /* Debugging must not fail inference. */ } }
         @Override public JsonObject snapshot() { return snapshot.deepCopy(); }
         @Override public JsonObject trigger() { return trigger.deepCopy(); }
         @Override public JsonObject observations() { return observations.deepCopy(); }

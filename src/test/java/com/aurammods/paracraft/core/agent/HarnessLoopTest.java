@@ -9,6 +9,25 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HarnessLoopTest {
+    @Test void diagnosticOutputIsFlushedOnClientTickEvenWhenDecisionFailsAndStaleOutputIsDropped() {
+        var clock = new Clock(); var provider = new Provider(clock); var traces = new java.util.ArrayList<com.google.gson.JsonObject>();
+        var pending = new Uncancellable<InferenceProvider.Decision>(); provider.answer = request -> pending;
+        var loop = new HarnessLoop(BINDING, new AgentState(), provider, clock, new Sink(), () -> {}, traces::add);
+        loop.accept(frame(chat(1,"hello"))); loop.tick();
+        var request = provider.requests.get(0); request.emitOutput(json("{\"type\":\"message\",\"text\":\"visible output\"}"));
+        assertTrue(traces.isEmpty()); loop.tick(); assertEquals(1,traces.size());
+        assertEquals("LIGHT",traces.get(0).get("route").getAsString());
+        request.emitOutput(json("{\"type\":\"function_call\",\"arguments\":\"invalid decision\"}"));
+        pending.completeExceptionally(new IllegalArgumentException("bad tool reply")); loop.tick();
+        assertEquals(2,traces.size()); assertTrue(loop.status().startsWith("Paused"));
+        request.emitOutput(json("{\"type\":\"message\",\"text\":\"late output\"}")); loop.tick(); assertEquals(2,traces.size()); loop.close();
+    }
+    @Test void brokenDebugSinkCannotPauseOrPreventChat() {
+        var clock = new Clock(); var sink = new Sink();
+        var loop = new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{}, output->{throw new IllegalStateException("diagnostic sink unavailable");});
+        loop.accept(frame(chat(1,"hello")));pump(loop);assertEquals("Idle",loop.status());assertEquals(1,sink.sent.size());loop.close();
+    }
+
     @Test void authoritativeToolFailureReplansDurablyInsteadOfReplayingTheFailedReceipt(){
         Clock clock=new Clock();Provider provider=new Provider(clock);Sink sink=new Sink();AgentState state=new AgentState();
         provider.answer=r->CompletableFuture.completedFuture(decision("chat",json("{\"wrong_field\":\"first attempt\"}")));

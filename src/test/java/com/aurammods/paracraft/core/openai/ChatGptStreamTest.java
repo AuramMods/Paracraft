@@ -37,9 +37,23 @@ class ChatGptStreamTest {
         conflicting.getAsJsonObject("item").addProperty("arguments", "{\"calls\":[]}");
         assertThrows(IOException.class, () -> read(ITEM, conflicting.toString()));
     }
-    private static JsonObject read(String... events) throws IOException {
+    @Test void visibleOutputIsReportedOnceWhileOpaqueReasoningIsExcluded() throws Exception {
+        var seen=new java.util.ArrayList<JsonObject>();
+        String reasoning="{\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"reasoning\",\"encrypted_content\":\"opaque-private-data\"}}";
+        read(seen::add,ITEM,ITEM,reasoning,"{\"type\":\"response.completed\",\"response\":{\"output\":[]}}");
+        assertEquals(1,seen.size());assertTrue(seen.get(0).has("arguments"));assertFalse(seen.toString().contains("opaque-private-data"));
+        var failed=new java.util.ArrayList<JsonObject>();assertThrows(IOException.class,()->read(failed::add,ITEM));assertEquals(1,failed.size());
+    }
+    @Test void terminalOnlyOutputAndBrokenDebugObserverDoNotChangeDecisionParsing() throws Exception {
+        JsonObject item=JsonParser.parseString(ITEM).getAsJsonObject().getAsJsonObject("item");var seen=new java.util.ArrayList<JsonObject>();
+        String completed="{\"type\":\"response.completed\",\"response\":{\"output\":["+item+"]}}";
+        read(seen::add,completed);assertEquals(1,seen.size());
+        assertEquals("chat",DecisionProtocol.decision(read(value->{throw new IllegalStateException();},completed),InferenceProvider.Route.LIGHT).calls().get(0).tool());
+    }
+    private static JsonObject read(String... events) throws IOException { return read(ignored->{},events); }
+    private static JsonObject read(java.util.function.Consumer<JsonObject> observer,String... events) throws IOException {
         var wire = new StringBuilder();
         for (String event : events) wire.append("data: ").append(event.strip()).append("\n\n");
-        return ChatGptProvider.readCompletion(new ByteArrayInputStream(wire.toString().getBytes(StandardCharsets.UTF_8)));
+        return ChatGptProvider.readCompletion(new ByteArrayInputStream(wire.toString().getBytes(StandardCharsets.UTF_8)),observer);
     }
 }

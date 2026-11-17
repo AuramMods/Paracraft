@@ -26,6 +26,9 @@ public final class SimulatedProvider implements InferenceProvider {
         try {
             Decision reply = decide(request);
             ToolPolicy.validate(request.route(), reply);
+            var output = new JsonObject(); output.addProperty("type", "decision"); var calls = new JsonArray();
+            for (var call : reply.calls()) { var encoded = new JsonObject(); encoded.addProperty("tool", call.tool()); encoded.add("arguments", call.arguments()); calls.add(encoded); }
+            output.add("calls", calls); request.emitOutput(output);
             return CompletableFuture.completedFuture(reply);
         } catch (RuntimeException invalid) { return CompletableFuture.failedFuture(invalid); }
     }

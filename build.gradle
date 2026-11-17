@@ -22,6 +22,7 @@ minecraft {
         configureEach {
             workingDirectory project.file('run/development')
             property 'forge.logging.console.level', 'info'
+            property 'paracraft.debugAgentOutput', providers.gradleProperty('agentOutputDebug').getOrElse('true')
             mods { paracraft { source sourceSets.main } }
         }
         client {}

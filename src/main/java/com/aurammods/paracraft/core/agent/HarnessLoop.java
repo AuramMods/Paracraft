@@ -21,6 +21,10 @@ public final class HarnessLoop implements AutoCloseable {
     private final AgentClock clock;
     private final Sink sink;
     private final Runnable save;
+    private final java.util.function.Consumer<JsonObject> outputSink;
+    private record Output(long generation, JsonObject value) { }
+    private final java.util.concurrent.ConcurrentLinkedQueue<Output> outputs = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private volatile long outputGeneration;
     public final AgentState state;
     private JsonObject latest;
     private String session = "", lastError = "";
@@ -30,7 +34,12 @@ public final class HarnessLoop implements AutoCloseable {
     private long nextStart, calls, planningCalls;
 
     public HarnessLoop(AgentBinding binding, AgentState state, InferenceProvider provider, AgentClock clock, Sink sink, Runnable save) {
+        this(binding, state, provider, clock, sink, save, output -> { });
+    }
+    public HarnessLoop(AgentBinding binding, AgentState state, InferenceProvider provider, AgentClock clock, Sink sink, Runnable save,
+                       java.util.function.Consumer<JsonObject> outputSink) {
         this.binding = binding; this.state = state; this.provider = provider; this.clock = clock; this.sink = sink; this.save = save;
+        this.outputSink = outputSink;
         state.validateTurn();
         paused = state.paused; lastError = state.lastError;
         long remainingMillis = state.lastInferenceMillis == 0 ? 0 : Math.min(5000, Math.max(0, 5000 - (clock.epochMillis() - state.lastInferenceMillis)));
@@ -76,6 +85,7 @@ public final class HarnessLoop implements AutoCloseable {
     public void tick() {
         if (closed || paused || !active || latest == null) return;
         try {
+            flushOutputs();
             if (effect != null) {
                 if (!effect.isDone()) return;
                 JsonObject reply = effect.join(); effect = null;
@@ -99,6 +109,7 @@ public final class HarnessLoop implements AutoCloseable {
             }
             if (inference != null) {
                 if (!inference.isDone()) return;
+                flushOutputs();
                 var decision = inference.join(); inference = null;
                 ToolPolicy.validate(route(), decision); // Reject the whole reply before any effects.
                 JsonArray calls = new JsonArray();
@@ -158,8 +169,15 @@ public final class HarnessLoop implements AutoCloseable {
             nextStart = clock.nanoTime() + INTERVAL_NANOS; state.lastInferenceMillis = clock.epochMillis();
             save.run(); // Preserve the request before inference can begin.
             calls++; if (route == InferenceProvider.Route.PLANNING) planningCalls++;
-            inference = provider.infer(new InferenceProvider.Request(route, model, frame, trigger(), state.turn.getAsJsonObject("observations")));
+            long generation = outputGeneration; String turn = state.turn.get("id").getAsString();
+            inference = provider.infer(new InferenceProvider.Request(route, model, frame, trigger(), state.turn.getAsJsonObject("observations"), output -> {
+                if (generation != outputGeneration) return;
+                var trace = new JsonObject(); trace.addProperty("turn", turn); trace.addProperty("route", route.name());
+                trace.addProperty("model", model.model()); trace.addProperty("effort", model.effort()); trace.add("output", output.deepCopy());
+                outputs.add(new Output(generation, trace));
+            }));
         } catch (RuntimeException failure) {
+            flushOutputs();
             lastError = failure.getCause() == null ? failure.toString() : failure.getCause().toString();
             state.history("error", lastError); abortFutures(); paused = true; state.paused = true; state.lastError = lastError; save.run();
         }
@@ -185,8 +203,14 @@ public final class HarnessLoop implements AutoCloseable {
         list.add(program.deepCopy()); latest.add("programs", list);
     }
     private void abortFutures() {
+        outputGeneration++; outputs.clear();
         if (inference != null) inference.cancel(true); if (effect != null) effect.cancel(true);
         inference = null; effect = null; // Durable turn/cursor intentionally remain for retry.
+    }
+    private void flushOutputs() {
+        Output output;
+        while ((output = outputs.poll()) != null) if (output.generation == outputGeneration)
+            try { outputSink.accept(output.value); } catch (RuntimeException ignored) { /* Debug output cannot stop gameplay. */ }
     }
     public String status() {
         return !lastError.isEmpty() ? "Paused: " + lastError : paused ? "Paused" : !active ? "Disconnected / server paused"

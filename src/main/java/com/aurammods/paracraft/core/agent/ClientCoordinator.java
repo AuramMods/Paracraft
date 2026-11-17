@@ -52,7 +52,7 @@ public final class ClientCoordinator implements AutoCloseable {
                         request.add("session", this.snapshot.get("session")); request.addProperty("tool", tool);
                         request.add("arguments", args); request.addProperty("trigger", trigger);
                         return submit(id, request);
-                    }, this::save);
+                    }, this::save, output -> agentOutput(this, output));
             save(); loop.accept(snapshot);
         }
         void save() { try { store.save(binding, memory); } catch (IOException failure) { throw new UncheckedIOException(failure); } }
@@ -79,7 +79,12 @@ public final class ClientCoordinator implements AutoCloseable {
             }
             if (polling == null && now - nextPoll >= 0) {
                 polling = UUID.randomUUID(); pollStarted = now; nextPoll = now + 2_000_000_000L;
-                JsonObject request = envelope("poll", polling); request.addProperty("sequence", ++sequence); send.accept(request);
+                JsonObject request = envelope("poll", polling); request.addProperty("sequence", ++sequence);
+                var activities = new com.google.gson.JsonArray();
+                for (Companion c : companions.values()) {
+                    var activity = AgentActivity.from(c.memory, c.loop.status()).json(); activity.addProperty("avatar", c.binding.avatar().toString()); activities.add(activity);
+                }
+                request.add("activities", activities); send.accept(request);
             }
             for (Companion companion : List.copyOf(companions.values())) {
                 try { companion.loop.tick(); }
@@ -89,6 +94,16 @@ public final class ClientCoordinator implements AutoCloseable {
                 }
             }
         } catch (RuntimeException failure) { failLink(failure.toString()); }
+    }
+    private void agentOutput(Companion companion, JsonObject output) {
+        JsonObject snapshot = companion.snapshot;
+        if (!snapshot.has("debugAgentOutput") || !snapshot.get("debugAgentOutput").getAsBoolean() || !snapshot.has("session")) return;
+        UUID id = UUID.randomUUID(); var chunks = AgentOutput.chunks(output.toString());
+        for (int i = 0; i < chunks.size(); i++) {
+            var request = envelope("agent_output", UUID.randomUUID()); request.addProperty("avatar", companion.binding.avatar().toString());
+            request.add("session", snapshot.get("session").deepCopy()); request.addProperty("outputId", id.toString());
+            request.addProperty("part", i + 1); request.addProperty("parts", chunks.size()); request.addProperty("data", chunks.get(i)); send.accept(request);
+        }
     }
     public void receive(JsonObject message) {
         if (closed || suspended || !message.has("client") || !client.toString().equals(message.get("client").getAsString())) return;
