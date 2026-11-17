@@ -10,6 +10,23 @@ public final class OperationSyntax {
     public static void validate(JsonObject spec) {
         String op = string(spec, "op");
         switch (op) {
+            case "search_recipes" -> {
+                string(spec, "item");
+                if (spec.has("limit") && (integer(spec, "limit") < 1 || integer(spec, "limit") > 128)) throw new IllegalArgumentException("Recipe result limit must be between 1 and 128");
+            }
+            case "craft_item" -> {
+                string(spec, "item"); if (integer(spec, "quantity") < 1) throw new IllegalArgumentException("Crafting quantity must be positive");
+                if (spec.has("table")) com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("table"));
+                if (spec.has("recipe") && net.minecraft.resources.ResourceLocation.tryParse(string(spec, "recipe")) == null) throw new IllegalArgumentException("recipe must be a registry ID");
+                if (spec.has("grid")) {
+                    int cells = spec.has("table") ? 9 : 4;
+                    if (!spec.get("grid").isJsonArray() || spec.getAsJsonArray("grid").size() != cells) throw new IllegalArgumentException("Crafting grid must have " + cells + " slot indices");
+                    for (var cell : spec.getAsJsonArray("grid")) try {
+                        if (!cell.isJsonPrimitive() || !cell.getAsJsonPrimitive().isNumber()) throw new ArithmeticException();
+                        int slot = cell.getAsBigDecimal().intValueExact(); if (slot < -1 || slot > 35) throw new ArithmeticException();
+                    } catch (ArithmeticException invalid) { throw new IllegalArgumentException("Crafting grid values must be -1 or main-inventory slot indices 0..35"); }
+                }
+            }
             case "open_inventory", "take_items" -> {com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("position"));if(op.equals("take_items")){string(spec,"item");if(integer(spec,"quantity")>Integer.MAX_VALUE)throw new IllegalArgumentException("quantity is too large");}if(spec.has("limit") && (integer(spec,"limit")<1 || integer(spec,"limit")>4096))throw new IllegalArgumentException("Inventory inspection limit must be between 1 and 4096");}
             case "search_blocks" -> {string(spec,"block");if(spec.has("limit") && (integer(spec,"limit")<1 || integer(spec,"limit")>4096))throw new IllegalArgumentException("Block result limit must be between 1 and 4096");}
             case "use_portal" -> {com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("position"));if(spec.has("timeoutTicks"))integer(spec,"timeoutTicks");if(spec.has("dimension"))string(spec,"dimension");}

@@ -2,6 +2,14 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 17: Native internal and table crafting
+
+- Added advertised/typed `craft_item` and `search_recipes` operations. The server assigns real carried ingredients to loaded shaped/shapeless recipes, including overlapping tag choices and Forge NBT ingredients, and uses the actual 2×2 inventory or physically approached 3×3 table menu. Exact recipe IDs and explicit source-slot grids support dynamic native recipes such as tool repair.
+- Native result transfers handle consumption, unlock rules, recipe awards/crafting callbacks, bucket/tool remainders, and inventory refusal/overflow. Batch progress and actual output ledgers persist across pause/body restoration. Ledger entries reflect actual post-hook inventory metadata and compose with delivery without including pre-existing items.
+- Validation: all 75 unit tests and 100 normal native GameTests passed. Ten new world checks cover internal composites, table navigation/discovery, grid-size failure, milk buckets, overlapping tags/NBT, full inventories, partial failure, table protection/removal, checkpoint resume/cancellation, dynamic repair, limited-crafting unlocks/batch rounding, and output-ledger delivery. The 403,546-byte mod JAR excludes QA recipes/tags/classes.
+- The opt-in background live suite passed both delivery and crafting in server JVM 36259. Luna `none`/`xhigh` crafted planks/sticks internally and a wooden pickaxe at the actual table using client JVM 36728, six decisions/two planning decisions, exact inventory totals, and idle suppression. Both client scenario logs are retained; the runner requires both success events. No graphical client or browser was launched.
+- [CRAFTING.md](CRAFTING.md) documents syntax and scope. Smelting, non-player crafting machines, recursive ingredient acquisition, and arbitrary special-recipe inference remain separate adapters/planning work; in-game visuals remain unverified.
+
 ## November 17: Nearby chat without repeating avatar names
 
 - Unnamed chat now targets exactly one living avatar the sender may instruct within an inclusive 24-block radius in the same dimension. Ownership and delegated instruction rights determine eligibility; other players' avatars do not create ambiguity. Zero or multiple nearby eligible avatars require explicit addressing.

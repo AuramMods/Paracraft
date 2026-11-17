@@ -6,6 +6,8 @@ Programs execute server-side through the same jobs used by manual controls. They
 
 Use `/paracraft program <companion> <json>` as the owner. `JobManager.submitProgram` checks owner and current control-session ID. The client-facing `ServerControl` service additionally checks instruction provenance/revocation, request content identity, and server observation receipts. Forge transport derives its owner from the native connection; actual TCP/client verification remains pending.
 
+Programs can also compose `search_recipes` and `craft_item` with collection, placement, delivery, and deposit. [CRAFTING.md](CRAFTING.md) documents internal 2×2/table 3×3 syntax, quantity semantics, and native ingredient/remainder behavior.
+
 An optional `schema` is currently `1`. Supply a stable UUID in `id` to retry a request safely; if omitted, the manual command generates one and reports it. Reusing an accepted ID acknowledges its existing state/result and does not execute another copy, including after save/reconnect or a clean server restart. `taskId` associates the program with an intention; the server does not mark that intention complete automatically.
 
 Submission modes:

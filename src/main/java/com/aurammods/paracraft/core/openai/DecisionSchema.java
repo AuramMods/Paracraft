@@ -47,6 +47,11 @@ final class DecisionSchema {
     private static JsonObject steps() {
         var variants = new JsonArray();
         variants.add(operation("travel", "destination", position(false)));
+        variants.add(operation("search_recipes", "item", text(), "limit", optional(integer(1, 128))));
+        variants.add(operation("craft_item", "item", text(), "quantity", integer(1, Integer.MAX_VALUE), "table", type("null"),
+                "recipe", optional(text()), "grid", optional(fixedArray(integer(-1, 35), 4))));
+        variants.add(operation("craft_item", "item", text(), "quantity", integer(1, Integer.MAX_VALUE), "table", position(true),
+                "recipe", optional(text()), "grid", optional(fixedArray(integer(-1, 35), 9))));
         variants.add(operation("search_containers", "item", text()));
         variants.add(operation("collect_items", "item", text(), "quantity", optional(any(integer(0, Integer.MAX_VALUE), values("all"))), "containersFrom", optional(text())));
         variants.add(operation("deposit_items", "destination", position(true), "item", text(), "quantity", integer(0, Integer.MAX_VALUE)));
@@ -94,6 +99,7 @@ final class DecisionSchema {
     private static JsonObject minimum(JsonObject schema, Number value) { schema.addProperty("minimum", value); return schema; }
     private static JsonObject integer(long min, long max) { var schema = minimum(type("integer"), min); schema.addProperty("maximum", max); return schema; }
     private static JsonObject array(JsonObject item) { var schema = type("array"); schema.add("items", item); return schema; }
+    private static JsonObject fixedArray(JsonObject item, int size) { var schema = array(item); schema.addProperty("minItems", size); schema.addProperty("maxItems", size); return schema; }
     private static JsonObject position(boolean integral) { var schema = array(integral ? integer(Integer.MIN_VALUE, Integer.MAX_VALUE) : type("number")); schema.addProperty("minItems", 3); schema.addProperty("maxItems", 3); return schema; }
     private static JsonObject ref(String name) { var schema = new JsonObject(); schema.addProperty("$ref", "#/$defs/" + name); return schema; }
     private static JsonObject optional(JsonObject schema) { return any(schema, type("null")); }

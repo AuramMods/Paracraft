@@ -2,6 +2,8 @@
 
 These operations run as incremental server jobs inside structured programs. They use the avatar's physical inventory, position, native interaction paths, and Forge hooks. The available operation names are included in snapshots. Use `/paracraft program <companion> <json>` to author a program directly; the deterministic chat simulator still recognizes its documented finite scripts rather than general gameplay language.
 
+Native [crafting](CRAFTING.md) is available through `craft_item` and `search_recipes`: internal 2×2 crafting, physical table use for 3×3 recipes, automatic ingredient assignment, native remainders/hooks, and resumable batch progress. The linked agent can choose these typed operations; manual program examples are in that guide.
+
 Coordinates below are absolute block coordinates in the avatar's current dimension. Replace example coordinates with reachable positions in a disposable world. Stock tools/materials through physical pickup or the existing container collection operations. No creative inventory, remote block mutation, or elevated command authority is supplied by these actions.
 
 ## Mining
@@ -41,7 +43,7 @@ The avatar approaches each target and selects the requested carried item. Placem
 
 Destinations must be replaceable, with a usable adjacent support face. Failed/denied placement stops the remaining list. Native canceled-place behavior restores world/item changes; results retain completed placement and consumed-input counts. The cursor survives body/NBT rebinds. A catch may handle failure and continue the enclosing program.
 
-This supports initial block-placement sequences. It does not yet plan structures, acquire missing materials automatically, implement recipes, or solve every approach/terrain obstruction.
+This supports initial block-placement sequences. Materials can be prepared with [crafting operations](CRAFTING.md). Structure planning, automatic recursive material acquisition, and every approach/terrain obstruction are not implemented.
 
 ## Farming
 
@@ -51,7 +53,7 @@ This supports initial block-placement sequences. It does not yet plan structures
 
 Targets are crop blocks above their soil, using the same single/list/cuboid forms as mining. The initial adapter recognizes mature `CropBlock` instances, including compatible subclasses. Air, non-crop blocks, and immature crops are skipped. Mature crops use native breaking and physical pickup; optional `plant` selects a carried seed/plant item and replants through normal placement. The operation verifies that the expected crop block was created.
 
-The result includes harvested/broken, skipped, replanted, and acquired counts. Actual collected seeds and one consumed input per successful standard replant are verified in Minecraft. Omitting `plant` harvests without replanting. Missing seeds or refused planting report the already-harvested partial state. Tilling, irrigation, other crop APIs, and automated crafting are later work.
+The result includes harvested/broken, skipped, replanted, and acquired counts. Actual collected seeds and one consumed input per successful standard replant are verified in Minecraft. Omitting `plant` harvests without replanting. Missing seeds or refused planting report the already-harvested partial state. Tilling, irrigation, and other crop APIs remain later work. Native crafting is documented separately in [CRAFTING.md](CRAFTING.md).
 
 ## Equipment
 

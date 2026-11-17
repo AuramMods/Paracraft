@@ -64,6 +64,7 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
         // nine-chunk search at any height, outside the placed arena.
         def qaDirectory = project.file(live ? 'run/live-qa' : project.hasProperty('restartPhase') ? 'run/restart-qa' : 'run/gametest')
         qaDirectory.mkdirs()
+        if (live) new File(qaDirectory, 'client.log').text = ''
         new File(qaDirectory, 'server.properties').text = '''level-name=world
 level-seed=0
 level-type=minecraft:flat

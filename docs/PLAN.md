@@ -265,7 +265,7 @@ Semantics:
 
 Validate syntax, ownership, and operation types directly. Evaluate dynamic world conditions at execution time; do not reject an entire program because a guessed future state suggests a later step might fail. Programs have finite submitted structure and use an incremental interpreter so even immediate steps cannot stall a server tick. Long-lived activities use resumable jobs or repeated tasks.
 
-Future composites can express “collect ingredients, craft a quantity, deposit the products” through the same interpreter. Generic crafting and smelting adapters are expansion work, not prerequisites for initial collection and delivery.
+Programs can now express “collect ingredients, craft a quantity, deposit the products” through native internal/table crafting; see [CRAFTING.md](CRAFTING.md). Smelting and custom machine recipe adapters remain expansion work.
 
 ## 10. Tasks, memory, and personality
 
@@ -318,7 +318,7 @@ Support normal health, hunger, oxygen, armor, durability, effects, experience, d
 
 Respawn points come from normal bed interactions. On initial creation, the companion should seek an available suitable bed and attempt to establish its spawn there. Brief sleeping is desired where the game permits it; distinguish successfully setting a valid spawn from successfully entering sleep. Report occupied beds, invalid dimensions, missing beds, or other actual failures. Use the server's normal fallback spawn behavior until a valid bed spawn exists.
 
-The owner can request a new bed location. The agent can use an available bed, place one it carries, or ask for materials/help. Automated bed crafting depends on later crafting support. Broken or obstructed spawn beds follow normal game behavior and appear in the next snapshot.
+The owner can request a new bed location. The agent can use an available bed, craft/place one with available materials and a table, or ask for materials/help. Broken or obstructed spawn beds follow normal game behavior and appear in the next snapshot.
 
 ### Combat and behavior configuration
 
@@ -404,7 +404,7 @@ Expand block/list/cuboid mining, farming, combat/reflex configuration, equipment
 
 ### Later expansion
 
-Add generic crafting/smelting composites, more advanced building, storage-network adapters, additional loaders/versions, richer client controls, and optional usage budgets. Keep the broad action interpreter and provider abstraction stable as these capabilities grow.
+Native internal/table crafting and recipe discovery are implemented. Add smelting/custom-machine composites, more advanced building, storage-network adapters, additional loaders/versions, richer client controls, and optional usage budgets. Keep the broad action interpreter and provider abstraction stable as these capabilities grow.
 
 Behavioral acceptance checks:
 

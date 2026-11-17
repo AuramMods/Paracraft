@@ -52,7 +52,7 @@ public final class LiveClientProcess {
         Remote() throws IOException {
             var launch = JsonParser.parseString(Files.readString(Path.of(System.getProperty("paracraft.qa.clientLaunch")))) .getAsJsonArray();
             var command = new ArrayList<String>(); launch.forEach(value -> command.add(value.getAsString()));
-            process = new ProcessBuilder(command).redirectError(Path.of("client.log").toFile()).start();
+            process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.appendTo(Path.of("client.log").toFile())).start();
             input = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
             output = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
             Runtime.getRuntime().addShutdownHook(new Thread(process::destroy, "QA client cleanup"));

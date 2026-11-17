@@ -20,6 +20,8 @@ The reobfuscated mod is written to `build/libs/paracraft-forge-1.20.1-0.1.0-dev.
 
 In a disposable world, press **K** for companion controls or run `/paracraft spawn Josh`, then talk in chat. If exactly one avatar you may instruct is within 24 blocks in your dimension, you can omit its name. With multiple nearby authorized avatars, address one by name. Before linking, the provider is a labeled deterministic simulator with fixed phrases. After linking, new decisions use the actual account/model route. Try `collect the diamonds nearby and give them to me`, or explicitly `Josh, collect the diamonds nearby and give them to me.` Model routes and local pause state are saved in the game directory; the simulator needs no credentials.
 
+Linked agents can also [craft items](docs/CRAFTING.md) in their internal 2×2 grid or at an actual crafting table. For example: `Craft eight sticks with the planks you're carrying` or `Use that crafting table to make a wooden pickaxe.` The server handles recipes, ingredients, navigation, and native crafting interactions.
+
 Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
 
 [Physical navigation](docs/NAVIGATION.md) includes independent native chunk tracking, basic swimming/ladder/door movement, and local obstacle/bridge/pillar recovery with carried tools and materials.

@@ -76,6 +76,32 @@ class DecisionSchemaTest {
         args.getAsJsonObject("idle").addProperty("enabled", "true");
         assertThrows(IOException.class, () -> DecisionSchema.decode(batch("configure_behavior", args), InferenceProvider.Route.PLANNING));
     }
+    @Test void typedCraftingSupportsInternalAndTableProgramsWithoutEncodedArguments() throws Exception {
+        var args = craftingProgram();
+        var decision = DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING);
+        var steps = decision.calls().get(0).arguments().getAsJsonArray("steps");
+        assertEquals("search_recipes", steps.get(0).getAsJsonObject().get("op").getAsString());
+        assertFalse(steps.get(1).getAsJsonObject().has("table"));
+        assertEquals(9, steps.get(2).getAsJsonObject().getAsJsonArray("grid").size());
+        assertEquals(3, steps.get(2).getAsJsonObject().getAsJsonArray("table").size());
+    }
+    @Test void typedCraftingRejectsZeroQuantitiesAndWrongGridShapes() {
+        var args = craftingProgram(); var craft = args.getAsJsonArray("steps").get(1).getAsJsonObject();
+        craft.addProperty("quantity", 0);
+        assertThrows(IOException.class, () -> DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING));
+        craft.addProperty("quantity", 1); craft.add("grid", JsonParser.parseString("[0,1,-1]"));
+        assertThrows(IOException.class, () -> DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING));
+        craft.add("grid", JsonParser.parseString("[0,36,-1,-1]"));
+        assertThrows(IOException.class, () -> DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING));
+    }
+    private static JsonObject craftingProgram() {
+        return json("""
+            {"schema":1,"id":"%s","taskId":null,"mode":"append","observationRefs":[],"steps":[
+             {"op":"search_recipes","item":"minecraft:wooden_pickaxe","limit":null,"saveAs":"recipes"},
+             {"op":"craft_item","item":"minecraft:oak_planks","quantity":8,"table":null,"recipe":null,"grid":null,"saveAs":"planks"},
+             {"op":"craft_item","item":"minecraft:wooden_pickaxe","quantity":1,"table":[1,64,2],"recipe":null,"grid":[0,0,0,-1,1,-1,-1,1,-1],"saveAs":"pickaxe"}]}
+            """.formatted(ID));
+    }
     private static void assertStrict(JsonElement value) {
         if (value.isJsonObject()) {
             var object = value.getAsJsonObject();
