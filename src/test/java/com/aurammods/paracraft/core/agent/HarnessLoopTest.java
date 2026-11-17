@@ -9,6 +9,18 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HarnessLoopTest {
+    @Test void providerRoutesSelectAndTraceActualModelsWithoutChangingSavedAvatarRoutes(){
+        var clock=new Clock();var requests=new java.util.ArrayList<InferenceProvider.Request>();var traces=new java.util.ArrayList<JsonObject>();var state=new AgentState();var sink=new Sink();
+        InferenceProvider provider=new InferenceProvider(){
+            public String label(){return "Provider route fixture";}public boolean simulated(){return false;}
+            public ModelRoute model(Route route,ModelRoute configured){return new ModelRoute(route==Route.LIGHT?"vendor/light":"vendor/planning",route==Route.LIGHT?"auto":"high");}
+            public CompletableFuture<Decision> infer(Request request){requests.add(request);request.emitOutput(json("{\"type\":\"function_call\",\"name\":\"fixture\"}"));return CompletableFuture.completedFuture(request.route()==Route.LIGHT?decision("think_harder",new JsonObject()):decision("chat",json("{\"message\":\"done\"}")));}
+        };
+        try(var loop=new HarnessLoop(BINDING,state,provider,clock,sink,()->{},traces::add)){
+            loop.accept(frame(chat(1,"do something")));pump(loop);clock.advance(5000);pump(loop);
+            assertEquals(List.of("vendor/light","vendor/planning"),requests.stream().map(r->r.model().model()).toList());assertEquals(List.of("vendor/light","vendor/planning"),traces.stream().map(t->t.get("model").getAsString()).toList());assertEquals("gpt-6-luna",state.lightModel);assertEquals("xhigh",state.planningEffort);assertEquals(1,sink.sent.size());
+        }
+    }
     @Test void diagnosticOutputIsFlushedOnClientTickEvenWhenDecisionFailsAndStaleOutputIsDropped() {
         var clock = new Clock(); var provider = new Provider(clock); var traces = new java.util.ArrayList<com.google.gson.JsonObject>();
         var pending = new Uncancellable<InferenceProvider.Decision>(); provider.answer = request -> pending;

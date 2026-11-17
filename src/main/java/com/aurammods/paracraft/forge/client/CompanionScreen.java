@@ -37,7 +37,7 @@ public final class CompanionScreen extends Screen {
             var view = selected(); if (view != null) observe(runtime().destroy(view.id()));
         }).bounds(20 + column, height - 70, column, 20).build());
         routes = addRenderableWidget(Button.builder(Component.literal("Model routes"), b -> {
-            var view = selected(); if (view != null) minecraft.setScreen(new RouteScreen(this, view));
+            var view = selected(); if (view != null) minecraft.setScreen(ForgeClientRuntime.accounts()!=null && ForgeClientRuntime.accounts().mode().equals("openrouter")?new OpenRouterScreen(this):new RouteScreen(this, view));
         }).bounds(24 + 2 * column, height - 70, column, 20).build());
         retry = addRenderableWidget(Button.builder(Component.literal("Reconnect"), b -> ForgeClientRuntime.retry())
                 .bounds(28 + 3 * column, height - 70, column, 20).build());
@@ -82,7 +82,7 @@ public final class CompanionScreen extends Screen {
         var today=account==null?null:account.todayUsage();
         graphics.drawString(font,font.plainSubstrByWidth(today==null?"Usage unavailable":today.tokensLabel(),Math.max(10,width-32)),16,44,0xdddddd);
         graphics.drawString(font,font.plainSubstrByWidth(today==null?ForgeClientRuntime.accountError():today.costLabel(),Math.max(10,width-32)),16,56,0xb5e8b5);
-        graphics.drawString(font,"Codex left: unavailable",16,70,0xaaaaaa);
+        graphics.drawString(font,account!=null && account.mode().equals("openrouter")?"OpenRouter API usage":"Codex left: unavailable",16,70,0xaaaaaa);
         var view = selected(); graphics.drawCenteredString(font, view == null ? "No companion selected" : view.name(), width / 2, 94, 0xffffff);
         List<String> lines = new ArrayList<>();
         lines.add(runtime() == null ? "Join a Paracraft world to manage companions." : runtime().status());

@@ -164,8 +164,8 @@ public final class HarnessLoop implements AutoCloseable {
             }
             JsonObject frame = latest.deepCopy(); frame.add("agent", state.context());
             var route = route();
-            var model = route == InferenceProvider.Route.LIGHT ? new InferenceProvider.ModelRoute(state.lightModel, state.lightEffort)
-                    : new InferenceProvider.ModelRoute(state.planningModel, state.planningEffort);
+            var model = provider.model(route, route == InferenceProvider.Route.LIGHT ? new InferenceProvider.ModelRoute(state.lightModel, state.lightEffort)
+                    : new InferenceProvider.ModelRoute(state.planningModel, state.planningEffort));
             nextStart = clock.nanoTime() + INTERVAL_NANOS; state.lastInferenceMillis = clock.epochMillis();
             save.run(); // Preserve the request before inference can begin.
             calls++; if (route == InferenceProvider.Route.PLANNING) planningCalls++;

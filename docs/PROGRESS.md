@@ -2,6 +2,13 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## OpenRouter API keys and explicit model routes
+
+- Added a client-owned OpenRouter Chat Completions provider and local setup through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. The masked key field preserves the saved secret when blank, and exact client-wide Light/Planning model IDs and reasoning efforts are editable without catalog gates. Blank Planning uses Light; `auto` omits the reasoning override. Existing ChatGPT accounts and per-avatar routes remain intact.
+- Forced typed `paracraft_decide` calls share the existing strict decision schema, Light restrictions and server execution path. Incomplete, malformed, duplicate, unknown and forbidden batches are rejected atomically. Actual HTTP/model errors are surfaced without silent provider/model fallback. Cancellation and settings/provider revisions invalidate pending requests; diagnostics show resolved model IDs and visible output, excluding hidden reasoning and credential text.
+- API keys use the existing protected private account record, outside snapshots, world state and Minecraft transport. OpenRouter daily token totals and reported `usage.cost` remain separate from ChatGPT's Luna estimates, with partial reporting explicit and key replacement/removal separating ledgers. The K-menu usage links follow the selected provider.
+- Validation: all 105 unit tests, all 124 native headless GameTests, and the local reobfuscated build pass. Seven local HTTP/private-file scenarios plus ledger and harness-route tests cover authentication headers, exact request shapes, strict response validation, persistence, key lifecycle, errors, cancellation, routing diagnostics and accounting. No graphical Minecraft client, browser or paid OpenRouter request was launched. In-game layout/entry and a real configured model remain manual checks. See [OpenRouter setup](OPENROUTER.md).
+
 ## Nearest nearby block positions
 
 - `search_blocks` now retains the nearest N matches instead of the first scan-order prefix, using `limit` with a bounded top-N queue. Results are sorted by three-dimensional block-center distance from the fixed starting position, with deterministic coordinate ties, actual IDs, distances, counts and truncation. Exact registered block IDs and block tags are supported.

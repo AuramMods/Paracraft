@@ -16,6 +16,8 @@ The GameTest server terminates on completion. To interrupt a foreground run, use
 
 ## Implemented scenarios
 
+The [OpenRouter provider](OPENROUTER.md) adds seven actual loopback HTTP/private-file scenarios with fake API keys, plus usage-ledger and harness-route tests. They cover exact model IDs/efforts and forced typed tool calls, batch rejection, HTTP errors without fallback or credential echoes, private persistence with saved ChatGPT registrations preserved, cancellation/settings changes, key replacement/removal, and separate reported costs. No paid OpenRouter inference, authentication browser or graphical client is launched by this coverage.
+
 `chestCapabilityUsesRealWorld` places a real chest in the test world, inserts seven diamonds through its Forge item capability, extracts three, and checks that four remain. Expected outcome: the test passes and emits `QA_EVT` with event `real_chest_capability`.
 
 The three avatar GameTests additionally verify survival ticking/damage, save/despawn/restore with stack metadata and menu cursor items preserved, compressed-NBT serialization, control-session rotation, and destroying a saved avatar with exactly one set of world item drops. The JUnit test checks that trusted-player instruction rights never grant the owner's control lease and that reconnect rejects an earlier lease.
@@ -59,7 +61,7 @@ The gameplay suite uses actual Minecraft operations for:
 - Native armor/offhand slots, invalid-slot rejection, binding curses, already-equipped acknowledgment, and protected attacks.
 - Following a moved entity, native melee cooldown/damage/durability, and bare-hand combat.
 
-The [crafting suite](CRAFTING.md) uses real inventory/table matrices and native result slots for internal crafting composites, physical table navigation, recipe discovery, 2×2 rejection of larger recipes, bucket returns, overlapping tag assignment, Forge NBT ingredients, dynamic repair, limited-crafting unlocks, full inventory refusal, partial progress, native table-hook denial/removal, checkpoint resume/cancellation, and output-ledger delivery with crafting-hook metadata changes. The current full normal suite passes **124 native GameTests and 96 unit tests**. Test-only recipe/tag fixtures are excluded from the mod JAR.
+The [crafting suite](CRAFTING.md) uses real inventory/table matrices and native result slots for internal crafting composites, physical table navigation, recipe discovery, 2×2 rejection of larger recipes, bucket returns, overlapping tag assignment, Forge NBT ingredients, dynamic repair, limited-crafting unlocks, full inventory refusal, partial progress, native table-hook denial/removal, checkpoint resume/cancellation, and output-ledger delivery with crafting-hook metadata changes. The current full normal suite passes **124 native GameTests and 105 unit tests**. Test-only recipe/tag fixtures are excluded from the mod JAR.
 
 See [GAMEPLAY.md](GAMEPLAY.md) for program examples and current adapter limits. These checks run headlessly; no visual mining animation, client control, or arbitrary modpack compatibility is inferred from them.
 

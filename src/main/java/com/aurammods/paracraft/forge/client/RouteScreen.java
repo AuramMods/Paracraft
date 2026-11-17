@@ -10,7 +10,7 @@ import java.util.UUID;
 
 final class RouteScreen extends Screen {
     private final Screen parent; private final UUID avatar;
-    private final String[] labels = {"Luna Light model", "Light reasoning effort", "Planning model", "Planning reasoning effort"};
+    private final String[] labels = {"Light model", "Light reasoning effort", "Planning model", "Planning reasoning effort"};
     private final String[] draft;
     private final EditBox[] fields = new EditBox[4];
     private String notice = "Choose an account model or enter its exact slug; requests report actual API errors.";

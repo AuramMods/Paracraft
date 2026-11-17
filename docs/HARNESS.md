@@ -8,6 +8,8 @@ This describes the Minecraft-independent harness core in `core/agent` and its au
 
 The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. The simulator never calls an external model service. The optional [ChatGPT provider](AUTH.md) sends configured routes unchanged to the public Responses API after client-side sign-in; actual account models and request errors determine availability. No model is silently substituted.
 
+The [OpenRouter provider](OPENROUTER.md) uses separately configured client-wide exact model IDs for each route, with an API key held only in local account storage. `InferenceProvider.model` resolves its route before building a request or output trace; saved per-avatar ChatGPT routes remain intact. Both providers decode the same strict typed decision schema and share the harness's scheduling, task memory, action validation and cancellation behavior.
+
 | Route | Available tools |
 | --- | --- |
 | Light | `chat`, `think_harder`, or an empty decision |

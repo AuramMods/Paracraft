@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UsageLedgerTest {
+    @Test void openRouterUsesReportedCostsIncludingFreeCallsAndLeavesUnknownCostsPartial(){
+        var usage=new JsonObject();UsageLedger.recordOpenRouter(usage,json("{\"prompt_tokens\":100,\"completion_tokens\":10,\"cost\":0.03}"),"completed",NOW,CHICAGO);
+        UsageLedger.recordOpenRouter(usage,json("{\"prompt_tokens\":200,\"completion_tokens\":20,\"cost\":0}"),"completed",NOW,CHICAGO);var today=UsageLedger.today(usage,NOW,CHICAGO);equal("0.03",today.usd());assertEquals(330,today.total());assertEquals(0,today.unpricedCalls());assertFalse(today.costLabel().endsWith("*"));
+        UsageLedger.recordOpenRouter(usage,json("{\"prompt_tokens\":10,\"completion_tokens\":1}"),"completed",NOW,CHICAGO);today=UsageLedger.today(usage,NOW,CHICAGO);equal("0.03",today.usd());assertEquals(1,today.unpricedCalls());assertTrue(today.costLabel().endsWith("*"));assertFalse(String.join(" ",today.details()).contains("USD/1M"));
+    }
     private static final ZoneId CHICAGO=ZoneId.of("America/Chicago");
     private static final Instant NOW=Instant.parse("2026-11-17T16:00:00Z");
     private static JsonObject json(String value){return JsonParser.parseString(value).getAsJsonObject();}

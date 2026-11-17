@@ -30,6 +30,7 @@ import com.aurammods.paracraft.core.agent.SimulatedProvider;
 import com.aurammods.paracraft.core.agent.InferenceProvider;
 import com.aurammods.paracraft.core.openai.ChatGptClient;
 import com.aurammods.paracraft.core.openai.ChatGptProvider;
+import com.aurammods.paracraft.core.openai.OpenRouterProvider;
 
 @Mod.EventBusSubscriber(modid = Paracraft.ID, value = Dist.CLIENT)
 public final class ForgeClientRuntime {
@@ -53,21 +54,24 @@ public final class ForgeClientRuntime {
                     // Queue the screen after ChatScreen finishes submitting and closes itself.
                     Minecraft.getInstance().tell(() -> Minecraft.getInstance().setScreen(new AccountScreen(null)));
                     return 1;
+                })).then(Commands.literal("openrouter").executes(context -> {
+                    Minecraft.getInstance().tell(() -> Minecraft.getInstance().setScreen(new OpenRouterScreen(null)));
+                    return 1;
                 }))));
     }
     private static boolean needsLink() {
-        var client = accounts(); var selected = client == null ? null : client.selected();
+        var client = accounts();if(client!=null && client.mode().equals("openrouter"))return !client.openRouter().keySaved();var selected = client == null ? null : client.selected();
         return selected == null || !selected.signedIn() || !selected.planEnabled();
     }
-    private static Component accountLink() {
-        return Component.literal("/paracraft link chatgpt").withStyle(style -> style.withColor(ChatFormatting.AQUA)
-                .withUnderlined(true).withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/paracraft link chatgpt"))
+    private static Component accountLink(String provider) {
+        return Component.literal("/paracraft link "+provider).withStyle(style -> style.withColor(ChatFormatting.AQUA)
+                .withUnderlined(true).withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/paracraft link "+provider))
                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Open your local Paracraft account screen"))));
     }
     private static void remindToLink(String reason) {
         var player = Minecraft.getInstance().player;
         if (player != null && needsLink()) player.displayClientMessage(Component.literal("Paracraft: " + reason
-                + " Link your ChatGPT account for AI control: ").append(accountLink()), false);
+                + " Enable AI with ").append(accountLink("chatgpt")).append(" or ").append(accountLink("openrouter")), false);
     }
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
@@ -87,7 +91,7 @@ public final class ForgeClientRuntime {
     private static void start() {
         Minecraft minecraft = Minecraft.getInstance();
         coordinator = new ClientCoordinator(minecraft.player.getUUID(), new AgentStore(minecraft.gameDirectory.toPath().resolve("paracraft/memory")),
-                AgentClock.SYSTEM, ForgeNetwork::toServer,binding->{var account=accounts();if(account==null)return new InferenceProvider(){public String label(){return "Account storage unavailable";}public boolean simulated(){return false;}public java.util.concurrent.CompletableFuture<Decision> infer(Request request){return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException(accountError));}};return account.mode().equals("chatgpt")?new ChatGptProvider(account):new SimulatedProvider();},ForgeClientRuntime::providerLabel);
+                AgentClock.SYSTEM, ForgeNetwork::toServer,binding->{var account=accounts();if(account==null)return new InferenceProvider(){public String label(){return "Account storage unavailable";}public boolean simulated(){return false;}public java.util.concurrent.CompletableFuture<Decision> infer(Request request){return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException(accountError));}};return switch(account.mode()){case "chatgpt"->new ChatGptProvider(account);case "openrouter"->new OpenRouterProvider(account);default->new SimulatedProvider();};},ForgeClientRuntime::providerLabel);
     }
     public static void retry() {
         if (coordinator != null) coordinator.close(); INCOMING.clear();

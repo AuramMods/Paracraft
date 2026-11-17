@@ -2,6 +2,8 @@
 
 Paracraft now implements local Sign in with ChatGPT and a real Responses provider. This uses eligible ChatGPT plan usage for the custom snapshot harness, independently of the Codex desktop app. No API key or copied Codex token is required. The simulator remains available and clearly labeled.
 
+For API-key billing with explicitly configured model IDs, [OpenRouter](OPENROUTER.md) is also available through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. It keeps separate model routes and usage while preserving saved ChatGPT accounts.
+
 The implementation follows OpenAI's [open-source registration/sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [account/session](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions), [models/inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference), and [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations) documentation. Eligibility, models, and plan limits are determined by the actual account and service responses.
 
 ## Authenticate in Minecraft

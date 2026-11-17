@@ -4,6 +4,8 @@ Server-owned Minecraft companions with a client-owned decision harness. Initial 
 
 The Forge foundation includes a labeled simulator and client-side ChatGPT sign-in/live provider. **[Link your account](docs/AUTH.md)** after joining with `/paracraft link chatgpt` or **K → Accounts**. Unlinked players receive clickable join and avatar-creation reminders. The session is cached privately on your computer; `./gradlew chatgptLogin` is optional developer tooling. Real Luna inference and headless diamond retrieval have passed; native client visual checks remain pending.
 
+You can also use an **[OpenRouter API key and exact model IDs](docs/OPENROUTER.md)** through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. Configure Light and Planning models/efforts locally; the K menu shows OpenRouter-reported tokens and cost for this provider.
+
 Start with [installation/configuration](docs/INSTALL.md), [foundation validation evidence](docs/VALIDATION.md), and [background QA controls](docs/BACKGROUND.md).
 
 See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), [gameplay actions](docs/GAMEPLAY.md), [survival and respawn](docs/SURVIVAL.md), [server behavior](docs/BEHAVIOR.md), [native commands](docs/COMMANDS.md), [decision harness](docs/HARNESS.md), [client runtime](docs/NETWORK.md), and [QA instructions](docs/QA.md).
@@ -20,7 +22,7 @@ The reobfuscated mod is written to `build/libs/paracraft-forge-1.20.1-1.0.0.jar`
 
 In a disposable world, press **K** for companion controls or run `/paracraft spawn Josh`, then talk in chat. If exactly one avatar you may instruct is within 24 blocks in your dimension, you can omit its name. With multiple nearby authorized avatars, address one by name. Before linking, the provider is a labeled deterministic simulator with fixed phrases. After linking, new decisions use the actual account/model route. Try `collect the diamonds nearby and give them to me`, or explicitly `Josh, collect the diamonds nearby and give them to me.` Model routes and local pause state are saved in the game directory; the simulator needs no credentials.
 
-The K menu shows [today's input/output tokens and Luna API cost estimate](docs/USAGE.md) for the selected local account. Usage details includes cache counts, pricing assumptions, and a Manage usage link for actual ChatGPT plan limits.
+With ChatGPT selected, the K menu shows [today's input/output tokens and Luna API cost estimate](docs/USAGE.md) for the selected local account. Usage details includes cache counts, pricing assumptions, and a Manage usage link for actual ChatGPT plan limits. OpenRouter shows its separately recorded tokens and reported API cost.
 
 Linked agents can also [craft items](docs/CRAFTING.md) in their internal 2×2 grid or at an actual crafting table. For example: `Craft eight sticks with the planks you're carrying` or `Use that crafting table to make a wooden pickaxe.` The server handles recipes, ingredients, navigation, and native crafting interactions.
 

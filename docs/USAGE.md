@@ -1,5 +1,7 @@
 # Daily usage in the K menu
 
+With [OpenRouter](OPENROUTER.md) selected, the same screens instead show its API-reported input/output tokens and `usage.cost`, with partial totals when fields are missing. Luna estimates are not applied. Manage usage opens OpenRouter Activity; replacing/removing the saved API key starts a separate ledger. The remainder of this guide describes ChatGPT plan usage and its Luna cost equivalent.
+
 Open **K** to see today's reported input tokens, output tokens, and estimated Luna API cost. **Usage details** shows total tokens, cached input, cache writes, completed requests, the reporting date/timezone, and pricing assumptions. **Manage usage** opens [ChatGPT usage settings](https://chatgpt.com/settings/usage) only when clicked. The pricing button opens the official rate card.
 
 These are **local Paracraft totals for the selected account**, across its avatars and servers. They do not include Codex desktop/CLI activity, other apps, or another computer's Paracraft cache. Switching accounts changes the displayed totals. The simulator adds no tokens or estimated cost. The menu refreshes the local cache asynchronously every five seconds without inference or HTTP requests; reads coalesce if another process holds the account lock.

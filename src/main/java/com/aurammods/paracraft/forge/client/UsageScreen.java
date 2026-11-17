@@ -17,12 +17,13 @@ final class UsageScreen extends Screen {
     UsageScreen(Screen parent) { super(Component.literal("Paracraft · Usage today")); this.parent=parent; }
     @Override protected void init() {
         addRenderableWidget(Button.builder(Component.literal("Back"),b->onClose()).bounds(width-68,8,52,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Manage usage"),b->Util.getPlatform().openUri(URI.create(UsageLedger.MANAGE_USAGE_URL)))
+        addRenderableWidget(Button.builder(Component.literal("Manage usage"),b->Util.getPlatform().openUri(URI.create(router()?"https://openrouter.ai/activity":UsageLedger.MANAGE_USAGE_URL)))
                 .bounds(16,height-28,120,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Luna API pricing"),b->Util.getPlatform().openUri(URI.create(UsageLedger.PRICING_URL)))
+        addRenderableWidget(Button.builder(Component.literal(router()?"OpenRouter models":"Luna API pricing"),b->Util.getPlatform().openUri(URI.create(router()?"https://openrouter.ai/models":UsageLedger.PRICING_URL)))
                 .bounds(width-144,height-28,128,20).build());
         nextRefresh=0;tick();
     }
+    private static boolean router(){var account=ForgeClientRuntime.accounts();return account!=null && account.mode().equals("openrouter");}
     @Override public void tick() {
         if(System.nanoTime()-nextRefresh<0)return;nextRefresh=System.nanoTime()+5_000_000_000L;
         var account=ForgeClientRuntime.accounts();if(account!=null)account.refreshUsage();

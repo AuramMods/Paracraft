@@ -18,14 +18,20 @@ public final class UsageLedger {
 
     public record Today(LocalDate date, String zone, Instant trackedSince, boolean olderUsage,
                         long input, long output, long total, long cached, long writes, long completed,
-                        long unreported, long estimatedCalls, long unpricedCalls, BigDecimal usd) {
+                        long unreported, long estimatedCalls, long unpricedCalls, BigDecimal usd, boolean openRouter) {
         public String tokensLabel() { return "Today · Input " + count(input) + " · Output " + count(output); }
-        public String costLabel() { return "Luna API est. " + dollars(usd) + " USD" + (unreported + unpricedCalls > 0 || olderUsage && trackedSince.atZone(ZoneId.of(zone)).toLocalDate().equals(date) ? "*" : ""); }
+        public String costLabel() { return (openRouter?"OpenRouter reported ":"Luna API est. ") + dollars(usd) + " USD" + (unreported + unpricedCalls > 0 || olderUsage && trackedSince.atZone(ZoneId.of(zone)).toLocalDate().equals(date) ? "*" : ""); }
         public List<String> details() {
             var lines = new java.util.ArrayList<String>();
-            lines.add("Paracraft · selected account · " + date + " (" + zone + ")");
+            lines.add("Paracraft · "+(openRouter?"saved OpenRouter key":"selected account")+" · " + date + " (" + zone + ")");
             lines.add("Input " + count(input) + " · Output " + count(output) + " · Total " + count(total));
             lines.add("Cached input " + count(cached) + " · Cache writes " + count(writes) + " · Completed " + count(completed));
+            if(openRouter){
+                lines.add("OpenRouter-reported Paracraft usage for the saved API key. Costs use response usage.cost, never Luna token estimates. Reasoning tokens are included in output.");
+                lines.add("Changing models keeps this key's daily totals; replacing or removing the key starts a separate ledger.");
+                if(unreported+unpricedCalls>0)lines.add("Partial totals: "+count(unreported)+" requests without full token usage; "+count(unpricedCalls)+" responses without reported cost.");
+                lines.add("OpenRouter Activity shows account-wide usage. Separately billed upstream BYOK charges are outside these totals; no ChatGPT plan quota applies.");return List.copyOf(lines);
+            }
             lines.add("All reported Paracraft tokens priced as Luna API equivalents, not ChatGPT plan charges. Reasoning is included in output tokens.");
             lines.add("USD/1M: input 0.10 · cached 0.01 · writes 0.125 · output 0.50 (" + PRICE_DATE + ").");
             lines.add("Standard/30m-cache estimate; long-context rates apply above 272K input. Unreported cache writes and regional/tier premiums are excluded.");
@@ -45,7 +51,7 @@ public final class UsageLedger {
         return new Today(date, zone.getId(), since, usage.has("daily_older_usage") && usage.get("daily_older_usage").getAsBoolean(),
                 number(day,"input_tokens"), number(day,"output_tokens"), number(day,"total_tokens"), number(day,"cached_input_tokens"), number(day,"cache_write_tokens"),
                 number(day,"completed"), number(day,"unreported"), number(day,"estimated_calls"), number(day,"unpriced_calls"),
-                day.has("usd_estimate") ? day.get("usd_estimate").getAsBigDecimal() : BigDecimal.ZERO);
+                day.has("usd_estimate") ? day.get("usd_estimate").getAsBigDecimal() : BigDecimal.ZERO,"openrouter".equals(OpenAiHttp.string(usage,"provider","")));
     }
     static void initialize(JsonObject usage, Instant now, ZoneId zone) {
         if (usage.has("days")) return;
@@ -53,6 +59,13 @@ public final class UsageLedger {
         usage.addProperty("daily_older_usage", number(usage,"requests") > 0 || number(usage,"total_tokens") > 0);
     }
     static void record(JsonObject usage, JsonObject reported, String outcome, Instant now, ZoneId defaultZone) {
+        record(usage,reported,outcome,now,defaultZone,false);
+    }
+    static void recordOpenRouter(JsonObject usage,JsonObject reported,String outcome,Instant now,ZoneId zone){
+        var normalized=new JsonObject();if(reported!=null){for(String[] fields:List.of(new String[]{"prompt_tokens","input_tokens"},new String[]{"completion_tokens","output_tokens"},new String[]{"total_tokens","total_tokens"},new String[]{"prompt_tokens_details","input_tokens_details"},new String[]{"cost","cost"}))if(reported.has(fields[0]))normalized.add(fields[1],reported.get(fields[0]).deepCopy());}
+        usage.addProperty("provider","openrouter");record(usage,normalized,outcome,now,zone,true);
+    }
+    private static void record(JsonObject usage,JsonObject reported,String outcome,Instant now,ZoneId defaultZone,boolean router){
         initialize(usage, now, defaultZone);
         String date = now.atZone(ZoneId.of(usage.get("daily_zone").getAsString())).toLocalDate().toString();
         JsonObject days = usage.getAsJsonObject("days"), day = days.getAsJsonObject(date);
@@ -68,11 +81,14 @@ public final class UsageLedger {
             add(aggregate,"cached_input_tokens",cached); add(aggregate,"cache_write_tokens",writes);
             if (!complete) add(aggregate,"unreported",1L);
         }
-        if (complete) {
-            BigDecimal price = estimate(input,output,cached == null ? 0 : cached,writes == null ? 0 : writes);
+        if (complete || router) {
+            BigDecimal price = router?reportedCost(reported):estimate(input,output,cached == null ? 0 : cached,writes == null ? 0 : writes);
             if (price == null) add(day,"unpriced_calls",1L);
             else { day.addProperty("usd_estimate", (day.has("usd_estimate") ? day.get("usd_estimate").getAsBigDecimal() : BigDecimal.ZERO).add(price)); add(day,"estimated_calls",1L); }
         }
+    }
+    private static BigDecimal reportedCost(JsonObject reported){
+        try{if(reported==null || !reported.has("cost") || !reported.get("cost").isJsonPrimitive() || !reported.getAsJsonPrimitive("cost").isNumber())return null;var cost=reported.get("cost").getAsBigDecimal();return cost.signum()<0?null:cost;}catch(RuntimeException invalid){return null;}
     }
     /** Standard Luna rates, default 30m writes. Each input token is charged exactly once. */
     static BigDecimal estimate(long input, long output, long cached, long writes) {

@@ -31,5 +31,7 @@ public interface InferenceProvider {
     }
     String label();
     boolean simulated();
+    /** Provider-specific routes can use a separate model namespace without changing saved avatar memory. */
+    default ModelRoute model(Route route, ModelRoute configured) { return configured; }
     CompletableFuture<Decision> infer(Request request);
 }
