@@ -28,6 +28,8 @@ Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are avai
 
 [Physical navigation](docs/NAVIGATION.md) walks or sprints through existing routes, opens doors and fence gates, and preserves builds by default. Automatic breaking/bridging/pillaring requires a server opt-in. Look directly at an avatar to see Idle, Thinking, Traveling, or other activity with its unfinished task count above its name. [Agent output debugging](docs/DEBUG.md) is enabled for Gradle launches.
 
+[Ambient idling](docs/BEHAVIOR.md#ambient-idling-default-on) is on by default: brief looks, gentle pacing around a fixed sixteen-block resting area, nearby nighttime beds and food restocking. It runs entirely on the server without extra model decisions. Tell the agent `stop moving` to disable it or `resume idling` to turn it back on.
+
 [Container actions](docs/CONTAINERS.md) support broad collection/delivery and explicit open/take/deposit programs through vanilla inventories and sided Forge item capabilities. Admission at four saved avatars per owner and 64 active per server, plus configurable limits, has native QA coverage.
 
 ## Headless verification

@@ -153,6 +153,7 @@ public final class ReflexGameTests {
             if(finished[0])return;
             clock.advance(); loop.accept(manager.control().snapshot(owner,entry.id)); loop.tick(); loop.tick(); if(!started[0])return;
             var idle=manager.behavior(owner,entry.id).getAsJsonObject("idle"); helper.assertTrue(!idle.get("state").getAsString().equals("failed"),"Patrol failed: "+idle);
+            if(work[0]==null && idle.get("state").getAsString().equals("traveling"))helper.assertTrue(java.util.Set.of("idle_patrol","idle_waiting").contains(manager.survivalMode(entry.id)) && !manager.actor(entry.id).isSprinting(),"Legacy idle patrol keeps its status and walks without sprinting: mode="+manager.survivalMode(entry.id)+" sprint="+manager.actor(entry.id).isSprinting());
             int index=idle.get("waypoint").getAsInt(); if(index!=previousIndex[0]){arrivals[0]++; previousIndex[0]=index;}
             if(work[0]==null) {
                 helper.assertTrue(loop.calls()==calls[0],"Routine arrivals and waits do not invoke inference");

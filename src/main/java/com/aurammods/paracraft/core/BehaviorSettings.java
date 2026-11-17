@@ -11,6 +11,7 @@ public final class BehaviorSettings {
     private BehaviorSettings() { }
     public static JsonObject defaults(String dimension) {
         JsonObject value = new JsonObject(); value.addProperty("players", "flee"); value.addProperty("mobs", "neutral");
+        value.addProperty("ambientIdle", true);
         JsonObject idle = new JsonObject(); idle.addProperty("enabled", false); idle.addProperty("dimension", dimension);
         idle.add("waypoints", new JsonArray()); idle.addProperty("waitTicks", 40); value.add("idle", idle); return value;
     }
@@ -18,7 +19,7 @@ public final class BehaviorSettings {
     public static JsonObject merge(JsonObject current, JsonObject patch) {
         JsonObject value = current.deepCopy();
         for (var field : patch.entrySet()) {
-            if (!Set.of("players", "mobs", "idle").contains(field.getKey())) throw new IllegalArgumentException("Unknown behavior field: " + field.getKey());
+            if (!Set.of("players", "mobs", "idle", "ambientIdle").contains(field.getKey())) throw new IllegalArgumentException("Unknown behavior field: " + field.getKey());
             if (field.getKey().equals("idle")) {
                 JsonObject idle = value.getAsJsonObject("idle");
                 for (var item : field.getValue().getAsJsonObject().entrySet()) {
@@ -27,6 +28,9 @@ public final class BehaviorSettings {
                 }
             } else value.add(field.getKey(), field.getValue().deepCopy());
         }
+        if (!value.has("ambientIdle")) value.addProperty("ambientIdle", true);
+        if (!value.get("ambientIdle").isJsonPrimitive() || !value.getAsJsonPrimitive("ambientIdle").isBoolean())
+            throw new IllegalArgumentException("ambientIdle must be boolean");
         for (String key : new String[]{"players", "mobs"}) {
             var field = value.get(key);
             if (!field.isJsonPrimitive() || !field.getAsJsonPrimitive().isString()) throw new IllegalArgumentException(key + " must name a reaction");

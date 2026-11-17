@@ -31,6 +31,7 @@ final class DecisionSchema {
                 case "resume_program" -> object("id", uuid());
                 case "pause_program", "cancel_program" -> object("id", optional(uuid()));
                 case "configure_behavior" -> object("players", optional(reaction()), "mobs", optional(reaction()),
+                        "ambientIdle", optional(type("boolean")),
                         "idle", optional(object("enabled", optional(type("boolean")), "dimension", optional(text()),
                                 "waypoints", optional(array(position(false))), "waitTicks", optional(integer(0, Long.MAX_VALUE)))));
                 case "program" -> object("schema", numberValue(1), "id", uuid(), "taskId", optional(text()),

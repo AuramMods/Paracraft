@@ -23,6 +23,8 @@ public record AgentActivity(Phase phase, int tasks) {
             case "travel", "follow" -> "Traveling"; case "craft_item" -> "Crafting";
             case "collect_items", "take_items" -> "Collecting items"; case "deliver_items", "deposit_items" -> "Moving items";
             case "mine_blocks" -> "Mining"; case "farm" -> "Farming"; case "attack_entity" -> "Fighting";
+            case "idle_sleeping" -> "Sleeping";case "idle_restocking" -> "Restocking food";
+            case "idle_wandering","idle_looking","idle_owner_glance","idle_resting","idle_bed_approach" -> "Idling";
             default -> "Busy";
         } : switch (phase) { case THINKING -> "Thinking"; case WAITING -> "Waiting"; case IDLE -> tasks == 0 ? "Idle" : "Busy"; default -> "Busy"; };
         return tasks == 0 ? label : label + " · " + tasks + (tasks == 1 ? " task" : " tasks");

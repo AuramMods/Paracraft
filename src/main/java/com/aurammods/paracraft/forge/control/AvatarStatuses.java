@@ -17,6 +17,7 @@ public final class AvatarStatuses {
         var entry = avatars.entry(avatar); if (entry == null) return "";
         var job = avatars.jobs().get(avatar);
         String operation = job != null && job.state() == JobState.RUNNING ? (job.type.equals("program") ? job.phase() : job.type) : null;
+        if(operation==null && avatars.survivalMode(avatar).startsWith("idle_"))operation=avatars.survivalMode(avatar);
         return avatars.endpoint().activity(avatar).label(operation, entry.paused, entry.authority.session() != null);
     }
     public void tick() {

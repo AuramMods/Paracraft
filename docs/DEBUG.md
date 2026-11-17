@@ -1,6 +1,6 @@
 # Avatar status and agent output
 
-Look directly at an avatar to see its activity above the normal player nameplate: Idle, Thinking, Waiting, Traveling, Crafting, Collecting items, Moving items, Mining, Farming, Fighting, Busy, Paused, or Disconnected. An unfinished task count appears when nonzero, such as `Traveling · 2 tasks`. Queued, active, inactive and waiting tasks count; completed/failed tasks do not. The server's current physical action takes precedence over client thinking, and a server pause/disconnection takes precedence over both.
+Look directly at an avatar to see its activity above the normal player nameplate: Idle, Thinking, Waiting, Traveling, Crafting, Collecting items, Moving items, Mining, Farming, Fighting, Idling, Sleeping, Restocking food, Busy, Paused, or Disconnected. An unfinished task count appears when nonzero, such as `Traveling · 2 tasks`. Queued, active, inactive and waiting tasks count; completed/failed tasks do not. The server's current physical action takes precedence over client thinking, and a server pause/disconnection takes precedence over both.
 
 The controlling client reports only aggregate phase/count with its regular two-second heartbeat. The server broadcasts changed labels to players tracking the avatar and supplies the current label when tracking begins. Other players receive no task goals, personality or durable memory in this status packet. F1, invisibility and a denied nameplate render event suppress the extra line. Actual client appearance remains a manual QA check.
 

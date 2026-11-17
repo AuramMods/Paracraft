@@ -12,6 +12,14 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public final class CarriedItems {
     private CarriedItems() { }
+    public static boolean suitableFood(CompanionPlayer actor, ItemStack stack) {
+        var food = stack.getFoodProperties(actor);
+        return !stack.isEmpty() && food != null && food.getNutrition() > 0
+                && food.getEffects().stream().noneMatch(effect -> effect.getFirst() != null && !effect.getFirst().getEffect().isBeneficial());
+    }
+    public static boolean hasFood(CompanionPlayer actor) {
+        return actor.getInventory().items.stream().anyMatch(stack -> suitableFood(actor,stack)) || suitableFood(actor,actor.getOffhandItem());
+    }
     static int find(CompanionPlayer actor, ItemSelector selector) {
         if (selector.matches(actor.getMainHandItem())) return actor.getInventory().selected;
         for (int i = 0; i < actor.getInventory().items.size(); i++) if (selector.matches(actor.getInventory().getItem(i))) return i;

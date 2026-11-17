@@ -19,6 +19,8 @@ The current adapter supports:
 
 The server plans nearby destinations in segments of at most 48 blocks, with a spatial search radius of 64 plus the native eight-block margin, up to 256 blocks of cumulative walking within that region, and a 4,096-node search budget. This separates the length of a winding walk from its straight-line distance. Long journeys re-plan as they progress; this is bounded local routing, not an unlimited global maze solver.
 
+[Ambient idling](BEHAVIOR.md#ambient-idling-default-on) uses a separate walking-only navigation policy. Its path nodes and proposed motion remain inside the fixed resting sphere, it avoids fluid nodes, and terrain recovery stays disabled even when opted in for ordinary work. Explicit waypoint patrols also walk without sprinting. Fleeing/combat and ordinary requested travel keep their existing speed behavior.
+
 Explicit `mine_blocks` and `place_blocks` operations remain available. A server may opt into the earlier automatic terrain recovery by setting `navigationTerrainChanges = true` in `<world>/serverconfig/paracraft-server.toml`. Only this opt-in permits:
 
 - Breaking a local obstruction after ordinary routing cannot make progress, using carried tool selection, timed native destruction, Forge hooks, loot, and durability.

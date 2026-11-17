@@ -111,6 +111,10 @@ public final class InventoryAccess {
     /** Move at most maxCount items; return the actual count. Remainders are conserved. */
     public static int take(CompanionPlayer actor, BlockPos position, ItemSelector selector, int maxCount,
                            java.util.function.Consumer<ItemStack> acquired) {
+        return takeMatching(actor,position,selector::matches,maxCount,acquired);
+    }
+    public static int takeMatching(CompanionPlayer actor, BlockPos position, java.util.function.Predicate<ItemStack> selector, int maxCount,
+                                   java.util.function.Consumer<ItemStack> acquired) {
         requireReach(actor, position);
         Target target = resolve(actor.serverLevel(), position);
         if (target == null) throw new IllegalStateException("Container disappeared or has no supported item interface");
@@ -119,7 +123,7 @@ public final class InventoryAccess {
         for (View view : target.views()) for (int slot = 0; slot < view.handler().getSlots(); slot++) {
             if (moved >= maxCount) return moved;
             ItemStack present = view.handler().getStackInSlot(slot);
-            if (!selector.matches(present)) continue;
+            if (!selector.test(present)) continue;
             ItemStack offered = present.copyWithCount(Math.min(present.getCount(), maxCount - moved));
             int capacity = offered.getCount() - ItemHandlerHelper.insertItemStacked(destination, offered, true).getCount();
             if (capacity <= 0) throw new IllegalStateException("Avatar inventory is full; collection stopped with partial results");

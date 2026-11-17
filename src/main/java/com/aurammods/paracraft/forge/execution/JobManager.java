@@ -41,6 +41,7 @@ public final class JobManager {
         if (avatars.actor(avatar) != job.actor()) throw new IllegalArgumentException("Job belongs to a different body");
         Map<UUID, GameJob> seen = requests.computeIfAbsent(avatar, ignored -> new LinkedHashMap<>());
         if (seen.containsKey(job.id)) return seen.get(job.id);
+        avatars.pauseIdle(avatar);
         GameJob previous = jobs.get(avatar);
         if (previous != null && !previous.state().terminal()) {
             switch (mode) {
@@ -64,6 +65,7 @@ public final class JobManager {
         GameJob target = request(avatar, id);
         if (target == null) throw new IllegalArgumentException("No saved request matches " + id);
         if (target.state().terminal()) return target;
+        avatars.pauseIdle(avatar);
         if(target instanceof ParkedJob parked){if(!parked.canBind())return parked;target=rebind(avatar,parked);}
         if(target.requiredDimension()!=avatars.actor(avatar).serverLevel().dimension() && !target.allowsDimensionChange())return target;
         if (target.actor() != avatars.actor(avatar)) throw new IllegalStateException("Saved operation has not been rebound to the current body");

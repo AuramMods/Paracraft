@@ -6,6 +6,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class BehaviorSettingsTest {
+    @Test void ambientIdlingDefaultsOnCanBeDisabledAndMigratesWithoutEnablingLegacyPatrols() {
+        var original=BehaviorSettings.defaults("minecraft:overworld");assertTrue(original.get("ambientIdle").getAsBoolean());
+        var stopped=BehaviorSettings.merge(original,json("{\"ambientIdle\":false}"));assertFalse(stopped.get("ambientIdle").getAsBoolean());assertTrue(original.get("ambientIdle").getAsBoolean());
+        var changed=BehaviorSettings.merge(stopped,json("{\"players\":\"passive\"}"));assertFalse(changed.get("ambientIdle").getAsBoolean());
+        original.remove("ambientIdle");var migrated=BehaviorSettings.merge(original,new JsonObject());assertTrue(migrated.get("ambientIdle").getAsBoolean());assertFalse(migrated.getAsJsonObject("idle").get("enabled").getAsBoolean());
+        assertThrows(IllegalArgumentException.class,()->BehaviorSettings.merge(stopped,json("{\"ambientIdle\":\"false\"}")));
+    }
     private static JsonObject json(String text) { return JsonParser.parseString(text).getAsJsonObject(); }
     @Test void partialUpdatesPreserveOtherSettingsAndNeverMutateInputs() {
         var original = BehaviorSettings.defaults("minecraft:overworld"); var patch = json("{\"players\":\"PASSIVE\",\"idle\":{\"enabled\":true,\"waypoints\":[[1,64,2]],\"waitTicks\":0}}");

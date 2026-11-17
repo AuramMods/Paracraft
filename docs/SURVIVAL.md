@@ -4,13 +4,13 @@ The server runs these mechanics without inference. The owner's client still cont
 
 ## Eating
 
-At food level 14 or below, the server selects a carried food with positive native nutrition and no declared harmful effects. It considers main inventory and offhand food through Forge food properties, preferring higher nutrition. The normal item-use duration, item hooks, nutrition, effects, and remainder stack apply. Mushroom stew, for example, is eaten over actual ticks and returns a bowl rather than deleting the stack and directly adding hunger.
+At food level 14 or below, or while hurt with hunger below full, the server selects a carried food with positive native nutrition and no declared harmful effects. It considers main inventory and offhand food through Forge food properties, preferring higher nutrition. The normal item-use duration, item hooks, nutrition, effects, and remainder stack apply. Mushroom stew, for example, is eaten over actual ticks and returns a bowl rather than deleting the stack and directly adding hunger.
 
 Eating holds a running program at its safe pause boundary. After use ends, the same program may continue if its owner/session are still active. Owner pause, explicit program pause/cancellation, disconnect, or death takes precedence over automatic resumption. Survival eating can finish while the owner has paused ordinary work. A refused use does not consume food or grant nutrition, and retries are spaced by 100 server ticks.
 
 Disconnect stops incomplete use before saving. The actual unconsumed stack/hunger are restored; native eating can begin again after reconnect. This does not automatically resume programs that disconnect left paused.
 
-Snapshots expose `survival.mode`, food status, and observed food after use. Selection uses the actual item behavior and properties; it is not a guarantee that every custom consumable or hidden effect has been integrated. Potions, milk, and broader supply planning are separate concerns.
+Snapshots expose `survival.mode`, food status, and observed food after use. Selection uses the actual item behavior and properties; it is not a guarantee that every custom consumable or hidden effect has been integrated. The default [ambient idle routine](BEHAVIOR.md#ambient-idling-default-on) can restock up to four suitable food items from containers inside its sixteen-block resting area when empty. Disabling ambient idling stops those supply trips while carried-food use remains available. Potions, milk, and broader supply planning are separate concerns.
 
 ## Bed spawn
 

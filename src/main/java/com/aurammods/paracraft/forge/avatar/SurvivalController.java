@@ -29,13 +29,16 @@ final class SurvivalController implements AutoCloseable {
     private int threatTicks, aggressionCooldown, oxygenRetry;
     private boolean eating;
     private int priorSelected, foodRetry;
+    private final AmbientIdle ambient;
 
     SurvivalController(AvatarManager avatars, AvatarEntry entry, CompanionPlayer actor) {
         this.avatars = avatars; this.entry = entry; this.actor = actor;
         if (!entry.control.has("survival")) entry.control.add("survival", new JsonObject());
         state = entry.control.getAsJsonObject("survival");
         if (!state.has("behavior")) state.add("behavior", BehaviorSettings.defaults(actor.serverLevel().dimension().location().toString()));
+        if (!state.getAsJsonObject("behavior").has("ambientIdle")) state.getAsJsonObject("behavior").addProperty("ambientIdle",true);
         if (!state.has("idle")) resetIdle();
+        ambient=new AmbientIdle(avatars,entry,actor,state);
         actor.observeDamage(this::damage);
         if (!state.has("initialBed")) {
             var bed = new JsonObject(); bed.addProperty("state", actor.getRespawnPosition() == null ? "searching" : "already_set");
@@ -56,10 +59,12 @@ final class SurvivalController implements AutoCloseable {
     boolean busy() { return eating || emergency != null && !emergency.state().terminal() || bedJob != null && bedJob.state() == com.aurammods.paracraft.core.JobState.RUNNING; }
     private JsonObject behavior() { return state.getAsJsonObject("behavior"); }
     void configure(JsonObject next) {
+        boolean ambientChanged=!behavior().get("ambientIdle").equals(next.get("ambientIdle"));
         boolean routineChanged=!behavior().get("idle").equals(next.get("idle"));
         boolean reactionsChanged=!behavior().get("players").equals(next.get("players")) || !behavior().get("mobs").equals(next.get("mobs"));
         if(routineChanged){pausePatrol();patrol=null;resetIdle();}
         state.add("behavior", next.deepCopy());
+        if(ambientChanged || routineChanged)ambient.configured();
         if (reactionsChanged && emergency != null && !(emergency instanceof AirEscapeJob)) { emergency.cancel("Behavior changed"); state.add("lastReflex", emergency.view()); emergency = null; state.remove("reflex"); }
         if(!eating && emergency==null)state.addProperty("mode","idle");
     }
@@ -73,6 +78,7 @@ final class SurvivalController implements AutoCloseable {
     }
     void tick() {
         if (actor.isSpectator()) { close(); state.addProperty("mode", "spectator"); return; }
+        ambient.observeWork(avatars.jobs().hasUnfinished(entry.id));
         if (threatTicks > 0) threatTicks--; else threat = null;
         if (aggressionCooldown > 0) aggressionCooldown--;
         if (oxygenRetry > 0) oxygenRetry--; state.addProperty("oxygenRetryTicks",oxygenRetry);
@@ -90,7 +96,7 @@ final class SurvivalController implements AutoCloseable {
                 // Leave dangerous work paused until planning/owner chooses a recovery.
                 oxygenRetry = 100;
             }
-            emergency = null; state.remove("reflex"); state.addProperty("mode","idle"); return;
+            emergency = null; state.remove("reflex"); state.addProperty("mode","idle"); ambient.reanchor(); return;
         }
         if (reactToThreat()) return;
         if (eating) {
@@ -98,14 +104,15 @@ final class SurvivalController implements AutoCloseable {
             return;
         }
         if (foodRetry > 0) foodRetry--;
-        if (foodRetry == 0 && actor.getFoodData().getFoodLevel() <= 14 && !actor.isSleeping() && !actor.isUsingItem()
+        if (foodRetry == 0 && (actor.getFoodData().getFoodLevel() <= 14 || actor.getHealth()<actor.getMaxHealth() && actor.getFoodData().getFoodLevel()<20) && !actor.isSleeping() && !actor.isUsingItem()
                 && !actor.isSpectator() && !actor.getAbilities().instabuild && startEating()) return;
         tickBed();
         tickPatrol();
+        if(bedJob==null || bedJob.state().terminal())ambient.tick();else ambient.suspend();
     }
     private void beginReflex(GameJob job, String mode) {
         if (emergency != null) emergency.cancel("A higher-priority survival reflex interrupted this response");
-        pauseBed(); pausePatrol(); if (eating) { actor.stopUsingItem(); finishEating(); }
+        pauseBed(); pausePatrol(); ambient.suspend(); if (eating) { actor.stopUsingItem(); finishEating(); }
         avatars.jobs().holdForReflex(entry.id); emergency = job; state.addProperty("mode",mode);
         state.add("reflex",job.view());
         var details = new JsonObject(); details.addProperty("kind",mode); details.addProperty("wake",mode.equals("oxygen_escape")); avatars.control().event(entry.id,"reflex_started",details);
@@ -131,7 +138,7 @@ final class SurvivalController implements AutoCloseable {
         threat = null;
         if (response == BehaviorSettings.Reaction.PASSIVE) {
             if (emergency != null) { emergency.cancel("Passive response to a new threat"); state.add("lastReflex",emergency.view()); emergency = null; state.remove("reflex"); }
-            avatars.jobs().pause(entry.id); pausePatrol(); pauseBed(); state.addProperty("mode","passive_stopped");
+            avatars.jobs().pause(entry.id); pausePatrol(); pauseBed(); ambient.suspend(); state.addProperty("mode","passive_stopped");
             var details = new JsonObject(); details.addProperty("reaction","passive"); details.addProperty("threat",living.getUUID().toString()); state.add("lastReaction",details); return true;
         }
         beginReflex(response == BehaviorSettings.Reaction.FLEE ? new FleeJob(actor,living.getUUID())
@@ -147,7 +154,7 @@ final class SurvivalController implements AutoCloseable {
         long remaining = idle.get("waitRemaining").getAsLong();
         if (remaining > 0) { idle.addProperty("waitRemaining",remaining-1); state.addProperty("mode","idle_waiting"); return; }
         int index = Math.floorMod(idle.get("waypoint").getAsInt(),settings.getAsJsonArray("waypoints").size());
-        if (patrol == null) patrol = new TravelJob(UUID.randomUUID(),actor,JobJson.vector(settings.getAsJsonArray("waypoints").get(index)));
+        if (patrol == null) patrol = new TravelJob(UUID.randomUUID(),actor,JobJson.vector(settings.getAsJsonArray("waypoints").get(index)),false);
         state.addProperty("mode","idle_patrol"); idle.addProperty("state","traveling"); patrol.resume(); patrol.tick(); idle.add("progress",patrol.view());
         if (!patrol.state().terminal()) return;
         if (patrol.state() != com.aurammods.paracraft.core.JobState.SUCCEEDED) { failPatrol(patrol.view().get("error").getAsString()); return; }
@@ -165,19 +172,19 @@ final class SurvivalController implements AutoCloseable {
             state.addProperty("mode","idle_paused"); state.getAsJsonObject("idle").addProperty("state","paused");
         }
     }
-    void pauseRoutines() { pausePatrol(); pauseBed(); }
+    void pauseRoutines() { pausePatrol(); pauseBed(); ambient.suspend(); }
+    String mode(){return state.has("mode")?state.get("mode").getAsString():"idle";}
     private boolean startEating() {
         int slot = -1, nutrition = 0;
         for (int index = 0; index < actor.getInventory().items.size() + 1; index++) {
             var stack = index == actor.getInventory().items.size() ? actor.getOffhandItem() : actor.getInventory().getItem(index);
             var food = stack.getFoodProperties(actor);
-            if (stack.isEmpty() || food == null || food.getNutrition() <= nutrition) continue;
-            if (food.getEffects().stream().anyMatch(effect -> effect.getFirst() != null && !effect.getFirst().getEffect().isBeneficial())) continue;
+            if (!CarriedItems.suitableFood(actor,stack) || food.getNutrition() <= nutrition) continue;
             nutrition = food.getNutrition(); slot = index;
         }
         foodRetry = 100;
         if (slot < 0) { state.addProperty("foodStatus", "No suitable carried food"); return false; }
-        pauseBed(); avatars.jobs().holdForReflex(entry.id); priorSelected = actor.getInventory().selected;
+        pauseBed(); pausePatrol(); ambient.suspend(); avatars.jobs().holdForReflex(entry.id); priorSelected = actor.getInventory().selected;
         state.addProperty("priorSelected", priorSelected);
         InteractionHand hand = slot == actor.getInventory().items.size() ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
         if (hand == InteractionHand.MAIN_HAND) CarriedItems.select(actor, slot);
@@ -215,11 +222,11 @@ final class SurvivalController implements AutoCloseable {
         }
         if (bedJob == null || bedJob.state().terminal()) return;
         if (entry.paused || avatars.jobs().hasUnfinished(entry.id)) { pauseBed(); return; }
-        state.addProperty("mode", "establishing_spawn"); bedJob.resume(); bedJob.tick(); initialBed.add("job", bedJob.checkpoint());
+        ambient.suspend();pausePatrol();state.addProperty("mode", "establishing_spawn"); bedJob.resume(); bedJob.tick(); initialBed.add("job", bedJob.checkpoint());
         if (bedJob.state().terminal()) {
             initialBed.addProperty("state", bedJob.state().name().toLowerCase(java.util.Locale.ROOT));
             initialBed.add("result", bedJob.result()); initialBed.addProperty("error", bedJob.view().get("error").getAsString());
-            state.addProperty("mode", "idle"); avatars.control().event(entry.id, "spawn_point", initialBed);
+            state.addProperty("mode", "idle");ambient.reanchor();var details=initialBed.deepCopy();details.addProperty("wake",false);avatars.control().event(entry.id, "spawn_point", details);
         }
     }
     private void pauseBed() {
@@ -233,7 +240,7 @@ final class SurvivalController implements AutoCloseable {
         close();
     }
     @Override public void close() {
-        pauseBed(); pausePatrol();
+        pauseBed(); pausePatrol(); ambient.close();
         if (emergency != null) { emergency.cancel("Survival controller stopped"); state.add("lastReflex",emergency.view()); emergency = null; state.remove("reflex"); }
         if (eating) { actor.stopUsingItem(); finishEating(); }
         threat = null;

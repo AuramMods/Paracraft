@@ -67,7 +67,7 @@ class DecisionSchemaTest {
         assertThrows(IOException.class, () -> DecisionSchema.decode(batch("trust", json("{\"playerUuid\":\"not-a-uuid\"}")), InferenceProvider.Route.PLANNING));
     }
     @Test void typedPatrolSettingsPreserveServerDefaultsAndRejectStringBooleans() throws Exception {
-        var args = json("{\"players\":null,\"mobs\":null,\"idle\":{\"enabled\":true,\"dimension\":null,\"waypoints\":[[1.5,64,2.5]],\"waitTicks\":null}}");
+        var args = json("{\"players\":null,\"mobs\":null,\"ambientIdle\":null,\"idle\":{\"enabled\":true,\"dimension\":null,\"waypoints\":[[1.5,64,2.5]],\"waitTicks\":null}}");
         var patch = DecisionSchema.decode(batch("configure_behavior", args), InferenceProvider.Route.PLANNING).calls().get(0).arguments();
         var behavior = com.aurammods.paracraft.core.BehaviorSettings.merge(com.aurammods.paracraft.core.BehaviorSettings.defaults("minecraft:overworld"), patch);
         assertTrue(behavior.getAsJsonObject("idle").get("enabled").getAsBoolean());
@@ -75,6 +75,12 @@ class DecisionSchemaTest {
         assertEquals("minecraft:overworld", behavior.getAsJsonObject("idle").get("dimension").getAsString());
         args.getAsJsonObject("idle").addProperty("enabled", "true");
         assertThrows(IOException.class, () -> DecisionSchema.decode(batch("configure_behavior", args), InferenceProvider.Route.PLANNING));
+    }
+    @Test void planningCanToggleAmbientIdlingWithAStrictBoolean() throws Exception {
+        var args=json("{\"players\":null,\"mobs\":null,\"ambientIdle\":false,\"idle\":null}");
+        var patch=DecisionSchema.decode(batch("configure_behavior",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments();
+        assertFalse(patch.get("ambientIdle").getAsBoolean());assertEquals(1,patch.size());
+        args.addProperty("ambientIdle","false");assertThrows(IOException.class,()->DecisionSchema.decode(batch("configure_behavior",args),InferenceProvider.Route.PLANNING));
     }
     @Test void typedCraftingSupportsInternalAndTableProgramsWithoutEncodedArguments() throws Exception {
         var args = craftingProgram();

@@ -28,9 +28,22 @@ public final class PlayerNavigator implements AutoCloseable {
     private String mode="walking";
     private int recoveryTicks;
     private boolean priorSneaking;
+    private final Vec3 idleCenter;
+    private final double idleRadius;
+    private final boolean sprintAllowed;
 
     public PlayerNavigator(CompanionPlayer actor) {
+        this(actor, true, null, 0);
+    }
+    public PlayerNavigator(CompanionPlayer actor, boolean sprintAllowed) { this(actor,sprintAllowed,null,0); }
+    /** Ambient routes walk, preserve terrain, and keep every route node inside the resting area. */
+    public PlayerNavigator(CompanionPlayer actor, Vec3 idleCenter, double idleRadius) {
+        this(actor,false,idleCenter,idleRadius);
+    }
+    private PlayerNavigator(CompanionPlayer actor, boolean sprintAllowed, Vec3 idleCenter, double idleRadius) {
         this.actor = actor;
+        this.idleCenter = idleCenter; this.idleRadius = idleRadius;
+        this.sprintAllowed = sprintAllowed;
         proxy = new PathfinderMob(EntityType.VILLAGER, actor.serverLevel()) {
             @Override public net.minecraft.world.entity.EntityDimensions getDimensions(net.minecraft.world.entity.Pose pose) {
                 return actor.getDimensions(pose);
@@ -43,6 +56,8 @@ public final class PlayerNavigator implements AutoCloseable {
                 nodeEvaluator = new net.minecraft.world.level.pathfinder.WalkNodeEvaluator() {
                     @Override public net.minecraft.world.level.pathfinder.BlockPathTypes getBlockPathType(net.minecraft.world.level.BlockGetter level, int x, int y, int z) {
                         var state = level.getBlockState(new BlockPos(x, y, z));
+                        if (idleCenter != null && (!insideIdle(new Vec3(x + 0.5, y, z + 0.5), 0.5) || !state.getFluidState().isEmpty()))
+                            return net.minecraft.world.level.pathfinder.BlockPathTypes.BLOCKED;
                         if (state.getBlock() instanceof FenceGateBlock && !state.getValue(FenceGateBlock.OPEN))
                             return net.minecraft.world.level.pathfinder.BlockPathTypes.DOOR_WOOD_CLOSED;
                         return super.getBlockPathType(level, x, y, z);
@@ -100,7 +115,7 @@ public final class PlayerNavigator implements AutoCloseable {
         }
         if (path.isDone()) { path = null; closeVelocity();if(pathOrigin!=null && actor.position().distanceTo(pathOrigin)>0.5)attempts=0;else if(++attempts>1)beginRecovery(destination);return false; }
         BlockPos next = path.getNextNodePos();
-        if(com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get() && next.getY()<actor.blockPosition().getY()-1 && destination.y>=actor.getY()-0.5){beginRecovery(destination);return false;}
+        if(idleCenter==null && com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get() && next.getY()<actor.blockPosition().getY()-1 && destination.y>=actor.getY()-0.5){beginRecovery(destination);return false;}
         if ((actor.serverLevel().getBlockState(next).is(BlockTags.PORTALS) && !actor.portalAuthorized(next))
                 || (actor.serverLevel().getBlockState(next.above()).is(BlockTags.PORTALS) && !actor.portalAuthorized(next.above())))
             throw new IllegalStateException("Route enters a portal; explicit dimension travel is required");
@@ -111,12 +126,14 @@ public final class PlayerNavigator implements AutoCloseable {
         }
         Vec3 delta = path.getNextEntityPos(proxy).subtract(actor.position());
         double horizontal = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
-        sprint(goal.horizontalDistance() > 3 && actor.getFoodData().getFoodLevel() > 6 && !actor.isUsingItem() && !actor.isShiftKeyDown() && actor.onGround());
+        sprint(sprintAllowed && goal.horizontalDistance() > 3 && actor.getFoodData().getFoodLevel() > 6 && !actor.isUsingItem() && !actor.isShiftKeyDown() && actor.onGround());
         mode = actor.isSprinting() ? "sprinting" : "walking";
         double speed = Math.min(actor.getAttributeValue(Attributes.MOVEMENT_SPEED) * 1.9, horizontal);
         double vertical = actor.getDeltaMovement().y;
         if ((delta.y > 0.45 && actor.onGround()) || (actor.isInWater() && delta.y > 0.1)) vertical = 0.42;
         if (horizontal > 0.001) {
+            if (idleCenter != null && !insideIdle(actor.position().add(delta.x / horizontal * speed, vertical, delta.z / horizontal * speed), 0.2))
+                throw new IllegalStateException("Idle route would leave its resting area");
             actor.setYRot((float)(Math.toDegrees(Math.atan2(delta.z, delta.x)) - 90));
             actor.setYHeadRot(actor.getYRot());
             actor.setDeltaMovement(delta.x / horizontal * speed, vertical, delta.z / horizontal * speed);
@@ -125,7 +142,7 @@ public final class PlayerNavigator implements AutoCloseable {
     }
     private void beginRecovery(Vec3 destination){
         path=null;attempts=0;stalled=0;closeVelocity();BlockPos feet=actor.blockPosition();Vec3 delta=destination.subtract(actor.position());
-        if(!com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get())
+        if(idleCenter != null || !com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get())
             throw new IllegalStateException("No traversable walking route was found; navigation preserves blocks. Choose another route or request an explicit block action.");
         if(delta.horizontalDistance()<1 && delta.y>0.7){startPlacement(feet,feet,"pillaring");actor.setDeltaMovement(0,0.42,0);return;}
         net.minecraft.core.Direction facing=Math.abs(delta.x)>=Math.abs(delta.z)?(delta.x>=0?net.minecraft.core.Direction.EAST:net.minecraft.core.Direction.WEST):(delta.z>=0?net.minecraft.core.Direction.SOUTH:net.minecraft.core.Direction.NORTH);
@@ -169,6 +186,7 @@ public final class PlayerNavigator implements AutoCloseable {
     public com.google.gson.JsonObject view(){var value=new com.google.gson.JsonObject();value.addProperty("mode",mode);value.addProperty("replans",attempts);value.add("position",JobJson.vector(actor.position()));if(recoveryBlock!=null){value.add("recoveryBlock",JobJson.position(recoveryBlock));value.addProperty("recoveryBlockType",net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(actor.serverLevel().getBlockState(recoveryBlock).getBlock()).toString());}if(breaker!=null)value.addProperty("breakProgress",breaker.progress());return value;}
     private static java.util.List<BlockPos> listAround(BlockPos next) { return java.util.List.of(next, next.above()); }
     private void sprint(boolean value) { if (actor.isSprinting() != value) actor.setSprinting(value); }
+    private boolean insideIdle(Vec3 point, double margin) { return idleCenter == null || point.distanceToSqr(idleCenter) <= (idleRadius-margin)*(idleRadius-margin); }
     private void closeVelocity() { sprint(false); actor.setDeltaMovement(0, actor.getDeltaMovement().y, 0); }
     @Override public void close() { if(breaker!=null){breaker.close();breaker=null;}if(mode.equals("bridging"))actor.setShiftKeyDown(priorSneaking);recoveryBlock=null;path = null; closeVelocity(); proxy.discard(); }
 }

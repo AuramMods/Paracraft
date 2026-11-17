@@ -54,6 +54,11 @@ public final class SimulatedProvider implements InferenceProvider {
             return decision();
         }
         if (chat) {
+            if(idleOff(lower) || idleOn(lower)) {
+                var patch=new JsonObject();patch.addProperty("ambientIdle",idleOn(lower));
+                if(idleOff(lower)){var idle=new JsonObject();idle.addProperty("enabled",false);patch.add("idle",idle);}
+                return decision(call("configure_behavior",patch),speech(idleOn(lower)?"Ambient idling enabled.":"Ambient idling disabled; staying here."));
+            }
             var portal=PORTAL.matcher(text);var blocks=BLOCKS.matcher(text);boolean usePortal=portal.find(),searchBlocks=blocks.find();
             if(usePortal || searchBlocks){
                 String id=identity(frame,event,usePortal?"portal":"blocks");var program=baseProgram(id);var step=new JsonObject();step.addProperty("op",usePortal?"use_portal":"search_blocks");step.addProperty("saveAs",usePortal?"portal":"blocks");
@@ -131,10 +136,12 @@ public final class SimulatedProvider implements InferenceProvider {
     }
     private static boolean scriptedAction(String text) {
         String lower = text.toLowerCase(Locale.ROOT);
-        return (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find"))) || TRAVEL.matcher(text).find()
+        return idleOff(lower) || idleOn(lower) || (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find"))) || TRAVEL.matcher(text).find()
                 || lower.contains("pause work") || lower.contains("resume work") || lower.contains("remember ") || lower.contains("personality ")
                 || lower.contains("wait for ") || lower.contains("trust ") || BEHAVIOR.matcher(text).find() || COMMAND.matcher(text).find() || DISCOVER.matcher(text).find();
     }
+    private static boolean idleOff(String text){return text.contains("stop moving") || text.contains("stop wandering") || text.contains("stay still") || text.contains("idle off");}
+    private static boolean idleOn(String text){return text.contains("resume idling") || text.contains("wander again") || text.contains("idle on");}
     private static Decision startTask(JsonObject frame, JsonObject task, JsonObject program) {
         List<Call> calls = new ArrayList<>();
         for (var item : frame.getAsJsonObject("agent").getAsJsonArray("tasks")) {

@@ -64,6 +64,8 @@ public final class AvatarManager {
     public boolean reflexBusy(UUID avatar) {
         SurvivalController reflex = survival.get(avatar); return reflex != null && reflex.busy();
     }
+    public void pauseIdle(UUID avatar){var runtime=survival.get(avatar);if(runtime!=null)runtime.pauseRoutines();}
+    public String survivalMode(UUID avatar){var runtime=survival.get(avatar);return runtime==null?"idle":runtime.mode();}
     public com.google.gson.JsonObject configureBehavior(UUID owner, UUID avatar, com.google.gson.JsonObject patch) {
         AvatarEntry entry = owned(owner, avatar);
         var state = behaviorState(entry);
@@ -84,6 +86,7 @@ public final class AvatarManager {
             String dimension = entry.physical.contains("Dimension") ? entry.physical.getString("Dimension") : "minecraft:overworld";
             state.add("behavior",com.aurammods.paracraft.core.BehaviorSettings.defaults(dimension)); saved.setDirty();
         }
+        if(!state.getAsJsonObject("behavior").has("ambientIdle")){state.getAsJsonObject("behavior").addProperty("ambientIdle",true);saved.setDirty();}
         return state;
     }
 
