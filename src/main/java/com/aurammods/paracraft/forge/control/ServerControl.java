@@ -9,6 +9,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import java.util.regex.Pattern;
 
 /** Authoritative server-thread boundary. The network adapter supplies the actual connected sender. */
 public final class ServerControl {
+    public static final double NEARBY_CHAT_DISTANCE = 24;
     private record Pending(UUID avatar, UUID owner, UUID session, UUID id, JsonObject signature,
                            InventorySearch search, CompletableFuture<JsonObject> future) { }
     private final AvatarManager avatars;
@@ -47,14 +49,33 @@ public final class ServerControl {
         avatars.dirty(); return id;
     }
     public int chat(UUID actualSender, String text) {
-        thread(); int notified = 0;
+        thread();
+        return chat(actualSender, text, server.getPlayerList().getPlayer(actualSender));
+    }
+    public int chat(ServerPlayer actualSender, String text) {
+        thread();
+        return chat(actualSender.getUUID(), text, actualSender);
+    }
+    private int chat(UUID actualSender, String text, ServerPlayer sender) {
+        int notified = 0, nearbyCount = 0; boolean named = false; AvatarEntry nearby = null;
         for (AvatarEntry entry : avatars.entries()) {
-            if (avatars.actor(entry.id) == null || !entry.authority.canInstruct(actualSender)) continue;
-            if (!Pattern.compile("(?i)(?<![A-Za-z0-9_])" + Pattern.quote(entry.name) + "(?![A-Za-z0-9_])").matcher(text).find()) continue;
-            JsonObject details = new JsonObject(); details.addProperty("senderUuid", actualSender.toString()); details.addProperty("message", text);
-            event(entry.id, "chat", details); notified++;
+            var actor = avatars.actor(entry.id); if (actor == null) continue;
+            boolean mentioned = Pattern.compile("(?i)(?<![A-Za-z0-9_])" + Pattern.quote(entry.name) + "(?![A-Za-z0-9_])").matcher(text).find();
+            named |= mentioned;
+            if (!entry.authority.canInstruct(actualSender)) continue;
+            if (mentioned) { chatEvent(actualSender, entry, text); notified++; }
+            if (sender != null && actor.isAlive() && !actor.isRemoved() && actor.serverLevel() == sender.serverLevel()
+                    && actor.distanceToSqr(sender) <= NEARBY_CHAT_DISTANCE * NEARBY_CHAT_DISTANCE) {
+                nearby = entry; nearbyCount++;
+            }
         }
+        // A recognized name is explicit addressing, including a name the sender cannot control.
+        if (!named && nearbyCount == 1) { chatEvent(actualSender, nearby, text); notified++; }
         return notified;
+    }
+    private void chatEvent(UUID actualSender, AvatarEntry entry, String text) {
+        JsonObject details = new JsonObject(); details.addProperty("senderUuid", actualSender.toString()); details.addProperty("message", text);
+        event(entry.id, "chat", details);
     }
     public JsonObject snapshot(UUID actualOwner, UUID avatar) {
         thread(); AvatarEntry entry = avatars.owned(actualOwner, avatar);

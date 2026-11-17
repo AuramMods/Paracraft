@@ -137,12 +137,15 @@ Wake conditions include:
 
 - Initial avatar creation and restoration of unfinished work after reconnect.
 - A mention of the avatar's name by the owner or an authorized player, or an explicit directed command.
+- An unnamed chat message when exactly one avatar the sender may instruct is within 24 blocks in the same dimension.
 - Damage, item pickup, death/respawn, and other meaningful survival events.
 - Relevant job completion, unhandled failure, or loss of a target.
 - A requested event or timer occurring.
 - Ordinary continued work while unfinished tasks remain eligible to run.
 
 Use the actual sender UUID and authorization state, not a displayed name, to determine whether chat can instruct the avatar. Name matching should be case-insensitive and avoid accidental substring matches such as matching “Josh” inside a longer unrelated name. Ambient chat can be observation data without becoming an instruction or wake trigger.
+
+Explicit active-avatar names take priority over proximity routing. Otherwise count only living, authorized avatars within the inclusive 24-block distance in the sender's dimension; deliver the unchanged message only when that count is one. Multiple nearby avatars require names. A nearby avatar without instruction permission does not create ambiguity or receive the instruction.
 
 Coalesce repeated events while preserving counts and meaningful details. Item pickups from a collection job should be visible without launching overlapping inference. Events received during inference enter a pending queue for the next eligible snapshot.
 

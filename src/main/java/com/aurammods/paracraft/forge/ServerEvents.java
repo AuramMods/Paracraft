@@ -64,11 +64,10 @@ public final class ServerEvents {
         var player = event.getPlayer();
         if (player instanceof CompanionPlayer) return;
         var server = player.server;
-        var sender = player.getUUID();
         var text = event.getRawText();
         // Forge's chat decorator fires this event asynchronously. Leave its delivery
         // future unblocked and touch companion/world state only on the server thread.
-        server.execute(() -> avatars(server).control().chat(sender, text));
+        server.execute(() -> avatars(server).control().chat(player, text));
     }
     @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
     public static void breathe(net.minecraftforge.event.entity.living.LivingBreatheEvent event) {

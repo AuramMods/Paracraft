@@ -2,6 +2,12 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 17: Nearby chat without repeating avatar names
+
+- Unnamed chat now targets exactly one living avatar the sender may instruct within an inclusive 24-block radius in the same dimension. Ownership and delegated instruction rights determine eligibility; other players' avatars do not create ambiguity. Zero or multiple nearby eligible avatars require explicit addressing.
+- Explicit active-avatar names retain priority, including remote/multi-avatar instructions. A name the sender cannot control never falls back to another nearby avatar. The original message/sender remain intact, and the native player's position/dimension are read on the server thread after Forge's asynchronous callback.
+- Added an actual asynchronous Forge-event regression for unnamed chat and native routing coverage for distance boundaries, dimensions, permissions, trust revocation, ambiguity, and name precedence. The build, all 73 unit tests, and all 90 native GameTests pass. No graphical client or live inference was launched.
+
 ## November 17: Fix normal Minecraft chat dispatch
 
 - The owner's real client log exposed `ServerEvents.chat` calling the server-only control service from Forge's asynchronous chat decorator. Its exception failed Minecraft's chat future, including messages that did not mention a companion.

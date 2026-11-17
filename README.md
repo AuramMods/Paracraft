@@ -18,7 +18,7 @@ With a Java 17 JDK selected through `JAVA_HOME`:
 
 The reobfuscated mod is written to `build/libs/paracraft-forge-1.20.1-0.1.0-dev.jar`. Install it on Forge 47.4.28 or newer within the 47.x series, on both client and server. Java 17 is required to build and run this Minecraft version.
 
-In a disposable world, press **K** for companion controls or run `/paracraft spawn Josh`, then mention Josh in chat. Before linking, the provider is a labeled deterministic simulator with fixed phrases. After linking, new decisions use the actual account/model route. Try `Josh, collect the diamonds nearby and give them to me.` Model routes and local pause state are saved in the game directory; the simulator needs no credentials.
+In a disposable world, press **K** for companion controls or run `/paracraft spawn Josh`, then talk in chat. If exactly one avatar you may instruct is within 24 blocks in your dimension, you can omit its name. With multiple nearby authorized avatars, address one by name. Before linking, the provider is a labeled deterministic simulator with fixed phrases. After linking, new decisions use the actual account/model route. Try `collect the diamonds nearby and give them to me`, or explicitly `Josh, collect the diamonds nearby and give them to me.` Model routes and local pause state are saved in the game directory; the simulator needs no credentials.
 
 Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
 
