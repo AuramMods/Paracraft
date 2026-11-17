@@ -13,7 +13,7 @@ final class RouteScreen extends Screen {
     private final String[] labels = {"Luna Light model", "Light reasoning effort", "Planning model", "Planning reasoning effort"};
     private final String[] draft;
     private final EditBox[] fields = new EditBox[4];
-    private String notice = "Simulation only; model access and sign-in are not connected.";
+    private String notice = "Choose an account model or enter its exact slug; requests report actual API errors.";
     RouteScreen(Screen parent, ClientCoordinator.View view) {
         super(Component.literal("Model routes · " + view.name())); this.parent = parent; avatar = view.id();
         var state = view.memory(); draft = new String[] {state.lightModel, state.lightEffort, state.planningModel, state.planningEffort};
@@ -22,14 +22,15 @@ final class RouteScreen extends Screen {
         for (int i = 0; i < fields.length; i++) {
             if (fields[i] != null) draft[i] = fields[i].getValue();
             int y = 45 + i * Math.max(30, (height - 112) / 4);
-            fields[i] = new EditBox(font, 24, y, Math.max(160, width - 48), 20, Component.literal(labels[i]));
+            boolean model=i==0 || i==2;fields[i] = new EditBox(font, 24, y, Math.max(100, width - (model?98:48)), 20, Component.literal(labels[i]));
             fields[i].setMaxLength(256); fields[i].setValue(draft[i]); addRenderableWidget(fields[i]);
+            if(model){int index=i;addRenderableWidget(Button.builder(Component.literal("Pick"),b->minecraft.setScreen(new ModelScreen(this,slug->fields[index].setValue(slug)))).bounds(width-64,y,40,20).build());}
         }
         addRenderableWidget(Button.builder(Component.literal("Save"), b -> {
             try {
                 var runtime = ForgeClientRuntime.coordinator(); if (runtime == null) throw new IllegalStateException("Join a world first");
                 runtime.routes(avatar, fields[0].getValue().trim(), fields[1].getValue().trim(), fields[2].getValue().trim(), fields[3].getValue().trim());
-                notice = "Saved locally. Simulator uses these route labels.";
+                notice = "Saved locally. Live requests use this model and reasoning effort.";
             } catch (RuntimeException failure) { notice = failure.toString(); }
         }).bounds(width / 2 - 104, height - 28, 100, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> onClose()).bounds(width / 2 + 4, height - 28, 100, 20).build());

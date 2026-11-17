@@ -24,6 +24,7 @@ public final class CompanionScreen extends Screen {
     public CompanionScreen(Screen parent) { super(Component.literal("Paracraft")); this.parent = parent; }
     @Override protected void init() {
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(width - 62, 8, 50, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Accounts"),b->minecraft.setScreen(new AccountScreen(this))).bounds(width-168,8,98,20).build());
         previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> select(-1)).bounds(16, 60, 24, 20).build());
         next = addRenderableWidget(Button.builder(Component.literal(">"), b -> select(1)).bounds(width - 40, 60, 24, 20).build());
         int column = (width - 44) / 4;
@@ -68,8 +69,8 @@ public final class CompanionScreen extends Screen {
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         graphics.drawString(font, title, 16, 14, 0xffffff);
-        graphics.drawCenteredString(font, "SIMULATED provider — no AI usage", width / 2, 32, 0xffd56a);
-        graphics.drawCenteredString(font, "Account: disconnected · Sign-in is a follow-up", width / 2, 44, 0xaaaaaa);
+        graphics.drawCenteredString(font,font.plainSubstrByWidth(ForgeClientRuntime.providerLabel(),Math.max(10,width-32)),width/2,32,0xffd56a);
+        var account=ForgeClientRuntime.accounts();graphics.drawCenteredString(font,font.plainSubstrByWidth(account==null?ForgeClientRuntime.accountError():account.notice(),Math.max(10,width-32)),width/2,44,0xaaaaaa);
         var view = selected(); graphics.drawCenteredString(font, view == null ? "No companion selected" : view.name(), width / 2, 66, 0xffffff);
         List<String> lines = new ArrayList<>();
         lines.add(runtime() == null ? "Join a Paracraft world to manage companions." : runtime().status());

@@ -7,7 +7,7 @@ modId="paracraft"
 version="${version}"
 displayName="Paracraft"
 authors="Paracraft contributors"
-description='''Server-owned companions with a client-owned decision harness. Foundation builds use a labeled simulated provider; live authentication is not connected.'''
+description='''Server-owned companions with a client-owned decision harness, local ChatGPT sign-in, and an explicitly labeled simulated QA provider.'''
 
 [[dependencies.paracraft]]
 modId="forge"

@@ -49,6 +49,8 @@ A snapshot/tool acknowledgment timeout is thirty monotonic seconds. The error is
 
 ## Verification scope
 
+ChatGPT sign-in, credentials, HTTP inference, and token/usage caching stay in a separate client-only account/provider layer described in [AUTH.md](AUTH.md). Account data is not added to these Minecraft envelopes, physical world state, or companion cognitive snapshots. Changing accounts/providers cancels/rebinds the client coordinator; the Minecraft wire schema remains unchanged.
+
 Unit tests cover fragmentation, ordering, duplicate/conflicting parts, actual decompression limits, persistence, slow-provider heartbeats, route storage, raw/UI pause consistency, canceled-attempt retries, stale generations/world bindings, corrupted/missing memory, and acknowledgment timeouts.
 
 The headless integration uses the actual coordinator and endpoint with native payload codecs, real chest inventories, walking, progress, an inactive gathering task during another real travel program, resumption, delivery, and idle suppression. It also verifies a forged owner payload is insufficient and a missing heartbeat pauses native execution.

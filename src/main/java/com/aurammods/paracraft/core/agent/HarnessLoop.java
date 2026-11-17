@@ -79,7 +79,13 @@ public final class HarnessLoop implements AutoCloseable {
             if (effect != null) {
                 if (!effect.isDone()) return;
                 JsonObject reply = effect.join(); effect = null;
-                if (!reply.get("ok").getAsBoolean()) throw new IllegalStateException(reply.get("error").getAsString());
+                if (!reply.get("ok").getAsBoolean()) {
+                    String code=reply.has("code")?reply.get("code").getAsString():"";
+                    if(!Set.of("TOOL_FAILED","OBSERVATION_FAILED").contains(code))throw new IllegalStateException(reply.get("error").getAsString());
+                    var failed=pendingCall();var details=new JsonObject();details.addProperty("tool",failed.tool());details.add("arguments",failed.arguments());details.add("reply",reply.deepCopy());
+                    var observations=state.turn.getAsJsonObject("observations");var failures=observations.has("tool_failures")?observations.getAsJsonArray("tool_failures"):new JsonArray();failures.add(details);observations.add("tool_failures",failures);
+                    state.history("tool_error",details.toString());continuePlanning();save.run();
+                } else {
                 String tool = pendingCall().tool();
                 if (tool.equals("observe")) {
                     state.turn.getAsJsonObject("observations").add("inventory", reply.getAsJsonObject("value").deepCopy());
@@ -89,6 +95,7 @@ public final class HarnessLoop implements AutoCloseable {
                     advanceCall();
                 }
                 save.run();
+                }
             }
             if (inference != null) {
                 if (!inference.isDone()) return;

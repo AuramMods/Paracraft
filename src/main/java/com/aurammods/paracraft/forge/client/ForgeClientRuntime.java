@@ -21,6 +21,10 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import org.lwjgl.glfw.GLFW;
+import com.aurammods.paracraft.core.agent.SimulatedProvider;
+import com.aurammods.paracraft.core.agent.InferenceProvider;
+import com.aurammods.paracraft.core.openai.ChatGptClient;
+import com.aurammods.paracraft.core.openai.ChatGptProvider;
 
 @Mod.EventBusSubscriber(modid = Paracraft.ID, value = Dist.CLIENT)
 public final class ForgeClientRuntime {
@@ -29,16 +33,22 @@ public final class ForgeClientRuntime {
     private static final WireCodec.Assembler INCOMING = new WireCodec.Assembler();
     private static ClientCoordinator coordinator;
     private static Connection connection;
+    private static ChatGptClient accounts;private static String accountError="";private static boolean accountInitialized;private static long accountRevision=-1;
     private ForgeClientRuntime() { }
     public static ClientCoordinator coordinator() { return coordinator; }
+    public static ChatGptClient accounts(){if(!accountInitialized){accountInitialized=true;try{accounts=new ChatGptClient(ChatGptClient.defaultDirectory());Runtime.getRuntime().addShutdownHook(new Thread(()->accounts.close(),"Paracraft account shutdown"));}catch(Exception failure){accountError=ChatGptClient.message(failure);}}return accounts;}
+    public static String accountError(){accounts();return accountError;}
+    public static String providerLabel(){var client=accounts();return client==null?"Account storage error: "+accountError:client.label();}
+    public static void reloadAccounts(){if(accounts()!=null)accounts.reloadSaved();else{accountInitialized=false;accounts();}}
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.getConnection() == null) { disconnect(); return; }
         Connection current = minecraft.getConnection().getConnection();
-        if (connection != current || coordinator == null) {
+        var account=accounts();long revision=account==null?0:account.revision();
+        if (connection != current || coordinator == null || revision!=accountRevision) {
             disconnect(); connection = current; start();
-            minecraft.player.displayClientMessage(Component.literal("Paracraft: SIMULATED companions; no AI usage. Press K for controls."), false);
+            accountRevision=revision;minecraft.player.displayClientMessage(Component.literal("Paracraft: "+providerLabel()+". Press K for controls."), false);
         }
         coordinator.tick(); INCOMING.expire(System.nanoTime());
         while (OPEN.consumeClick()) minecraft.setScreen(new CompanionScreen(minecraft.screen));
@@ -46,7 +56,7 @@ public final class ForgeClientRuntime {
     private static void start() {
         Minecraft minecraft = Minecraft.getInstance();
         coordinator = new ClientCoordinator(minecraft.player.getUUID(), new AgentStore(minecraft.gameDirectory.toPath().resolve("paracraft/memory")),
-                AgentClock.SYSTEM, ForgeNetwork::toServer);
+                AgentClock.SYSTEM, ForgeNetwork::toServer,binding->{var account=accounts();if(account==null)return new InferenceProvider(){public String label(){return "Account storage unavailable";}public boolean simulated(){return false;}public java.util.concurrent.CompletableFuture<Decision> infer(Request request){return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException(accountError));}};return account.mode().equals("chatgpt")?new ChatGptProvider(account):new SimulatedProvider();},ForgeClientRuntime::providerLabel);
     }
     public static void retry() {
         if (coordinator != null) coordinator.close(); INCOMING.clear();

@@ -6,7 +6,7 @@ This describes the Minecraft-independent harness core in `core/agent` and its au
 
 `InferenceProvider` accepts a complete request containing a route, configurable model/effort labels, physical snapshot, original trigger, and explicit observation results. Each call is independent. The request owns copies of its JSON; a provider cannot mutate live harness state. Provider futures are polled on the owner's client thread.
 
-The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. These are route settings supplied by the design, not evidence of model availability, authentication, or live inference. The current simulator never calls an external model service.
+The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. The simulator never calls an external model service. The optional [ChatGPT provider](AUTH.md) sends configured routes unchanged to the public Responses API after client-side sign-in; actual account models and request errors determine availability. No model is silently substituted.
 
 | Route | Available tools |
 | --- | --- |
@@ -31,7 +31,7 @@ Every turn stores its original trigger, planning continuation results, route/rou
 
 `HarnessLoop.Sink` routes effects through `ServerControl`, which persists authoritative acknowledgments and deduplicates server effects, including chat and observation receipts. IDs identify a turn/round/call rather than an ephemeral connection. The Forge adapter stamps the current lease and derives the owner from the native connection. The service checks ownership, lease validity, conflicting request content, and revoked instruction senders. GameTests exercise the native payload codecs/in-process endpoint; real client TCP transport remains unverified.
 
-Provider/tool failures pause the local loop and expose `lastError` in the UI. The runtime sends an owner pause on local faults and releases control on link failure. The server independently pauses/revokes an expired controller. Native client logout saves/cancels local work, and server logout independently saves/despawns bodies.
+Provider, storage, authority, transport, and conflicting-request faults pause the local loop and expose `lastError` in the UI. An authoritative ordinary `TOOL_FAILED`/`OBSERVATION_FAILED` stops dependent calls and returns the actual failure to planning through `observations.tool_failures`, preserving the original trigger and earlier acknowledged effects. Replanning advances the round so it cannot replay the same permanently failed receipt. This recovery survives local storage/restart. The runtime sends an owner pause on local faults and releases control on link failure. The server independently pauses/revokes an expired controller. Native client logout saves/cancels local work, and server logout independently saves/despawns bodies.
 
 ## Tasks and local storage
 

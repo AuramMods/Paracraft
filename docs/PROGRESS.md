@@ -1,6 +1,14 @@
 # Implementation progress
 
-The initial Forge foundation is implemented and ready for owner QA using the labeled simulator. [VALIDATION.md](VALIDATION.md) records the build, 46 unit tests, 86 native GameTests, cold-process recovery, and background-run evidence. Native client checks and real sign-in/live inference remain explicitly unverified follow-up work.
+The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains the new account flow and its verification limits. Real owner authentication, live inference, and native client visual checks await owner QA.
+
+## November 17: Client-owned ChatGPT linking and live provider
+
+- Added local browser sign-in with dynamic registration, PKCE/state/nonce and signed identity validation, separate account/workspace records, protected atomic credential storage, serialized rotating refresh, re-consent, and sign-out. The cache is shared by the mod and headless CLI; Minecraft servers never receive its credentials.
+- Added account/model screens, explicit provider selection, actual model discovery, and a streamed Responses provider using the existing Light/planning harness. Only completed, permission-checked decisions can execute; cancellation and account changes reject late results. Reported usage is cached locally without estimating remaining plan quota.
+- Added the packaged planning contract and durable tool-error feedback so ordinary rejected operations can be corrected in a fresh planning round while preserving the original request and acknowledged effects.
+- Validation: `test build` passed all 64 unit tests, including local HTTP OAuth/OIDC/Responses fixtures with fake accounts. The native suite passed all 86 Minecraft GameTests. Cold recovery passed in separate writer/reader JVMs 3140 and 3281. The final 374,208-byte mod JAR contains the planning policy and access transformer, with no QA classes. The Java HTTP client also successfully fetched OpenAI's real public discovery metadata without authentication or inference.
+- Real account consent, eligible models, billed inference, and in-game account/model screen rendering remain unverified until the owner signs in. No browser or graphical Minecraft client was automatically opened. Use `./gradlew chatgptLogin` to authenticate without launching the game, then perform the explicit live check in [AUTH.md](AUTH.md).
 
 ## Cycle 1: Forge build and headless QA bootstrap
 
@@ -21,9 +29,9 @@ The initial Forge foundation is implemented and ready for owner QA using the lab
 | Authority | Actual connected-client instruction/control verification and external command-mod compatibility; native avatar command dispatch/delayed outcomes and authoritative chat/delegation/receipt service are tested |
 | Gameplay | Wider terrain/adapter and distributed-load evidence; native configured capacity, long independent chunk traversal, fall damage, terrain recovery, portals, commands, oxygen escape, reactions, idle patrols, native survival and initial gameplay operations now work |
 | QA | Native client TCP/rendering checks and broader load/modpack evidence; actual capacity/admission and combined interruption/resumption pass, and the client checklist is documented |
-| Account UI | Visual verification of the implemented disconnected status; real sign-in/live inference remain follow-up scope |
+| Account UI | Owner sign-in and visual verification of implemented account/model screens; actual eligible-model and live inference checks |
 
-Live authentication and actual AI usage are outside this foundation goal and remain unverified.
+The original foundation goal excluded authentication. Its follow-up implementation is recorded above; real owner authentication and AI usage remain unverified.
 
 ## Cycle 2: Persistent survival-player prototype
 

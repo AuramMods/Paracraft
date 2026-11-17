@@ -74,3 +74,16 @@ simulation-distance=8
     }
 }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+// Client account tools use the same protected local cache as the mod, without opening Minecraft.
+['chatgptLogin':'login','chatgptStatus':'status','chatgptModels':'models','chatgptLogout':'logout','chatgptSmoke':'smoke','chatgptMetadata':'metadata'].each { taskName, action ->
+    tasks.register(taskName, JavaExec) {
+        group = 'paracraft'
+        description = "Paracraft client ChatGPT ${action} (no game window)"
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = 'com.aurammods.paracraft.core.openai.ChatGptCli'
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+        args action
+        if (action == 'smoke') { args providers.gradleProperty('chatgptModel').getOrElse('gpt-6-luna'), providers.gradleProperty('chatgptEffort').getOrElse('none') }
+    }
+}

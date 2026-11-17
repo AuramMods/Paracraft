@@ -9,6 +9,18 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HarnessLoopTest {
+    @Test void authoritativeToolFailureReplansDurablyInsteadOfReplayingTheFailedReceipt(){
+        Clock clock=new Clock();Provider provider=new Provider(clock);Sink sink=new Sink();AgentState state=new AgentState();
+        provider.answer=r->CompletableFuture.completedFuture(decision("chat",json("{\"wrong_field\":\"first attempt\"}")));
+        sink.reply=sent->CompletableFuture.completedFuture(json("{\"ok\":false,\"code\":\"TOOL_FAILED\",\"error\":\"Missing string message\"}"));
+        try(HarnessLoop loop=new HarnessLoop(BINDING,state,provider,clock,sink,()->{})){loop.accept(frame(chat(1,"Josh, hello")));pump(loop);assertEquals(1,sink.sent.size());assertTrue(loop.lastError().isEmpty());assertEquals(InferenceProvider.Route.PLANNING.name(),state.turn.get("route").getAsString());assertEquals(1,provider.requests.size());}
+        var restored=AgentState.load(state.save());sink.reply=ignored->CompletableFuture.completedFuture(ok(new JsonObject()));provider.answer=r->CompletableFuture.completedFuture(decision("chat",json("{\"message\":\"corrected\"}")));clock.advance(5000);
+        try(HarnessLoop loop=new HarnessLoop(BINDING,restored,provider,clock,sink,()->{})){loop.accept(frame(chat(1,"Josh, hello")));pump(loop);assertEquals(2,sink.sent.size());assertNotEquals(sink.sent.get(0).id(),sink.sent.get(1).id());var request=provider.requests.get(1);assertEquals(InferenceProvider.Route.PLANNING,request.route());assertTrue(request.observations().getAsJsonArray("tool_failures").toString().contains("Missing string message"));assertEquals("Josh, hello",request.trigger().get("message").getAsString());assertEquals("Idle",loop.status());}
+    }
+    @Test void authorityFailureStillPausesWithoutModelRecovery(){
+        Clock clock=new Clock();Provider provider=new Provider(clock);Sink sink=new Sink();provider.answer=r->CompletableFuture.completedFuture(decision("chat",json("{\"message\":\"hello\"}")));sink.reply=sent->CompletableFuture.completedFuture(json("{\"ok\":false,\"code\":\"AUTHORITY_LOST\",\"error\":\"Revoked\"}"));
+        try(HarnessLoop loop=new HarnessLoop(BINDING,new AgentState(),provider,clock,sink,()->{})){loop.accept(frame(chat(1,"hello")));pump(loop);clock.advance(60000);pump(loop);assertTrue(loop.status().startsWith("Paused:"));assertEquals(1,provider.requests.size());assertEquals(1,sink.sent.size());}
+    }
     @Test void respawnDiscardsDurableOldBodyEffectsButRetainsRequestAndTasksForFreshPlanning() {
         Clock clock = new Clock(); Provider provider = new Provider(clock); Sink sink = new Sink(); AgentState state = new AgentState();
         state.mutate("task_upsert", json("{\"id\":\"gather\",\"goal\":\"finish gathering\",\"status\":\"INACTIVE\"}"));

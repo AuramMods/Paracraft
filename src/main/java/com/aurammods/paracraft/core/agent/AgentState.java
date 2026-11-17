@@ -20,7 +20,7 @@ public final class AgentState {
     boolean paused;
     String lastError = "";
     public String personality = "Helpful, practical companion.";
-    // Configurable route labels only; the simulator makes no account/model availability claim.
+    // Live requests send these configured values unchanged; account/model availability is reported by the API.
     public String lightModel = "gpt-6-luna", lightEffort = "none", planningModel = "gpt-6-luna", planningEffort = "xhigh";
     long wakeAtMillis;
     String wakeEvent = "";

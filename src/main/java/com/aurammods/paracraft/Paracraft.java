@@ -29,6 +29,6 @@ public final class Paracraft {
         com.aurammods.paracraft.forge.execution.CommandArguments.register(
                 net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, CONFIG);
-        LOG.info("Paracraft foundation loaded; live AI authentication is not connected.");
+        LOG.info("Paracraft loaded; model sign-in and credentials stay on owner clients.");
     }
 }

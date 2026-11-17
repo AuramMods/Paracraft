@@ -23,6 +23,7 @@ public final class ClientCoordinator implements AutoCloseable {
     private final AgentClock clock;
     private final Consumer<JsonObject> send;
     private final Function<AgentBinding, InferenceProvider> providers;
+    private final java.util.function.Supplier<String> providerStatus;
     private final Map<UUID, Companion> companions = new LinkedHashMap<>();
     private final Map<UUID, Pending> pending = new HashMap<>();
     private final Map<UUID, String> failures = new HashMap<>();
@@ -60,7 +61,10 @@ public final class ClientCoordinator implements AutoCloseable {
         this(owner, store, clock, send, binding -> new SimulatedProvider());
     }
     public ClientCoordinator(UUID owner, AgentStore store, AgentClock clock, Consumer<JsonObject> send, Function<AgentBinding, InferenceProvider> providers) {
-        this.owner = owner; this.store = store; this.clock = clock; this.send = send; this.providers = providers; nextPoll = clock.nanoTime();
+        this(owner,store,clock,send,providers,()->"SIMULATED provider; account disconnected");
+    }
+    public ClientCoordinator(UUID owner, AgentStore store, AgentClock clock, Consumer<JsonObject> send, Function<AgentBinding, InferenceProvider> providers,java.util.function.Supplier<String> providerStatus) {
+        this.owner = owner; this.store = store; this.clock = clock; this.send = send; this.providers = providers;this.providerStatus=providerStatus;status="Connecting — "+providerStatus.get();nextPoll = clock.nanoTime();
     }
     public void tick() {
         if (closed || suspended) return;
@@ -96,7 +100,7 @@ public final class ClientCoordinator implements AutoCloseable {
                 polling = null;
                 if (!message.get("ok").getAsBoolean()) throw new IllegalStateException(message.get("error").getAsString());
                 long revision = message.get("sequence").getAsLong(); if (revision <= acceptedSequence) return;
-                applySnapshots(message); acceptedSequence = revision; status = "Connected — SIMULATED provider; account disconnected";
+                applySnapshots(message); acceptedSequence = revision; status = "Connected — "+providerStatus.get();
             } else if (kind.equals("reply")) {
                 Pending request = pending.get(id);
                 if (request == null || !message.has("attempt") || !request.attempt.toString().equals(message.get("attempt").getAsString())) return;
