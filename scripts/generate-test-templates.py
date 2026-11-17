@@ -40,3 +40,4 @@ if __name__ == '__main__':
     template('empty', 8, 8)
     template('arena', 96, 8, floor=True)
     template('empty', 8, 8, namespace='paracraft_restart')
+    template('arena', 96, 8, floor=True, namespace='paracraft_live')

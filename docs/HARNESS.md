@@ -1,6 +1,6 @@
 # Client decision-loop foundation
 
-This describes the Minecraft-independent harness core in `core/agent` and its authoritative Forge service in `forge/control`. Unit tests use virtual time and service fixtures; headless Forge GameTests connect the same loop/coordinator to actual inventories and player movement. The Forge client runtime, transport, and disconnected account/status screen are wired; native client/login/rendering checks remain unverified. See [NETWORK.md](NETWORK.md).
+This describes the Minecraft-independent harness core in `core/agent` and its authoritative Forge service in `forge/control`. Unit tests use virtual time and service fixtures; headless Forge GameTests connect the same loop/coordinator to actual inventories and player movement. The Forge client runtime, transport, and account/model screens are wired. [AUTH.md](AUTH.md) describes client-owned sign-in and strict typed decisions; [LIVE_QA.md](LIVE_QA.md) describes actual Luna gameplay checks. Native connected-client/login/rendering checks remain unverified. See [NETWORK.md](NETWORK.md).
 
 ## Provider and routing
 

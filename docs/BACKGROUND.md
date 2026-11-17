@@ -1,6 +1,6 @@
 # Windowless background QA
 
-Repeated verification uses Forge GameTests and the deterministic harness. These commands never start a graphical Minecraft client, activate an application, or open a sign-in browser. They exercise actual Minecraft world state headlessly. They do not provide a connectable public game server or live model usage.
+Repeated verification uses Forge GameTests and the deterministic harness by default. These commands never start a graphical Minecraft client, activate an application, or open a sign-in browser. They exercise actual Minecraft world state headlessly and do not provide a connectable public game server. The explicit `live` mode additionally uses the selected linked ChatGPT plan.
 
 ## Start, inspect, and stop
 
@@ -19,6 +19,14 @@ For the separate writer/reader process suite:
 ```sh
 python3 scripts/qa-background.py start --mode restart
 ```
+
+For [live Luna gameplay QA](LIVE_QA.md), after linking the local account:
+
+```sh
+python3 scripts/qa-background.py start --mode live
+```
+
+This mode runs `scripts/live-qa.sh` and consumes eligible plan usage with Luna `none`/`xhigh`. A separate local client process holds credentials; the disposable server receives only synthetic snapshots/decisions.
 
 Stop an active run using:
 
@@ -39,8 +47,10 @@ An OS file lock prevents overlapping background workers against the shared QA wo
 | `build/qa/background/state.json` | Its run ID, actual worker/group, mode, result, and timestamps |
 | `build/qa/headless.log` | Normal test/build/GameTest output |
 | `build/qa/restart/write.log`, `read.log` | Separate cold-process evidence |
+| `build/qa/live.log`, `run/live-qa/client.log` | Opt-in live gameplay and separate client inference evidence |
 | `run/gametest/world` | Disposable normal suite world, rebuilt on every normal run |
 | `run/restart-qa` | Disposable cold suite workspace; reset before writer, retained for reader |
+| `run/live-qa/world` | Disposable live suite world, rebuilt for each explicit live run |
 
 The helper is optional Python standard-library developer tooling. The installed mod has no Python process requirement. Foreground equivalents remain `./scripts/qa.sh` and `./scripts/restart-qa.sh`; Ctrl-C interrupts those commands. Generated `build`, `run`, and local `.qa` artifacts are ignored by Git. Keep personal worlds elsewhere.
 

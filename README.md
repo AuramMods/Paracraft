@@ -2,7 +2,7 @@
 
 Server-owned Minecraft companions with a client-owned decision harness. Initial target: Forge 1.20.1, Java 17.
 
-The Forge foundation includes a labeled simulator and client-side ChatGPT sign-in/live provider. **[Link your account](docs/AUTH.md)** with `./gradlew chatgptLogin` without opening Minecraft, or use **K → Accounts** in the updated client. The session is cached privately on your computer. The first owner-authenticated inference and native client visual checks are awaiting owner validation.
+The Forge foundation includes a labeled simulator and client-side ChatGPT sign-in/live provider. **[Link your account](docs/AUTH.md)** after joining with `/paracraft link chatgpt` or **K → Accounts**. Unlinked players receive clickable join and avatar-creation reminders. The session is cached privately on your computer; `./gradlew chatgptLogin` is optional developer tooling. Real Luna inference and headless diamond retrieval have passed; native client visual checks remain pending.
 
 Start with [installation/configuration](docs/INSTALL.md), [foundation validation evidence](docs/VALIDATION.md), and [background QA controls](docs/BACKGROUND.md).
 
@@ -42,6 +42,6 @@ python3 scripts/qa-background.py status
 python3 scripts/qa-background.py stop
 ```
 
-The suite exits when complete; stop applies only while it is running. See [background instructions](docs/BACKGROUND.md) for logs and the separate restart mode. Foundation checks passed 46 unit tests, 86 native GameTests, and the two-process recovery suite; the account integration adds local HTTP/OIDC/SSE fixture tests documented in [AUTH.md](docs/AUTH.md). Owner sign-in, live AI, and visual client behavior remain unverified until the owner links the account.
+The suite exits when complete; stop applies only while it is running. See [background instructions](docs/BACKGROUND.md) for logs and the separate restart mode. The account integration adds local HTTP/OIDC/SSE fixture tests documented in [AUTH.md](docs/AUTH.md). [Live Luna QA](docs/LIVE_QA.md) explicitly uses the linked plan to test real gameplay in a separate disposable world; default QA remains simulated. Native client visuals and connected-player UI checks remain pending.
 
 Sources: [Forge setup](https://docs.minecraftforge.net/en/1.20.1/gettingstarted/), [Forge GameTests](https://docs.minecraftforge.net/en/1.20.1/misc/gametest/). The Gradle wrapper was taken from the official Forge MDK; its script retains the Gradle Apache-2.0 notice.

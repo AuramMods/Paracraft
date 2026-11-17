@@ -28,9 +28,11 @@ minecraft {
         server { args '--nogui' }
         gameTestServer {
             def restartPhase = providers.gradleProperty('restartPhase').getOrElse('')
-            workingDirectory project.file(restartPhase ? 'run/restart-qa' : 'run/gametest')
-            property 'forge.enabledGameTestNamespaces', restartPhase ? 'paracraft_restart' : 'paracraft'
+            def live = project.hasProperty('liveChatgpt')
+            workingDirectory project.file(live ? 'run/live-qa' : restartPhase ? 'run/restart-qa' : 'run/gametest')
+            property 'forge.enabledGameTestNamespaces', live ? 'paracraft_live' : restartPhase ? 'paracraft_restart' : 'paracraft'
             property 'paracraft.qa.restartPhase', restartPhase
+            if (live) property 'paracraft.qa.clientLaunch', project.file('build/qa/live-client.json').absolutePath
             mods { paracraft { source sourceSets.gameTest } }
         }
     }
@@ -53,12 +55,14 @@ tasks.named('jar', Jar) { finalizedBy 'reobfJar' }
 // Every headless suite gets an isolated disposable world. Restart-persistence QA
 // uses a separate server workspace; ordinary GameTests must not inherit old drops.
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    if (project.hasProperty('liveChatgpt')) dependsOn 'writeLiveClientLaunch'
     doFirst {
-        if (!project.hasProperty('restartPhase')) project.delete(project.layout.projectDirectory.dir('run/gametest/world'))
+        def live = project.hasProperty('liveChatgpt')
+        if (!project.hasProperty('restartPhase')) project.delete(project.layout.projectDirectory.dir(live ? 'run/live-qa/world' : 'run/gametest/world'))
         // Forge's GameTestMain delegates world creation to the dedicated-server
         // properties. Its default random terrain can contain loot in a test's
         // nine-chunk search at any height, outside the placed arena.
-        def qaDirectory = project.file(project.hasProperty('restartPhase') ? 'run/restart-qa' : 'run/gametest')
+        def qaDirectory = project.file(live ? 'run/live-qa' : project.hasProperty('restartPhase') ? 'run/restart-qa' : 'run/gametest')
         qaDirectory.mkdirs()
         new File(qaDirectory, 'server.properties').text = '''level-name=world
 level-seed=0
@@ -74,6 +78,18 @@ simulation-distance=8
     }
 }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+// Explicit live QA launches the credential-owning client in a separate JVM, never in the server.
+tasks.register('writeLiveClientLaunch') {
+    dependsOn tasks.named('gameTestClasses')
+    doLast {
+        def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
+        def destination = project.file('build/qa/live-client.json')
+        destination.parentFile.mkdirs()
+        destination.text = groovy.json.JsonOutput.toJson([launcher.executablePath.asFile.absolutePath,
+            '-cp', sourceSets.gameTest.runtimeClasspath.asPath, 'com.aurammods.paracraft.qa.LiveClientProcess'])
+    }
+}
 
 // Client account tools use the same protected local cache as the mod, without opening Minecraft.
 ['chatgptLogin':'login','chatgptStatus':'status','chatgptModels':'models','chatgptLogout':'logout','chatgptSmoke':'smoke','chatgptMetadata':'metadata'].each { taskName, action ->

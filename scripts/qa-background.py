@@ -74,7 +74,7 @@ def start(mode):
 def worker(args):
     # The inherited descriptor owns the lock until this worker and its wait have ended.
     with os.fdopen(args.lock_fd, 'a'):
-        command = ['./scripts/restart-qa.sh' if args.mode == 'restart' else './scripts/qa.sh']
+        command = [{'normal': './scripts/qa.sh', 'restart': './scripts/restart-qa.sh', 'live': './scripts/live-qa.sh'}[args.mode]]
         state = {'runId': args.run_id, 'phase': 'running', 'mode': args.mode, 'workerPid': os.getpid(),
                  'startedAt': time.time(), 'command': command, 'log': str(LOG)}
         child = None
@@ -159,7 +159,7 @@ def stop():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'status', 'stop', '_worker'])
-    parser.add_argument('--mode', choices=['normal', 'restart'], default='normal')
+    parser.add_argument('--mode', choices=['normal', 'restart', 'live'], default='normal')
     parser.add_argument('--lock-fd', type=int)
     parser.add_argument('--run-id')
     args = parser.parse_args()

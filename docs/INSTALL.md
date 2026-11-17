@@ -10,7 +10,7 @@ build/libs/paracraft-forge-1.20.1-0.1.0-dev.jar
 
 Put that JAR in the `mods` directory of the Forge 1.20.1 server and every connecting client. The declared dependency is Forge 47.4.28 or later in the 47.x series. This pass targets Forge 1.20.1; Fabric, NeoForge, other Minecraft versions, specialized storage integrations, and advanced construction/crafting are later work. Python and the QA scripts are developer tooling; players install the mod without a companion app.
 
-Before linking an account, the provider is the explicitly labeled deterministic simulator and needs no credentials. [AUTH.md](AUTH.md) describes local ChatGPT sign-in, cached/refreshable credentials, real account models, and live inference through the custom harness. The account screen now supports linking; actual owner authentication is still awaiting its first validation. No API key is required for the documented ChatGPT plan flow.
+Before linking an account, the provider is the explicitly labeled deterministic simulator and needs no credentials. Players can join first, then run `/paracraft link chatgpt` or open **K → Accounts**. Clickable reminders appear for unlinked players on join and avatar creation. [AUTH.md](AUTH.md) describes sign-in, cached/refreshable credentials, models, and live inference. Real owner-authenticated Luna inference and headless gameplay have passed; in-game screen checks remain pending. No API key is required for the documented ChatGPT plan flow.
 
 ## Server configuration and identity
 
@@ -47,6 +47,6 @@ Client cognitive files live under `<game directory>/paracraft/memory/<world UUID
 
 World knowledge is isolated by persistent world/owner/avatar binding. A reusable cross-server personality/profile library is not implemented in this pass; do not copy whole world-bound task files between unrelated worlds. Existing local memory is independent of future account credentials.
 
-The client-side account/provider integration is implemented behind `InferenceProvider`, with protected local storage, refresh, cancellation, explicit snapshot/history reconstruction, and existing routing/tool restrictions. The owner must now complete sign-in and one real request before live usage can be considered verified. Existing Codex account/token files are not read or reused; see [AUTH.md](AUTH.md).
+The client-side account/provider integration is implemented behind `InferenceProvider`, with protected local storage, refresh, cancellation, explicit snapshot/history reconstruction, and existing routing/tool restrictions. [LIVE_QA.md](LIVE_QA.md) records the opt-in windowless gameplay check using Luna with `none`/`xhigh`. Existing Codex account/token files are not read or reused; see [AUTH.md](AUTH.md).
 
 For test commands and visual checks, see [QA.md](QA.md); for background execution and stopping, see [BACKGROUND.md](BACKGROUND.md); for the exact evidence and remaining limits, see [VALIDATION.md](VALIDATION.md).

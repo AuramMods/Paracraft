@@ -1,6 +1,15 @@
 # Implementation progress
 
-The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains the new account flow and its verification limits. Real owner authentication, live inference, and native client visual checks await owner QA.
+The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
+
+## November 17: In-game linking and actual Luna gameplay
+
+- Added the client command `/paracraft link chatgpt`, opening Accounts after chat closes. The same root continues to support server gameplay commands. Unlinked players see clickable join and new-avatar reminders, covering avatars created through either raw commands or the controls. Account completion/errors now update the open screen.
+- The owner linked through the headless CLI and authorized live testing. The first real request exposed an empty terminal output list despite earlier completed streamed items. The provider now assembles those finished items only after terminal success; three regression tests cover success, failed/incomplete/interrupted streams, and conflicting items.
+- Actual Luna `none`/`xhigh` decisions ran the native diamond request: twelve diamonds delivered from two real chests, three pre-existing diamonds retained, roughly 34 blocks walked, task completion, and idle suppression. The first passing test used server JVM 67258 and separate credential-owning client JVM 67303, with eight decisions/four planning decisions.
+- Added the explicit [live QA runner](LIVE_QA.md), isolated world/namespace, process-pipe client, and optional background mode. Normal QA remains simulated. In-game rendering/command clicks/browser return still need owner visual checks; no graphical client or browser was launched by automation.
+- A background repeat rejected malformed model arguments without applying them. Replaced JSON-encoded argument strings with strict typed tool schemas for both routes, including recursive programs, nullable partial task updates, typed observation bindings, and local validation against the emitted schema. All 73 unit tests pass, including quote/newline preservation, atomic whole-batch rejection, native program projection, and optional-field handling.
+- The final typed background run passed with eight decisions/four planning decisions, twelve diamonds delivered, three retained, and 33.93 blocks walked. The worker exited zero and released its lock. All 86 normal native GameTests also passed. The 385,791-byte JAR includes the typed schema and planning policy and excludes QA code/fixtures. Actual account model discovery returned Luna; inference used the requested `none`/`xhigh` routes without catalog gating.
 
 ## November 17: Client-owned ChatGPT linking and live provider
 
@@ -29,7 +38,7 @@ The initial Forge foundation and client-owned ChatGPT integration are implemente
 | Authority | Actual connected-client instruction/control verification and external command-mod compatibility; native avatar command dispatch/delayed outcomes and authoritative chat/delegation/receipt service are tested |
 | Gameplay | Wider terrain/adapter and distributed-load evidence; native configured capacity, long independent chunk traversal, fall damage, terrain recovery, portals, commands, oxygen escape, reactions, idle patrols, native survival and initial gameplay operations now work |
 | QA | Native client TCP/rendering checks and broader load/modpack evidence; actual capacity/admission and combined interruption/resumption pass, and the client checklist is documented |
-| Account UI | Owner sign-in and visual verification of implemented account/model screens; actual eligible-model and live inference checks |
+| Account UI | Visual/connected-client verification of account/model screens and command entry points; owner CLI sign-in, Luna inference, model discovery, and native headless delivery are verified |
 
 The original foundation goal excluded authentication. Its follow-up implementation is recorded above; real owner authentication and AI usage remain unverified.
 

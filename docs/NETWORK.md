@@ -2,7 +2,7 @@
 
 The Forge mod now starts its client-owned simulated harness automatically when a player joins a world. It shuts down local inference/futures and saves cognitive state on client logout. No companion screen opens automatically.
 
-Press **K** in-game, or use **Mods → Paracraft → Config**, for companion status, tasks/personality, account status, spawn, pause/resume, destruction with item drops, model routes, and harness reconnect controls. The account is explicitly disconnected, and the provider is labeled **SIMULATED — no AI usage**. There is no sign-in browser, token access, authenticated inference, or account-linking step in this build.
+Press **K** in-game, or use **Mods → Paracraft → Config**, for companion status, tasks/personality, accounts, spawn, pause/resume, destruction with item drops, model routes, and harness reconnect controls. `/paracraft link chatgpt` opens the local account screen after joining. Unlinked players receive clickable reminders on join and avatar creation. The simulator is explicitly labeled; linked accounts can select the live provider described in [AUTH.md](AUTH.md). Authentication and credentials remain on the client.
 
 Model and effort settings are stored per companion. They configure route labels passed to the provider boundary; the deterministic simulator does not verify live model availability or consume usage. The current screen/account path is compiled but has not been visually exercised in a Minecraft client.
 
