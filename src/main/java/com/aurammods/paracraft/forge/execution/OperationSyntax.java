@@ -10,6 +10,17 @@ public final class OperationSyntax {
     public static void validate(JsonObject spec) {
         String op = string(spec, "op");
         switch (op) {
+            case "interact_block", "interact_entity", "use_item" -> {
+                if(op.equals("interact_block"))com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("position"));
+                if(op.equals("interact_entity"))UUID.fromString(string(spec,"target"));
+                if(spec.has("hand") && !java.util.Set.of("mainhand","offhand").contains(string(spec,"hand")))throw new IllegalArgumentException("hand must be mainhand or offhand");
+                if(spec.has("sneak") && (!spec.get("sneak").isJsonPrimitive() || !spec.getAsJsonPrimitive("sneak").isBoolean()))throw new IllegalArgumentException("sneak must be a boolean");
+                if(spec.has("holdTicks") && integer(spec,"holdTicks")>Integer.MAX_VALUE)throw new IllegalArgumentException("holdTicks is too large");
+                if(spec.has("face") && (!op.equals("interact_block") || net.minecraft.core.Direction.byName(string(spec,"face"))==null))throw new IllegalArgumentException("face must be a block face name");
+                if(spec.has("hit")){if(op.equals("use_item"))throw new IllegalArgumentException("use_item uses lookAt rather than a target hit");vector(spec.get("hit"));if(op.equals("interact_block"))for(var part:spec.getAsJsonArray("hit"))if(part.getAsDouble()<0 || part.getAsDouble()>1)throw new IllegalArgumentException("Block hit coordinates must be within 0..1");}
+                if(spec.has("lookAt")){if(!op.equals("use_item"))throw new IllegalArgumentException("lookAt is only used by use_item");vector(spec.get("lookAt"));}
+                if(!op.equals("interact_block") && spec.has("position") || !op.equals("interact_entity") && spec.has("target"))throw new IllegalArgumentException("Interaction target arguments do not match its operation");
+            }
             case "search_recipes" -> {
                 string(spec, "item");
                 if (spec.has("limit") && (integer(spec, "limit") < 1 || integer(spec, "limit") > 128)) throw new IllegalArgumentException("Recipe result limit must be between 1 and 128");
@@ -100,6 +111,10 @@ public final class OperationSyntax {
         }
     }
     private static void equipmentSlot(JsonObject spec){if(!java.util.Set.of("mainhand","offhand","head","chest","legs","feet").contains(string(spec,"slot")))throw new IllegalArgumentException("Unknown equipment slot");}
+    private static void vector(JsonElement value){
+        if(value==null || !value.isJsonArray() || value.getAsJsonArray().size()!=3)throw new IllegalArgumentException("Interaction point must be [x,y,z]");
+        for(var part:value.getAsJsonArray())if(!part.isJsonPrimitive() || !part.getAsJsonPrimitive().isNumber() || !Double.isFinite(part.getAsDouble()))throw new IllegalArgumentException("Interaction point coordinates must be finite numbers");
+    }
     private static void coordinates(JsonObject spec) {
         if (!spec.has("destination") || !spec.get("destination").isJsonArray() || spec.getAsJsonArray("destination").size() != 3)
             throw new IllegalArgumentException("destination must be [x,y,z]");

@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DecisionSchemaTest {
+    @Test void interactionTargetsHaveTypedHandsAimAndHeldUseWithNullableDefaults()throws Exception{
+        var args=json("{\"schema\":1,\"id\":\"5680d971-0dcf-425a-94a7-2778b8e98258\",\"taskId\":null,\"mode\":\"replace\",\"observationRefs\":[],\"steps\":[{\"op\":\"interact_block\",\"position\":[1,64,2],\"hand\":\"offhand\",\"sneak\":true,\"face\":\"up\",\"hit\":[0.5,1,0.5],\"holdTicks\":0,\"saveAs\":null},{\"op\":\"interact_entity\",\"target\":\"5680d971-0dcf-425a-94a7-2778b8e98258\",\"hand\":null,\"sneak\":null,\"hit\":[0,1.7,0],\"holdTicks\":null,\"saveAs\":null},{\"op\":\"use_item\",\"hand\":null,\"sneak\":null,\"lookAt\":[3,70,4],\"holdTicks\":40,\"saveAs\":\"drink\"}]}");
+        var steps=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments().getAsJsonArray("steps");assertEquals("offhand",steps.get(0).getAsJsonObject().get("hand").getAsString());assertFalse(steps.get(1).getAsJsonObject().has("hand"));assertEquals(40,steps.get(2).getAsJsonObject().get("holdTicks").getAsInt());
+        var source=args.getAsJsonArray("steps").get(0).getAsJsonObject();source.addProperty("holdTicks",-1);assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));source.addProperty("holdTicks",0);source.getAsJsonArray("hit").set(0,new JsonPrimitive(1.1));assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+    }
     @Test void blockQueriesExposeTypedNearestCountAndOptionalRadius() throws Exception {
         var args=json("{\"schema\":1,\"id\":\"5680d971-0dcf-425a-94a7-2778b8e98258\",\"taskId\":null,\"mode\":\"replace\",\"observationRefs\":[],\"steps\":[{\"op\":\"search_blocks\",\"block\":\"#minecraft:logs\",\"limit\":3,\"radius\":16.5,\"saveAs\":\"nearest\"}]}");
         var step=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments().getAsJsonArray("steps").get(0).getAsJsonObject();

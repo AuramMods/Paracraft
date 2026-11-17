@@ -2,6 +2,13 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## Native right-click actions
+
+- Added advertised, typed `interact_block`, `interact_entity` and `use_item` operations, server syntax validation, job restoration and planning instructions shared by both live providers. The server handles physical approach, native reach/visible hit points, hand/sneak modifiers, block faces and optional aim. Existing carried items are selected with `equip`; native block/entity/item callbacks and Forge hooks govern accepted behavior, consumption, durability, menus, mounting and projectiles.
+- Block clicks support normal item-use fallback, including bucket source-fluid targeting, while respecting actual event cancellation and item denial. Entity clicks use native interact-at and ordinary entity/item fallback without bypassing specific-hook cancellation. Results preserve native outcomes, hand stacks, held duration and observed block/menu/vehicle state. Nameplates can show Interacting or Using item.
+- Positive `holdTicks` supports native use completion or timed release. Pause/cancel aborts held use without firing a release; an interrupted held gesture reports failure on restoration instead of repeating its click. Pre-click approach checkpoints can resume, and completed requests remain deduplicated. Opened menus are observed then closed; arbitrary graphical menu commands are not inferred.
+- Validation: build, all 106 unit tests and all 134 native headless GameTests pass. Ten new world scenarios cover the native interaction paths, tools/fluids, both hands, precise entities, actual hook refusal, walls, timed holds/release and checkpoint behavior. No graphical client, browser or live model request was launched. See [right-click interactions](INTERACTIONS.md) and [QA](QA.md).
+
 ## OpenRouter API keys and explicit model routes
 
 - Added a client-owned OpenRouter Chat Completions provider and local setup through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. The masked key field preserves the saved secret when blank, and exact client-wide Light/Planning model IDs and reasoning efforts are editable without catalog gates. Blank Planning uses Light; `auto` omits the reasoning override. Existing ChatGPT accounts and per-avatar routes remain intact.

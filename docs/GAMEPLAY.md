@@ -6,6 +6,8 @@ Native [crafting](CRAFTING.md) is available through `craft_item` and `search_rec
 
 Agents can locate the nearest N blocks with [`search_blocks`](PORTALS.md#block-query-scope-and-freshness), using exact block IDs or tags, a result limit, and an optional radius. Results include ordered positions and distances from the starting position. The server scans loaded chunks around the avatar without moving it or generating missing chunks, and reports incomplete coverage explicitly.
 
+Agents can also [right-click blocks and entities or use held items](INTERACTIONS.md), with physical approach, native interaction hooks, hand/sneak selection, precise hit points and timed item use. These actions cover native buttons, levers, tools, feeding/milking, armor-stand interaction and more, subject to actual world behavior and protection rules.
+
 Coordinates below are absolute block coordinates in the avatar's current dimension. Replace example coordinates with reachable positions in a disposable world. Stock tools/materials through physical pickup or the existing container collection operations. No creative inventory, remote block mutation, or elevated command authority is supplied by these actions.
 
 ## Mining

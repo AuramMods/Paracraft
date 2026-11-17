@@ -16,6 +16,7 @@ public final class JobCodec {
         if(!actor.serverLevel().dimension().location().toString().equals(checkpoint.get("dimension").getAsString())
                 && !(type.equals("execute_command") && data.get("issued").getAsBoolean()) && !(type.equals("use_portal") && PortalJob.transitionPending(data)) && !(type.equals("program") && pendingCommand(data.getAsJsonObject("machine"))))return new ParkedJob(actor,checkpoint);
         GameJob job = switch (type) {
+            case "interact_block", "interact_entity", "use_item" -> new InteractionJob(id,actor,data.getAsJsonObject("specification"));
             case "craft_item" -> new CraftJob(id, actor, data.getAsJsonObject("specification"));
             case "search_recipes" -> new RecipeSearchJob(id, actor, data.getAsJsonObject("specification"));
             case "open_inventory", "take_items" -> new ContainerJob(id,actor,type,data.getAsJsonObject("specification"));

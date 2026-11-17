@@ -70,6 +70,9 @@ final class DecisionSchema {
         variants.add(operation("place_blocks", "placements", array(object("position", position(true), "item", text()))));
         variants.add(operation("equip", "item", text(), "slot", values("mainhand", "offhand", "head", "chest", "legs", "feet")));
         variants.add(operation("unequip","slot",values("mainhand","offhand","head","chest","legs","feet")));
+        variants.add(operation("interact_block","position",position(true),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"face",optional(values("down","up","north","south","west","east")),"hit",optional(fixedArray(range(type("number"),0,1),3)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
+        variants.add(operation("interact_entity","target",uuid(),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"hit",optional(position(false)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
+        variants.add(operation("use_item","hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"lookAt",optional(position(false)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
         for (String op : List.of("follow", "attack_entity")) variants.add(operation(op, "target", uuid(), "distance", optional(minimum(type("number"), 0.5)), "ticks", optional(integer(0, Long.MAX_VALUE))));
         variants.add(operation("set_spawn", "bed", position(true)));
         variants.add(operation("search_blocks", "block", text(), "limit", optional(integer(1, 4096)),"radius",optional(minimum(type("number"),0))));
@@ -101,6 +104,7 @@ final class DecisionSchema {
     private static JsonObject values(String... values) { var schema = type("string"); var choices = new JsonArray(); for (String value : values) choices.add(value); schema.add("enum", choices); return schema; }
     private static JsonObject numberValue(int value) { var schema = type("integer"); var choices = new JsonArray(); choices.add(value); schema.add("enum", choices); return schema; }
     private static JsonObject minimum(JsonObject schema, Number value) { schema.addProperty("minimum", value); return schema; }
+    private static JsonObject range(JsonObject schema,Number min,Number max){minimum(schema,min);schema.addProperty("maximum",max);return schema;}
     private static JsonObject integer(long min, long max) { var schema = minimum(type("integer"), min); schema.addProperty("maximum", max); return schema; }
     private static JsonObject array(JsonObject item) { var schema = type("array"); schema.add("items", item); return schema; }
     private static JsonObject fixedArray(JsonObject item, int size) { var schema = array(item); schema.addProperty("minItems", size); schema.addProperty("maxItems", size); return schema; }

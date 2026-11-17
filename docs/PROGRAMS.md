@@ -55,6 +55,9 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `farm` | Same target forms as mining, optional `plant`; mature crop harvest/pickup/replant |
 | `equip` | `item`, `slot`; native armor/offhand rules or main-hand selection |
 | `unequip` | `slot`; move worn/held items to main inventory, returning an exact `acquiredStacks` ledger |
+| `interact_block` | `position`, optional `hand`/`sneak`/`face`/local `hit`/`holdTicks`; physical native block/item right-click |
+| `interact_entity` | Entity UUID `target`, optional `hand`/`sneak`/local `hit`/`holdTicks`; native precise/ordinary entity interaction |
+| `use_item` | Optional `hand`/`sneak`/absolute `lookAt`/`holdTicks`; native held-item use and optional timed release |
 | `drop_items` | `item`, integer quantity or `"all"`, optional equipment `slot` and player `recipient`; drop existing belongings with native hooks and partial results |
 | `follow` | `target` entity UUID, optional `distance`/`ticks`; moving-target following |
 | `attack_entity` | Living `target` UUID, optional `distance`/`ticks`; basic native melee |
@@ -67,6 +70,7 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `take_items` | `position`, `item`, exact integer `quantity`; fixed-source extraction and acquired-stack ledger |
 
 See [GAMEPLAY.md](GAMEPLAY.md) for the block target forms, detailed examples, result semantics, protection/persistence checks, and current adapter limits.
+See [INTERACTIONS.md](INTERACTIONS.md) for right-click gestures, native hooks, held use and interruption behavior.
 
 See [COMMANDS.md](COMMANDS.md) for command acknowledgment versus delayed completion, permissions, output, and dimension checkpoint behavior.
 See [PORTALS.md](PORTALS.md) for block query coverage and explicit Nether/End travel.
