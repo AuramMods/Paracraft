@@ -2,6 +2,13 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 17: Daily tokens and Luna API estimates in the K menu
+
+- Added always-visible daily input/output tokens and estimated Luna API cost to the K menu, plus a scrollable Usage details page with total/cache/write counts, date/timezone, reporting limitations, official pricing and Manage usage links. Local reads refresh asynchronously and coalesce without inference or network calls.
+- Daily aggregates stay in the selected account's protected, process-locked local cache and merge across client/CLI writers. Midnight/DST resets are computed from cached data without another request. Existing lifetime totals remain; daily tracking begins with this update because old records lack per-request dates.
+- Estimates use verified Luna standard API rates, cache discounts/default writes, and per-request long-context premiums with decimal arithmetic. Reasoning is already included in output. Missing usage is explicitly partial, and reported failed/incomplete tokens are retained without granting actions. These are Luna API equivalents, not subscription invoices or remaining plan quota. The current OAuth inference integration has no documented remaining-percentage operation, so the UI says unavailable and links to ChatGPT usage settings.
+- Validation: 91 unit tests, all 105 normal native GameTests, and build pass, including real local HTTP streams, two concurrent cache clients, restored clients, account switching, late old-account completion, calendar/DST rollover, pricing and migration. One real Luna `none` request reported 477 input/34 output tokens and a $0.000065 estimate. No graphical client or browser was launched; K-menu visuals remain a manual check. See [daily usage](USAGE.md).
+
 ## November 17: Preserved navigation, visible activity, and agent output
 
 - Ordinary travel now preserves blocks, walks existing detours, opens wooden doors/fence gates through native interaction, and sprints when hunger/stance allow. Native pathfinding separates winding route length from spatial radius, retaining bounded search. Automatic obstruction breaking/bridging/pillaring remains an explicit server opt-in (`navigationTerrainChanges`); explicit mining/placement actions are unchanged.

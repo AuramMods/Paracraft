@@ -49,7 +49,7 @@ For a different account-supported route:
 ./gradlew chatgptSmoke -PchatgptModel=<exact-slug> -PchatgptEffort=none
 ```
 
-Each real decision consumes eligible plan usage. The saved session avoids repeated browser authentication; it does not make inference free. The account screen links to [ChatGPT usage settings](https://chatgpt.com/settings/usage). Local counters record completed requests and reported token/cache usage; they do not estimate remaining plan quota.
+Each real decision consumes eligible plan usage. The saved session avoids repeated browser authentication; it does not make inference free. The account screen links to [ChatGPT usage settings](https://chatgpt.com/settings/usage). The K menu shows daily reported input/output tokens and a Luna API cost equivalent, with cache and date details in **Usage details**. Daily aggregates persist per selected account; they do not include other Codex apps or estimate remaining plan quota. The current sign-in flow has no documented remaining-percentage operation, so the UI offers **Manage usage**. See [USAGE.md](USAGE.md) for rates, partial reporting and legacy-cache migration.
 
 ## Credential ownership and lifecycle
 
@@ -73,7 +73,7 @@ Ordinary authoritative tool/query rejection is returned to planning through `obs
 
 ## Validation status
 
-All 75 unit tests pass. Automated tests use a local HTTP OAuth/OIDC/Responses fixture with fake identities/tokens. They verify browser callbacks, PKCE, signature/nonce/audience/expiry checks, protected cache reuse, rotating refresh across clients, sign-out/re-consent, expired-code registration recovery, account separation, real HTTP/SSE parsing, strict typed decisions/programs including both crafting grids, route restrictions, cancellation, actual-request model errors, usage accounting, and durable tool-error replanning. The normal native gameplay suite remains headless and simulated; [LIVE_QA.md](LIVE_QA.md) describes the separate explicit live delivery/crafting suite.
+All 91 unit tests pass. Automated tests use a local HTTP OAuth/OIDC/Responses fixture with fake identities/tokens. They verify browser callbacks, PKCE, signature/nonce/audience/expiry checks, protected cache reuse, rotating refresh across clients, sign-out/re-consent, expired-code registration recovery, account separation, real HTTP/SSE parsing, strict typed decisions/programs including both crafting grids, route restrictions, cancellation, actual-request model errors, usage accounting, and durable tool-error replanning. The normal native gameplay suite remains headless and simulated; [LIVE_QA.md](LIVE_QA.md) describes the separate explicit live delivery/crafting suite.
 
 The owner completed real sign-in through the CLI, and Luna `none`/`xhigh` requests have used that cached session. Actual headless diamond retrieval also passed using a separate local credential-owning client process. In-game account/model screens, command clicks, browser return, and actual connected-client login/logout have not been visually verified. No sign-in browser or graphical Minecraft client was automatically launched during development.
 

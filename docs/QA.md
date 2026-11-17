@@ -59,7 +59,7 @@ The gameplay suite uses actual Minecraft operations for:
 - Native armor/offhand slots, invalid-slot rejection, binding curses, already-equipped acknowledgment, and protected attacks.
 - Following a moved entity, native melee cooldown/damage/durability, and bare-hand combat.
 
-The [crafting suite](CRAFTING.md) uses real inventory/table matrices and native result slots for internal crafting composites, physical table navigation, recipe discovery, 2×2 rejection of larger recipes, bucket returns, overlapping tag assignment, Forge NBT ingredients, dynamic repair, limited-crafting unlocks, full inventory refusal, partial progress, native table-hook denial/removal, checkpoint resume/cancellation, and output-ledger delivery with crafting-hook metadata changes. The current full normal suite passes **105 native GameTests and 83 unit tests**. Test-only recipe/tag fixtures are excluded from the mod JAR.
+The [crafting suite](CRAFTING.md) uses real inventory/table matrices and native result slots for internal crafting composites, physical table navigation, recipe discovery, 2×2 rejection of larger recipes, bucket returns, overlapping tag assignment, Forge NBT ingredients, dynamic repair, limited-crafting unlocks, full inventory refusal, partial progress, native table-hook denial/removal, checkpoint resume/cancellation, and output-ledger delivery with crafting-hook metadata changes. The current full normal suite passes **105 native GameTests and 91 unit tests**. Test-only recipe/tag fixtures are excluded from the mod JAR.
 
 See [GAMEPLAY.md](GAMEPLAY.md) for program examples and current adapter limits. These checks run headlessly; no visual mining animation, client control, or arbitrary modpack compatibility is inferred from them.
 
@@ -165,3 +165,7 @@ Headless navigation tests cover a winding fence maze, inaccessible fenced route,
 Manual visual check, without an automated client launch: look directly at Josh and confirm a second line above his name shows Idle. Give him a task, watch Thinking/Traveling and the unfinished task count, then confirm Idle after completion. Pause him and expect Paused; F1 and invisibility should suppress the overlay. Walk him through a fenced base with an open route and confirm fences stay intact. These actual rendering checks remain pending.
 
 Gradle output should contain `[Agent Josh output ...]` records with model, effort, route and visible text/tool arguments. Repeat with `./gradlew runClient -PagentOutputDebug=false` to disable them. Installed servers use their world config. See [DEBUG.md](DEBUG.md).
+
+## Daily token usage and estimated cost
+
+The K menu now shows the selected account's local daily input/output tokens and estimated Luna API equivalent. **Usage details** explains cache counts, the reporting timezone, partial history, and pricing, with an explicit **Manage usage** link. No remaining plan percentage is guessed. Follow the manual checklist in [USAGE.md](USAGE.md); actual client rendering/clicks remain unverified. Automated tests cover concurrent cache writers, restart/account scope, midnight/DST rollover, pricing and terminal failed/incomplete usage. A single real Luna smoke request verified 477 input/34 output tokens and the displayed $0.000065 estimate without opening Minecraft.

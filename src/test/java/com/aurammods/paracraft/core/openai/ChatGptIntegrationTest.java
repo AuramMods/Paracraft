@@ -91,6 +91,9 @@ class ChatGptIntegrationTest {
             f.login(client,true);var decisions=new ChatGptProvider(client).infer(request(InferenceProvider.Route.LIGHT)).get(10,TimeUnit.SECONDS);assertEquals("chat",decisions.calls().get(0).tool());assertEquals("Hello Josh",decisions.calls().get(0).arguments().get("message").getAsString());
             var body=f.lastRequest;assertFalse(body.get("store").getAsBoolean());assertTrue(body.get("stream").getAsBoolean());assertTrue(body.get("input").isJsonArray());assertFalse(body.has("previous_response_id"));assertFalse(body.has("max_output_tokens"));assertEquals("namespace",body.getAsJsonArray("tools").get(0).getAsJsonObject().get("type").getAsString());assertEquals("gpt-6-luna",body.get("model").getAsString());assertEquals("none",body.getAsJsonObject("reasoning").get("effort").getAsString());assertFalse(body.toString().contains("access-1") || body.toString().contains("refresh-1"));
             assertEquals(110,active().getAsJsonObject("usage").get("total_tokens").getAsLong());assertEquals(60,active().getAsJsonObject("usage").get("cached_input_tokens").getAsLong());assertTrue(client.usage().contains("1 completed"));
+            assertEquals(100,client.todayUsage().input());assertEquals(10,client.todayUsage().output());assertEquals(60,client.todayUsage().cached());
+            assertEquals(0,new java.math.BigDecimal("0.0000096").compareTo(client.todayUsage().usd()));
+            try(var restored=new ChatGptClient(directory,f.endpoints())){assertEquals(client.todayUsage(),restored.todayUsage());assertEquals(1,f.requests.get());}
         }
     }
     @Test void catalogDoesNotGateAnActualAttemptWithAnUnlistedRequestedModel()throws Exception{
@@ -112,6 +115,46 @@ class ChatGptIntegrationTest {
             f.login(client,true);f.replyTool="program";assertThrows(ExecutionException.class,()->new ChatGptProvider(client).infer(request(InferenceProvider.Route.LIGHT)).get(5,TimeUnit.SECONDS));
             f.replyTool="chat";f.streamMode="slow";var pending=new ChatGptProvider(client).infer(request(InferenceProvider.Route.LIGHT));assertTrue(f.streamStarted.await(5,TimeUnit.SECONDS));assertFalse(pending.isDone());assertTrue(pending.cancel(true));f.release.countDown();assertTrue(pending.isCancelled());
         }
+    }
+    @Test void dailyUsageMergesAcrossClientsRefreshesWithoutInferenceAndStaysAccountScoped()throws Exception {
+        var clock=new UsageClock(Instant.parse("2026-11-18T05:59:59Z"));
+        try(var f=new Fixture();var client=new ChatGptClient(directory,f.endpoints(),clock)) {
+            f.login(client,true);String first=client.selected().id();
+            try(var other=new ChatGptClient(directory,f.endpoints(),clock)) {
+                var workers=Executors.newFixedThreadPool(4);
+                try {
+                    var futures=new ArrayList<java.util.concurrent.Future<?>>();
+                    for(int i=0;i<12;i++){var writer=i%2==0?client:other;futures.add(workers.submit(()->{try{writer.recordUsage(first,"gpt-6-luna",JsonParser.parseString("{\"input_tokens\":100,\"output_tokens\":10,\"input_tokens_details\":{\"cached_tokens\":60}}").getAsJsonObject(),"completed","fixture");}catch(Exception failure){throw new RuntimeException(failure);}}));}
+                    for(var future:futures)future.get(10,TimeUnit.SECONDS);
+                } finally {workers.shutdownNow();}
+                client.refreshUsage().get(5,TimeUnit.SECONDS);assertEquals(1200,client.todayUsage().input());assertEquals(120,client.todayUsage().output());assertEquals(1320,client.todayUsage().total());assertEquals(12,client.todayUsage().completed());
+                assertEquals(0,f.requests.get());assertEquals(java.time.LocalDate.of(2026,11,17),client.todayUsage().date());
+                clock.now=clock.now.plusSeconds(1);assertEquals(0,client.todayUsage().input());assertEquals(java.time.LocalDate.of(2026,11,18),client.todayUsage().date());
+                client.recordUsage(first,"gpt-6-luna",JsonParser.parseString("{\"input_tokens\":9,\"output_tokens\":1}").getAsJsonObject(),"completed","today");
+                other.refreshUsage().get(5,TimeUnit.SECONDS);assertEquals(9,other.todayUsage().input());
+                f.login(client,true);assertEquals(0,client.todayUsage().input());assertNotEquals(first,client.selected().id());
+                // An old in-flight account may finish after selection; it must not update the new account's display.
+                client.recordUsage(first,"gpt-6-luna",JsonParser.parseString("{\"input_tokens\":11,\"output_tokens\":2}").getAsJsonObject(),"completed","late-old-account");
+                assertEquals(0,client.todayUsage().input());client.select(first).get(5,TimeUnit.SECONDS);assertEquals(20,client.todayUsage().input());
+            }
+        }
+    }
+    @Test void failedAndIncompleteResponsesStillRecordTheirActualReportedTokensWithoutActions()throws Exception {
+        try(var f=new Fixture();var client=new ChatGptClient(directory,f.endpoints())) {
+            f.login(client,true);
+            for(String mode:List.of("failed_usage","incomplete_usage")) {
+                f.streamMode=mode;assertThrows(ExecutionException.class,()->new ChatGptProvider(client).infer(request(InferenceProvider.Route.LIGHT)).get(5,TimeUnit.SECONDS));
+            }
+            assertEquals(200,client.todayUsage().input());assertEquals(20,client.todayUsage().output());assertEquals(220,client.todayUsage().total());
+            assertEquals(0,client.todayUsage().completed());assertEquals(0,client.todayUsage().unreported());
+            assertEquals(0,new java.math.BigDecimal("0.0000192").compareTo(client.todayUsage().usd()));
+        }
+    }
+    private static final class UsageClock extends java.time.Clock {
+        volatile Instant now;UsageClock(Instant now){this.now=now;}
+        @Override public java.time.ZoneId getZone(){return java.time.ZoneId.of("America/Chicago");}
+        @Override public java.time.Clock withZone(java.time.ZoneId zone){return java.time.Clock.fixed(now,zone);}
+        @Override public Instant instant(){return now;}
     }
     private InferenceProvider.Request request(InferenceProvider.Route route){var snapshot=new JsonObject();snapshot.addProperty("name","Josh");var trigger=new JsonObject();trigger.addProperty("type","chat");trigger.addProperty("message","Hello Josh");return new InferenceProvider.Request(route,new InferenceProvider.ModelRoute("gpt-6-luna",route==InferenceProvider.Route.LIGHT?"none":"xhigh"),snapshot,trigger,new JsonObject());}
     private JsonObject read()throws IOException{return JsonParser.parseString(Files.readString(directory.resolve("accounts.json"))).getAsJsonObject();}
@@ -154,8 +197,13 @@ class ChatGptIntegrationTest {
                 send(output,"{\"type\":\"response.output_text.delta\",\"delta\":\"not a completed decision\"}");
                 if(streamMode.equals("slow")){streamStarted.countDown();release.await(5,TimeUnit.SECONDS);}
                 if(streamMode.equals("truncated"))return;
-                if(streamMode.equals("incomplete")){send(output,"{\"type\":\"response.incomplete\",\"response\":{\"status\":\"incomplete\"}}");return;}
-                if(streamMode.equals("failed")){send(output,"{\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"subscription_sharing_usage_limit_exceeded\",\"message\":\"Usage limit reached\"}}}");return;}
+                if(streamMode.startsWith("incomplete") || streamMode.startsWith("failed")) {
+                    var event=new JsonObject();event.addProperty("type",streamMode.startsWith("incomplete")?"response.incomplete":"response.failed");
+                    var response=new JsonObject();response.addProperty("status",streamMode.startsWith("incomplete")?"incomplete":"failed");
+                    response.add("error",JsonParser.parseString("{\"code\":\"subscription_sharing_usage_limit_exceeded\",\"message\":\"Usage limit reached\"}"));
+                    if(streamMode.endsWith("_usage"))response.add("usage",JsonParser.parseString("{\"input_tokens\":100,\"output_tokens\":10,\"total_tokens\":110,\"input_tokens_details\":{\"cached_tokens\":60}}"));
+                    event.add("response",response);send(output,event.toString());return;
+                }
                 var arguments=new JsonObject();var calls=new JsonArray();var call=new JsonObject();call.addProperty("tool",replyTool);call.add("arguments",JsonParser.parseString(replyTool.equals("task_upsert")?"{\"id\":\"fixture-task\",\"goal\":\"Help the owner\",\"status\":\"ACTIVE\",\"priority\":null,\"programId\":null}":"{\"message\":\"Hello Josh\"}"));calls.add(call);arguments.add("calls",calls);var item=new JsonObject();item.addProperty("type","function_call");item.addProperty("namespace","paracraft");item.addProperty("name","decide");item.addProperty("arguments",arguments.toString());var response=new JsonObject();var items=new JsonArray();items.add(item);response.add("output",items);response.addProperty("status","completed");response.add("usage",JsonParser.parseString("{\"input_tokens\":100,\"output_tokens\":10,\"total_tokens\":110,\"input_tokens_details\":{\"cached_tokens\":60}}"));var event=new JsonObject();event.addProperty("type","response.completed");event.add("response",response);send(output,event.toString());
             }
         }

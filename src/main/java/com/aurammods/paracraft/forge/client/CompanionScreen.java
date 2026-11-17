@@ -19,14 +19,16 @@ public final class CompanionScreen extends Screen {
     private UUID selected;
     private int scroll;
     private String notice = "";
+    private long nextUsageRefresh;
     private EditBox name;
     private Button previous, next, pause, destroy, routes, spawn, retry;
     public CompanionScreen(Screen parent) { super(Component.literal("Paracraft")); this.parent = parent; }
     @Override protected void init() {
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(width - 62, 8, 50, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Accounts"),b->minecraft.setScreen(new AccountScreen(this))).bounds(width-168,8,98,20).build());
-        previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> select(-1)).bounds(16, 60, 24, 20).build());
-        next = addRenderableWidget(Button.builder(Component.literal(">"), b -> select(1)).bounds(width - 40, 60, 24, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Usage details"), b -> minecraft.setScreen(new UsageScreen(this))).bounds(width-124,66,108,18).build());
+        previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> select(-1)).bounds(16, 88, 24, 20).build());
+        next = addRenderableWidget(Button.builder(Component.literal(">"), b -> select(1)).bounds(width - 40, 88, 24, 20).build());
         int column = (width - 44) / 4;
         pause = addRenderableWidget(Button.builder(Component.literal("Pause"), b -> {
             var view = selected(); if (view != null) observe(runtime().pause(view.id(), !paused(view)));
@@ -65,15 +67,26 @@ public final class CompanionScreen extends Screen {
         future.whenComplete((reply, failure) -> notice = failure != null ? failure.toString()
                 : reply.get("ok").getAsBoolean() ? "Saved." : reply.get("error").getAsString());
     }
-    @Override public void tick() { name.tick(); refresh(); }
+    @Override public void tick() {
+        name.tick(); refresh();
+        if (System.nanoTime() - nextUsageRefresh >= 0) {
+            nextUsageRefresh = System.nanoTime() + 5_000_000_000L;
+            var account = ForgeClientRuntime.accounts(); if (account != null) account.refreshUsage();
+        }
+    }
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         graphics.drawString(font, title, 16, 14, 0xffffff);
         graphics.drawCenteredString(font,font.plainSubstrByWidth(ForgeClientRuntime.providerLabel(),Math.max(10,width-32)),width/2,32,0xffd56a);
-        var account=ForgeClientRuntime.accounts();graphics.drawCenteredString(font,font.plainSubstrByWidth(account==null?ForgeClientRuntime.accountError():account.notice(),Math.max(10,width-32)),width/2,44,0xaaaaaa);
-        var view = selected(); graphics.drawCenteredString(font, view == null ? "No companion selected" : view.name(), width / 2, 66, 0xffffff);
+        var account=ForgeClientRuntime.accounts();
+        var today=account==null?null:account.todayUsage();
+        graphics.drawString(font,font.plainSubstrByWidth(today==null?"Usage unavailable":today.tokensLabel(),Math.max(10,width-32)),16,44,0xdddddd);
+        graphics.drawString(font,font.plainSubstrByWidth(today==null?ForgeClientRuntime.accountError():today.costLabel(),Math.max(10,width-32)),16,56,0xb5e8b5);
+        graphics.drawString(font,"Codex left: unavailable",16,70,0xaaaaaa);
+        var view = selected(); graphics.drawCenteredString(font, view == null ? "No companion selected" : view.name(), width / 2, 94, 0xffffff);
         List<String> lines = new ArrayList<>();
         lines.add(runtime() == null ? "Join a Paracraft world to manage companions." : runtime().status());
+        if(account!=null)lines.add(account.notice());
         if (view != null) {
             lines.add("Status: " + view.status()); JsonObject frame = view.snapshot();
             if (frame.has("health")) lines.add("Health " + frame.get("health") + " · Food " + frame.get("food") + " · Oxygen " + frame.get("oxygen"));
@@ -95,8 +108,8 @@ public final class CompanionScreen extends Screen {
             }
         } else lines.add("Spawn a companion below, then try: Josh, collect the diamonds nearby and give them to me.");
         var wrappedLines = lines.stream().flatMap(line -> font.split(Component.literal(line), Math.max(100, width - 40)).stream()).toList();
-        scroll = Math.min(scroll, Math.max(0, wrappedLines.size() * 11 - Math.max(1, height - 166)));
-        graphics.enableScissor(16, 86, width - 16, Math.max(87, height - 80)); int y = 88 - scroll;
+        scroll = Math.min(scroll, Math.max(0, wrappedLines.size() * 11 - Math.max(1, height - 194)));
+        graphics.enableScissor(16, 114, width - 16, Math.max(115, height - 80)); int y = 116 - scroll;
         for (var wrapped : wrappedLines) {
             graphics.drawString(font, wrapped, 20, y, 0xdddddd); y += 11;
         }
@@ -104,7 +117,7 @@ public final class CompanionScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
     }
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (mouseY < 86 || mouseY >= height - 80) return super.mouseScrolled(mouseX, mouseY, delta);
+        if (mouseY < 114 || mouseY >= height - 80) return super.mouseScrolled(mouseX, mouseY, delta);
         scroll = Math.max(0, scroll - (int)(delta * 22)); return true;
     }
     @Override public boolean isPauseScreen() { return false; }

@@ -29,17 +29,33 @@ public final class ChatGptClient implements AutoCloseable {
     private volatile List<Account> accounts=List.of();private volatile List<Model> models=List.of();private volatile String selected="",mode="simulation",notice="Not signed in";
     private volatile Login login;private volatile CompletableFuture<Void> lastLogin;private volatile boolean closed,requestsStopped;private JsonObject discovery;private final Object metadataLock=new Object();
     private volatile String usage="No recorded live usage";
+    private record UsageSnapshot(String account,JsonObject value) { }
+    private volatile UsageSnapshot usageSnapshot=new UsageSnapshot("",new JsonObject());
+    private CompletableFuture<Void> usageRefresh;
+    private final java.time.Clock usageClock;
     public ChatGptClient(Path directory)throws Exception{this(directory,Endpoints.production());}
-    ChatGptClient(Path directory,Endpoints endpoints)throws Exception{store=new AccountStore(directory);this.endpoints=endpoints;reload();notice=selected()!=null && selected().signedIn()?"Saved session loaded; refreshes when needed":"Continue with ChatGPT to enable live inference";}
+    ChatGptClient(Path directory,Endpoints endpoints)throws Exception{this(directory,endpoints,java.time.Clock.systemDefaultZone());}
+    ChatGptClient(Path directory,Endpoints endpoints,java.time.Clock usageClock)throws Exception{store=new AccountStore(directory);this.endpoints=endpoints;this.usageClock=usageClock;reload();notice=selected()!=null && selected().signedIn()?"Saved session loaded; refreshes when needed":"Continue with ChatGPT to enable live inference";}
     public static Path defaultDirectory(){String override=System.getProperty("paracraft.auth.directory");return override==null?Path.of(System.getProperty("user.home"),".paracraft","chatgpt"):Path.of(override);}
     private void reload()throws Exception{
-        store.transact(state->{var list=new ArrayList<Account>();for(var entry:state.getAsJsonObject("accounts").entrySet()){var a=entry.getValue().getAsJsonObject();list.add(new Account(entry.getKey(),OpenAiHttp.string(a,"email",""),a.get("client_id").getAsString(),a.has("access_token"),planEnabled(a)));}accounts=List.copyOf(list);selected=OpenAiHttp.string(state,"selected","");mode=OpenAiHttp.string(state,"mode","simulation");var current=state.getAsJsonObject("accounts").getAsJsonObject(selected);usage=current!=null && current.has("usage")?usageLabel(current.getAsJsonObject("usage")):"No recorded live usage";return null;});
+        store.transact(state->{var list=new ArrayList<Account>();for(var entry:state.getAsJsonObject("accounts").entrySet()){var a=entry.getValue().getAsJsonObject();list.add(new Account(entry.getKey(),OpenAiHttp.string(a,"email",""),a.get("client_id").getAsString(),a.has("access_token"),planEnabled(a)));}accounts=List.copyOf(list);selected=OpenAiHttp.string(state,"selected","");mode=OpenAiHttp.string(state,"mode","simulation");var current=state.getAsJsonObject("accounts").getAsJsonObject(selected);cacheUsage(selected,current);return null;});
     }
     public List<Account> accounts(){return accounts;}public List<Model> models(){return models;}public Account selected(){return accounts.stream().filter(a->a.id.equals(selected)).findFirst().orElse(null);}
     public String mode(){return requestsStopped?"simulation":mode;}public String notice(){return notice;}public long revision(){return revision.get();}public boolean signingIn(){return login!=null;}
     public String label(){var a=selected();return mode().equals("chatgpt")?a==null || !a.signedIn()?"ChatGPT · sign-in required":!a.planEnabled()?"ChatGPT · plan permission required":"ChatGPT · "+a.label():"SIMULATED · no AI usage";}
     public Path directory(){return store.directory;}
     public String usage(){return usage;}
+    /** Pure cached reads for rendering; midnight rollover needs no file or network operation. */
+    public UsageLedger.Today todayUsage(){var snapshot=usageSnapshot;return UsageLedger.today(snapshot.account.equals(selected)?snapshot.value:new JsonObject(),usageClock.instant(),usageClock.getZone());}
+    public synchronized CompletableFuture<Void> refreshUsage(){
+        if(usageRefresh!=null && !usageRefresh.isDone())return usageRefresh;
+        String id=selected;usageRefresh=async(()->{store.transact(state->{if(id.equals(selected))cacheUsage(id,state.getAsJsonObject("accounts").getAsJsonObject(id));return null;});return null;});return usageRefresh;
+    }
+    private void cacheUsage(String id,JsonObject account){
+        JsonObject value=account==null?new JsonObject():account.has("usage")?account.getAsJsonObject("usage"):new JsonObject();
+        if(account!=null){UsageLedger.initialize(value,usageClock.instant(),usageClock.getZone());account.add("usage",value);}
+        usageSnapshot=new UsageSnapshot(id,value.deepCopy());usage=usageLabel(value);
+    }
     public CompletableFuture<String> publicMetadata(){return async(()->{var value=discovery();return "Issuer: "+value.get("issuer").getAsString()+"\nSigning keys: "+value.get("jwks_uri").getAsString()+"\nID-token algorithms: "+value.get("id_token_signing_alg_values_supported");});}
     public CompletableFuture<Void> reloadSaved(){return async(()->{reload();requestsStopped=false;models=List.of();revision.incrementAndGet();notice="Reloaded local session";return null;});}
     public CompletableFuture<Void> select(String id){cancelLogin();return async(()->{store.transact(state->{if(!state.getAsJsonObject("accounts").has(id))throw new IllegalArgumentException("No saved account selected");state.addProperty("selected",id);state.addProperty("mode","chatgpt");return null;});models=List.of();reload();requestsStopped=false;revision.incrementAndGet();notice="Account selected";return null;});}
@@ -130,11 +146,10 @@ public final class ChatGptClient implements AutoCloseable {
         var list=new ArrayList<Model>();if(!catalog.has("models"))throw new IOException("Model catalog did not contain the documented models array");for(var item:catalog.getAsJsonArray("models")){var model=item.getAsJsonObject();if(!"list".equals(OpenAiHttp.string(model,"visibility","")))continue;String slug=OpenAiHttp.string(model,"slug","");if(!slug.isBlank())list.add(new Model(slug,OpenAiHttp.string(model,"display_name",slug),model.has("supported_reasoning_levels")?model.get("supported_reasoning_levels").toString():""));}models=List.copyOf(list);notice="Loaded "+list.size()+" account models";return models;});}
     public CompletableFuture<Void> signOut(){cancelLogin();requestsStopped=true;mode="simulation";revision.incrementAndGet();return async(()->{String id=selected;boolean[] confirmed={true};store.transact(state->{var account=state.getAsJsonObject("accounts").getAsJsonObject(id);if(account!=null){if(account.has("refresh_token"))try{http.post(URI.create(discovery().get("revocation_endpoint").getAsString()),Map.of("token",account.get("refresh_token").getAsString(),"token_type_hint","refresh_token","client_id",account.get("client_id").getAsString()));}catch(Exception failure){confirmed[0]=false;}clearTokens(account);}state.addProperty("mode","simulation");return null;});reload();models=List.of();notice=confirmed[0]?"Signed out":"Signed out locally; remote revocation was not confirmed. Disconnect Paracraft in ChatGPT settings if needed.";return null;});}
     void recordUsage(String id,String model,JsonObject reported,String outcome,String requestId)throws Exception{
-        String summary=store.transact(state->{var account=state.getAsJsonObject("accounts").getAsJsonObject(id);if(account==null)return "No recorded live usage";var value=account.has("usage")?account.getAsJsonObject("usage"):new JsonObject();
-            add(value,"requests",1);if(outcome.equals("completed"))add(value,"completed",1);if(reported!=null){for(String field:List.of("input_tokens","output_tokens","total_tokens"))if(reported.has(field))add(value,field,reported.get(field).getAsLong());if(reported.has("input_tokens_details")){var details=reported.getAsJsonObject("input_tokens_details");if(details.has("cached_tokens"))add(value,"cached_input_tokens",details.get("cached_tokens").getAsLong());}}
-            value.addProperty("last_model",model);value.addProperty("last_outcome",outcome);value.addProperty("last_at",Instant.now().toString());value.addProperty("last_request_id",requestId);account.add("usage",value);return usageLabel(value);});if(id.equals(selected))usage=summary;
+        store.transact(state->{var account=state.getAsJsonObject("accounts").getAsJsonObject(id);if(account==null)return null;var value=account.has("usage")?account.getAsJsonObject("usage"):new JsonObject();
+            UsageLedger.record(value,reported,outcome,usageClock.instant(),usageClock.getZone());
+            value.addProperty("last_model",model);value.addProperty("last_outcome",outcome);value.addProperty("last_at",usageClock.instant().toString());value.addProperty("last_request_id",requestId);account.add("usage",value);if(id.equals(selected))cacheUsage(id,account);return null;});
     }
-    private static void add(JsonObject value,String field,long amount){value.addProperty(field,(value.has(field)?value.get(field).getAsLong():0)+amount);}
     private static String usageLabel(JsonObject value){return (value.has("completed")?value.get("completed").getAsLong():0)+" completed calls · "+(value.has("total_tokens")?value.get("total_tokens").getAsLong():0)+" reported tokens (local log)";}
     private static void clearTokens(JsonObject account){for(String field:List.of("access_token","refresh_token","id_token","expires_at","scopes"))account.remove(field);}
     <T>CompletableFuture<T> async(Callable<T> action){return CompletableFuture.supplyAsync(()->{try{if(closed)throw new CancellationException("ChatGPT client is closed");return action.call();}catch(Exception failure){notice=message(failure);throw new CompletionException(failure);}},io);}
