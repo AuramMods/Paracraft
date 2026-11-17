@@ -24,6 +24,9 @@ public final class AgentState {
     public String lightModel = "gpt-6-luna", lightEffort = "none", planningModel = "gpt-6-luna", planningEffort = "xhigh";
     long wakeAtMillis;
     String wakeEvent = "";
+    String workingNote="",executingProgram="",waitProgramState="";
+    JsonObject workRequest;
+    int noProgress;
 
     public JsonArray tasks() {
         var sorted = tasks.entrySet().stream().map(e -> e.getValue().getAsJsonObject())
@@ -34,10 +37,12 @@ public final class AgentState {
         return tasks.entrySet().stream().anyMatch(e -> !Set.of("COMPLETED", "FAILED").contains(e.getValue().getAsJsonObject().get("status").getAsString()));
     }
     public boolean paused() { return paused; }
+    public String progressNote(){return workingNote;}
     public void mutate(String tool, JsonObject args) {
         switch (tool) {
             case "task_upsert" -> {
                 String id = required(args, "id"); JsonObject task = tasks.has(id) ? tasks.getAsJsonObject(id).deepCopy() : new JsonObject();
+                if(!task.has("request") && workRequest!=null)task.add("request",workRequest.deepCopy());
                 if (!task.has("goal")) task.addProperty("goal", required(args, "goal"));
                 if (!task.has("priority")) task.addProperty("priority", tasks.size());
                 if (!task.has("status")) task.addProperty("status", "QUEUED");
@@ -58,6 +63,7 @@ public final class AgentState {
     /** Damage/pickup notifications coalesce; the latest full physical snapshot stays authoritative. */
     void enqueue(JsonObject event) {
         String type = required(event, "type");
+        if(type.equals("chat")){int at=0;while(at<inbox.size() && required(inbox.get(at),"type").equals("chat"))at++;inbox.add(at,event.deepCopy());return;}
         if (Set.of("damage", "pickup").contains(type)) {
             for (int i = inbox.size() - 1; i >= 0; i--) {
                 JsonObject older = inbox.get(i);
@@ -73,7 +79,13 @@ public final class AgentState {
         inbox.add(event.deepCopy());
     }
     public void history(String kind, String text) {
-        JsonObject entry = new JsonObject(); entry.addProperty("kind", kind); entry.addProperty("text", text); history.add(entry);
+        JsonObject entry = new JsonObject(); entry.addProperty("kind", kind); entry.addProperty("text", text.length()>12000?text.substring(0,12000)+" [history text truncated]":text);append(entry);
+    }
+    public void history(String kind,JsonObject data){
+        var entry=new JsonObject();entry.addProperty("kind",kind);entry.add("data",HistorySummary.of(data));append(entry);
+    }
+    private void append(JsonObject entry){
+        history.add(entry);
         while (history.size() > 128 || history.toString().length() > 65_536) {
             String removed = history.remove(0).getAsJsonObject().get("kind").getAsString();
             historyCounts.addProperty(removed, historyCounts.has(removed) ? historyCounts.get(removed).getAsLong() + 1 : 1);
@@ -81,6 +93,7 @@ public final class AgentState {
     }
     public JsonObject context() {
         JsonObject value = new JsonObject(); value.add("tasks", tasks()); value.add("memory", memory.deepCopy());
+        value.addProperty("workingNote",workingNote);if(workRequest!=null)value.add("workRequest",workRequest.deepCopy());value.addProperty("consecutiveNoProgress",noProgress);value.addProperty("executingProgram",executingProgram);
         value.addProperty("personality", personality); value.add("history", history.deepCopy());
         value.add("compactedHistoryCounts", historyCounts.deepCopy()); return value;
     }
@@ -89,6 +102,8 @@ public final class AgentState {
         value.addProperty("lastInferenceMillis", lastInferenceMillis); value.addProperty("wakeAtMillis", wakeAtMillis); value.addProperty("wakeEvent", wakeEvent);
         value.addProperty("paused", paused); value.addProperty("lastError", lastError);
         value.addProperty("lifeRevision", lifeRevision);
+        value.addProperty("executingProgram",executingProgram);
+        value.addProperty("waitProgramState",waitProgramState);
         value.addProperty("lightModel", lightModel); value.addProperty("lightEffort", lightEffort);
         value.addProperty("planningModel", planningModel); value.addProperty("planningEffort", planningEffort);
         if (turn != null) value.add("turn", turn.deepCopy());
@@ -100,6 +115,9 @@ public final class AgentState {
         for (var task : value.getAsJsonArray("tasks")) state.mutate("task_upsert", task.getAsJsonObject());
         state.memory = value.getAsJsonObject("memory").deepCopy(); state.personality = required(value, "personality");
         state.history = value.getAsJsonArray("history").deepCopy(); state.historyCounts = value.getAsJsonObject("compactedHistoryCounts").deepCopy();
+        state.workingNote=value.has("workingNote")?value.get("workingNote").getAsString():"";state.noProgress=value.has("consecutiveNoProgress")?value.get("consecutiveNoProgress").getAsInt():0;
+        state.workRequest=value.has("workRequest")?value.getAsJsonObject("workRequest").deepCopy():null;state.executingProgram=value.has("executingProgram")?value.get("executingProgram").getAsString():"";
+        state.waitProgramState=value.has("waitProgramState")?value.get("waitProgramState").getAsString():"";
         state.eventCursor = value.get("eventCursor").getAsLong(); state.cycleCounter = value.get("cycleCounter").getAsLong();
         state.lastInferenceMillis = value.get("lastInferenceMillis").getAsLong();
         state.lifeRevision = value.has("lifeRevision") ? value.get("lifeRevision").getAsLong() : -1;

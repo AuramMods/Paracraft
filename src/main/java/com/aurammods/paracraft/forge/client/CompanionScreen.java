@@ -100,6 +100,7 @@ public final class CompanionScreen extends Screen {
             lines.add("Decisions: " + view.decisions() + " · Planning: " + view.planningDecisions());
             if (view.freshMemory()) lines.add("Fresh local memory. Saved server operations are preserved.");
             if (view.memory() != null) {
+                if(!view.memory().progressNote().isBlank())lines.add("Next step: "+view.memory().progressNote());
                 lines.add("Personality: " + view.memory().personality);
                 for (var task : view.memory().tasks()) {
                     JsonObject value = task.getAsJsonObject(); lines.add(value.get("status").getAsString() + " · " + value.get("goal").getAsString());

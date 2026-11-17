@@ -77,7 +77,8 @@ public final class HarnessLoop implements AutoCloseable {
         boolean changed = false;
         for (JsonObject event : incoming) {
             long id = event.get("id").getAsLong(); if (id <= state.eventCursor) continue;
-            if (!event.has("wake") || event.get("wake").getAsBoolean()) state.enqueue(event);
+            boolean wakes=event.has("wake")?event.get("wake").getAsBoolean():!Set.of("spawn","spawn_point","response").contains(event.get("type").getAsString());
+            if (wakes) state.enqueue(event);
             state.eventCursor = id; state.history("event", event.toString()); changed = true;
         }
         if (changed) save.run();
@@ -89,19 +90,20 @@ public final class HarnessLoop implements AutoCloseable {
             if (effect != null) {
                 if (!effect.isDone()) return;
                 JsonObject reply = effect.join(); effect = null;
+                var acknowledged=pendingCall();var outcome=identity();outcome.addProperty("tool",acknowledged.tool());outcome.add("arguments",acknowledged.arguments());outcome.add("reply",reply.deepCopy());state.history("tool_result",outcome);
                 if (!reply.get("ok").getAsBoolean()) {
                     String code=reply.has("code")?reply.get("code").getAsString():"";
                     if(!Set.of("TOOL_FAILED","OBSERVATION_FAILED").contains(code))throw new IllegalStateException(reply.get("error").getAsString());
                     var failed=pendingCall();var details=new JsonObject();details.addProperty("tool",failed.tool());details.add("arguments",failed.arguments());details.add("reply",reply.deepCopy());
                     var observations=state.turn.getAsJsonObject("observations");var failures=observations.has("tool_failures")?observations.getAsJsonArray("tool_failures"):new JsonArray();failures.add(details);observations.add("tool_failures",failures);
-                    state.history("tool_error",details.toString());continuePlanning();save.run();
+                    state.history("tool_error",details);continuePlanning();save.run();
                 } else {
                 String tool = pendingCall().tool();
                 if (tool.equals("observe")) {
                     state.turn.getAsJsonObject("observations").add("inventory", reply.getAsJsonObject("value").deepCopy());
                     continuePlanning();
                 } else {
-                    if (Set.of("program", "resume_program").contains(tool) && reply.has("value")) mergeProgram(reply.getAsJsonObject("value"));
+                    if (Set.of("program", "resume_program").contains(tool) && reply.has("value")) {mergeProgram(reply.getAsJsonObject("value"));state.executingProgram=reply.getAsJsonObject("value").has("id")?reply.getAsJsonObject("value").get("id").getAsString():"";}
                     advanceCall();
                 }
                 save.run();
@@ -117,7 +119,18 @@ public final class HarnessLoop implements AutoCloseable {
                     JsonObject encoded = new JsonObject(); encoded.addProperty("tool", call.tool()); encoded.add("arguments", call.arguments()); calls.add(encoded);
                 }
                 state.turn.add("calls", calls); state.turn.addProperty("cursor", 0);
-                state.history("decision", route() + " " + decision.calls().stream().map(InferenceProvider.Call::tool).toList()); save.run();
+                var remembered=identity();remembered.addProperty("route",route().name());remembered.add("trigger",trigger().deepCopy());remembered.addProperty("note",decision.note());remembered.add("calls",calls.deepCopy());state.history("decision",remembered);
+                if(route()==InferenceProvider.Route.PLANNING && !decision.note().isBlank())state.workingNote=decision.note();
+                if(decision.calls().isEmpty() && route()==InferenceProvider.Route.PLANNING && (trigger().get("type").getAsString().equals("chat") || state.hasWork() && !mechanicalWorkRunning())){
+                    if(trigger().get("type").getAsString().equals("chat")){
+                        var source=trigger();boolean recorded=java.util.stream.StreamSupport.stream(state.tasks().spliterator(),false).map(t->t.getAsJsonObject()).anyMatch(t->t.has("request") && t.getAsJsonObject("request").get("id").equals(source.get("id")));
+                        if(!recorded){state.workRequest=source.deepCopy();var unfinished=new JsonObject();unfinished.addProperty("id","unresolved-request:"+source.get("id").getAsLong());unfinished.addProperty("goal",source.has("message")?source.get("message").getAsString():"Resolve the pending player request");unfinished.addProperty("status","QUEUED");unfinished.addProperty("priority",-1);state.mutate("task_upsert",unfinished);}
+                    }
+                    boolean corrective=!state.turn.getAsJsonObject("observations").has("decision_feedback") && state.inbox.stream().noneMatch(e->e.get("type").getAsString().equals("chat"));
+                    state.noProgress++;var feedback=new JsonObject();feedback.addProperty("emptyDecisions",state.noProgress);feedback.addProperty("instruction","The previous decision made no calls and the request remains unresolved. Choose the next concrete action, reconcile a terminal task, ask a specific question, or explicitly wait for missing information. Do not silently discard the request.");state.turn.getAsJsonObject("observations").add("decision_feedback",feedback);continuePlanning();
+                    if(!corrective){state.turn.add("calls",new JsonArray());state.turn.addProperty("cursor",0);}
+                }else if(!decision.calls().isEmpty())state.noProgress=0;
+                save.run();
             }
             while (state.turn != null && state.turn.has("calls")) {
                 if (state.turn.get("cursor").getAsInt() >= state.turn.getAsJsonArray("calls").size()) {
@@ -125,10 +138,11 @@ public final class HarnessLoop implements AutoCloseable {
                 }
                 var call = pendingCall();
                 switch (call.tool()) {
-                    case "think_harder" -> continuePlanning();
-                    case "task_upsert", "task_remove", "remember", "forget", "personality" -> { state.mutate(call.tool(), call.arguments()); advanceCall(); }
+                    case "think_harder" -> {if(trigger().get("type").getAsString().equals("chat"))state.workRequest=trigger().deepCopy();continuePlanning();}
+                    case "task_upsert", "task_remove", "remember", "forget", "personality" -> {state.mutate(call.tool(), call.arguments());var applied=identity();applied.addProperty("tool",call.tool());applied.add("arguments",call.arguments());applied.addProperty("applied",true);state.history("local_result",applied);advanceCall();}
                     case "wait" -> {
                         JsonObject args = call.arguments(); state.wakeEvent = args.has("event") ? AgentState.required(args, "event") : "any";
+                        state.waitProgramState=state.wakeEvent.equals("program")?programWaitSignature():"";
                         long seconds = args.has("seconds") ? args.get("seconds").getAsBigDecimal().longValueExact() : -1;
                         if (args.has("seconds") && seconds < 0) throw new IllegalArgumentException("Wait duration must be nonnegative");
                         state.wakeAtMillis = seconds == -1 ? Long.MAX_VALUE : Math.addExact(clock.epochMillis(), Math.multiplyExact(seconds, 1000));
@@ -145,21 +159,25 @@ public final class HarnessLoop implements AutoCloseable {
             if (state.turn == null) {
                 if (!state.wakeEvent.isEmpty()) {
                     boolean timer = state.wakeAtMillis != Long.MAX_VALUE && state.wakeAtMillis <= clock.epochMillis();
-                    boolean wake = timer || state.inbox.stream().anyMatch(e ->
+                    boolean stopped=state.wakeEvent.equals("program") && !state.executingProgram.isEmpty() && !mechanicalWorkRunning() && !programWaitSignature().equals(state.waitProgramState);
+                    boolean wake = stopped || timer || state.inbox.stream().anyMatch(e ->
                             Set.of("chat", "damage", "pickup").contains(e.get("type").getAsString())
                                     || state.wakeEvent.equals("any") || state.wakeEvent.equals(e.get("type").getAsString()));
                     if (!wake) return;
-                    state.wakeEvent = ""; state.wakeAtMillis = 0;
-                    if (timer && state.inbox.isEmpty()) {
-                        JsonObject event = new JsonObject(); event.addProperty("id", 0); event.addProperty("type", "timer"); state.enqueue(event);
+                    state.wakeEvent = ""; state.wakeAtMillis = 0;state.waitProgramState="";
+                    if ((timer || stopped) && state.inbox.isEmpty()) {
+                        JsonObject event = new JsonObject(); event.addProperty("id", 0); event.addProperty("type", stopped?"program_state":"timer"); state.enqueue(event);
                     }
                 }
                 if (state.inbox.isEmpty() && !state.hasWork()) return;
+                // The acknowledged server job keeps progressing without another model decision.
+                // New chat/events still wake immediately, and changed/terminal snapshots fall through.
+                if(state.inbox.isEmpty() && mechanicalWorkRunning())return;
                 JsonObject event;
-                if (!state.inbox.isEmpty()) event = state.inbox.remove(0);
+                if (!state.inbox.isEmpty()) event = nextEvent();
                 else { event = new JsonObject(); event.addProperty("id", 0); event.addProperty("type", "tasks"); }
                 state.turn = new JsonObject(); state.turn.addProperty("id", UUID.randomUUID().toString());
-                state.turn.add("trigger", event); state.turn.addProperty("route", InferenceProvider.Route.LIGHT.name());
+                state.turn.add("trigger", event);state.turn.addProperty("route",Set.of("tasks","program","program_state","timer").contains(event.get("type").getAsString())?InferenceProvider.Route.PLANNING.name():InferenceProvider.Route.LIGHT.name());
                 state.turn.addProperty("round", 0); state.turn.add("observations", new JsonObject()); state.cycleCounter++;
             }
             JsonObject frame = latest.deepCopy(); frame.add("agent", state.context());
@@ -169,10 +187,11 @@ public final class HarnessLoop implements AutoCloseable {
             nextStart = clock.nanoTime() + INTERVAL_NANOS; state.lastInferenceMillis = clock.epochMillis();
             save.run(); // Preserve the request before inference can begin.
             calls++; if (route == InferenceProvider.Route.PLANNING) planningCalls++;
-            long generation = outputGeneration; String turn = state.turn.get("id").getAsString();
+            long generation = outputGeneration; String turn = state.turn.get("id").getAsString();String triggerType=trigger().get("type").getAsString();long triggerId=trigger().get("id").getAsLong();
             inference = provider.infer(new InferenceProvider.Request(route, model, frame, trigger(), state.turn.getAsJsonObject("observations"), output -> {
                 if (generation != outputGeneration) return;
                 var trace = new JsonObject(); trace.addProperty("turn", turn); trace.addProperty("route", route.name());
+                trace.addProperty("triggerType",triggerType);trace.addProperty("triggerEvent",triggerId);
                 trace.addProperty("model", model.model()); trace.addProperty("effort", model.effort()); trace.add("output", output.deepCopy());
                 outputs.add(new Output(generation, trace));
             }));
@@ -183,6 +202,23 @@ public final class HarnessLoop implements AutoCloseable {
         }
     }
     private InferenceProvider.Route route() { return InferenceProvider.Route.valueOf(state.turn.get("route").getAsString()); }
+    private JsonObject nextEvent(){
+        var first=state.inbox.remove(0);if(first.get("type").getAsString().equals("chat"))return first;
+        var batch=new ArrayList<JsonObject>();batch.add(first);while(!state.inbox.isEmpty() && !state.inbox.get(0).get("type").getAsString().equals("chat"))batch.add(state.inbox.remove(0));
+        var primary=batch.stream().filter(e->e.get("type").getAsString().equals("program")).findFirst().orElse(first).deepCopy();
+        if(batch.size()>1){var others=new JsonArray();for(var event:batch)if(!event.get("id").equals(primary.get("id")))others.add(HistorySummary.of(event));primary.add("coalescedEvents",others);}return primary;
+    }
+    private JsonObject identity(){var value=new JsonObject();value.addProperty("turn",state.turn.get("id").getAsString());value.addProperty("round",state.turn.get("round").getAsInt());value.addProperty("atMillis",clock.epochMillis());if(state.turn.has("cursor"))value.add("cursor",state.turn.get("cursor").deepCopy());return value;}
+    private String programWaitSignature(){
+        if(latest!=null && latest.has("programs"))for(var item:latest.getAsJsonArray("programs")){var job=item.getAsJsonObject();if(job.has("id") && job.get("id").getAsString().equals(state.executingProgram))return job.get("state").getAsString()+"|"+mechanicalWorkRunning();}return "missing";
+    }
+    private boolean mechanicalWorkRunning(){
+        if(state.executingProgram.isEmpty() || latest==null || !latest.has("programs"))return false;
+        for(var item:latest.getAsJsonArray("programs")){var job=item.getAsJsonObject();if(job.has("id") && job.get("id").getAsString().equals(state.executingProgram)){
+            String status=job.get("state").getAsString();if(status.equals("RUNNING"))return true;
+            if(status.equals("QUEUED"))return java.util.stream.StreamSupport.stream(latest.getAsJsonArray("programs").spliterator(),false).anyMatch(p->p.getAsJsonObject().get("state").getAsString().equals("RUNNING"));
+        }}return false;
+    }
     private JsonObject trigger() { return state.turn.getAsJsonObject("trigger"); }
     private InferenceProvider.Call pendingCall() {
         JsonObject call = state.turn.getAsJsonArray("calls").get(state.turn.get("cursor").getAsInt()).getAsJsonObject();
@@ -214,7 +250,7 @@ public final class HarnessLoop implements AutoCloseable {
     }
     public String status() {
         return !lastError.isEmpty() ? "Paused: " + lastError : paused ? "Paused" : !active ? "Disconnected / server paused"
-                : inference != null ? "Thinking: " + route() : !state.wakeEvent.isEmpty() ? "Waiting: " + state.wakeEvent
+                : inference != null ? "Thinking: " + route() : !state.wakeEvent.isEmpty() ? !state.hasWork() && !mechanicalWorkRunning() && state.wakeAtMillis==Long.MAX_VALUE && Set.of("any","chat").contains(state.wakeEvent)?"Idle":"Waiting: " + state.wakeEvent
                 : state.turn != null || !state.inbox.isEmpty() || state.hasWork() ? "Working" : "Idle";
     }
     public long calls() { return calls; }

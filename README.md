@@ -6,6 +6,8 @@ The Forge foundation includes a labeled simulator and client-side ChatGPT sign-i
 
 You can also use an **[OpenRouter API key and exact model IDs](docs/OPENROUTER.md)** through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. Configure Light and Planning models/efforts locally; the K menu shows OpenRouter-reported tokens and cost for this provider.
 
+[Agent continuity](docs/CONTINUITY.md) carries a short next-step note, original requests and recent decisions/results into each fresh snapshot. K shows the note. Running server work avoids repeated model polling, and known task continuations go directly to Planning.
+
 Start with [installation/configuration](docs/INSTALL.md), [foundation validation evidence](docs/VALIDATION.md), and [background QA controls](docs/BACKGROUND.md).
 
 See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action programs](docs/PROGRAMS.md), [gameplay actions](docs/GAMEPLAY.md), [survival and respawn](docs/SURVIVAL.md), [server behavior](docs/BEHAVIOR.md), [native commands](docs/COMMANDS.md), [decision harness](docs/HARNESS.md), [client runtime](docs/NETWORK.md), and [QA instructions](docs/QA.md).

@@ -8,6 +8,8 @@ This describes the Minecraft-independent harness core in `core/agent` and its au
 
 The configurable defaults are `gpt-6-luna / none` and `gpt-6-luna / xhigh`. The simulator never calls an external model service. The optional [ChatGPT provider](AUTH.md) sends configured routes unchanged to the public Responses API after client-side sign-in; actual account models and request errors determine availability. No model is silently substituted.
 
+[Continuity](CONTINUITY.md) preserves a short Planning handoff note, each new task's original request and structured decision/tool-result history. Both live providers replay recent assistant decisions and actual results before the current snapshot, keeping world data separate from system instructions. K exposes the current note as Next step. Empty actionable Planning responses retain unresolved work and receive corrective context.
+
 The [OpenRouter provider](OPENROUTER.md) uses separately configured client-wide exact model IDs for each route, with an API key held only in local account storage. `InferenceProvider.model` resolves its route before building a request or output trace; saved per-avatar ChatGPT routes remain intact. Both providers decode the same strict typed decision schema and share the harness's scheduling, task memory, action validation and cancellation behavior.
 
 | Route | Available tools |
@@ -20,6 +22,8 @@ A continuation (`think_harder` or `observe`) must be the sole tool call in a rep
 ## Scheduling and recovery
 
 `HarnessLoop` receives the latest snapshot through `accept` and advances through `tick`. It keeps one inference/effect pipeline per avatar. Every inference start, including escalation and observation continuations, observes the five-second minimum. A slow response holds that pipeline; snapshots arriving meanwhile replace physical state instead of queueing inference requests.
+
+Fresh chat starts on Light; known task/program/timer continuations start on Planning. Acknowledged running/advancing queued programs suppress routine model polling while native work proceeds. New events/status changes still wake the loop. Chat takes priority over coalesced background notifications; spawn/self-response events are history-only. Explicit program waits compare actual state changes without repeatedly waking on an unchanged pause. See [CONTINUITY.md](CONTINUITY.md).
 
 Snapshots are bound to persistent world, owner, and avatar UUIDs. Session changes or a server pause cancel pending futures. Results from an old future cannot be applied, including when a provider ignores cancellation. The turn remains saved for resumption under a valid lease.
 

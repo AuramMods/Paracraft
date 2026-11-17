@@ -41,7 +41,7 @@ final class DecisionSchema {
             };
             variants.add(object("tool", values(tool), "arguments", args));
         }
-        var root = object("calls", array(any(variants)));
+        var note=type("string");note.addProperty("maxLength",2048);var root = object("note",optional(note),"calls", array(any(variants)));
         if (route == InferenceProvider.Route.PLANNING) { var defs = new JsonObject(); defs.add("step", steps()); root.add("$defs", defs); }
         return root;
     }
@@ -115,6 +115,7 @@ final class DecisionSchema {
     private static JsonObject any(JsonArray choices) { var schema = new JsonObject(); schema.add("anyOf", choices); return schema; }
 
     static InferenceProvider.Decision decode(JsonObject batch, InferenceProvider.Route route) throws IOException {
+        batch=batch.deepCopy();if(!batch.has("note"))batch.add("note",JsonNull.INSTANCE); // Existing saved/fixture batches predate progress notes.
         var schema = schema(route);
         if (!matches(batch, schema, schema)) throw new IOException("Model decision did not match the typed companion tool schema");
         var calls = new ArrayList<InferenceProvider.Call>();
@@ -132,7 +133,7 @@ final class DecisionSchema {
             }
             calls.add(new InferenceProvider.Call(tool, args));
         }
-        var decision = new InferenceProvider.Decision(calls); ToolPolicy.validate(route, decision); return decision;
+        var decision = new InferenceProvider.Decision(calls,batch.get("note").isJsonNull()?"":batch.get("note").getAsString()); ToolPolicy.validate(route, decision); return decision;
     }
     private static JsonElement clean(JsonElement value) {
         if (value.isJsonObject()) { var result = new JsonObject(); value.getAsJsonObject().entrySet().stream().filter(e -> !e.getValue().isJsonNull()).forEach(e -> result.add(e.getKey(), clean(e.getValue()))); return result; }
@@ -162,6 +163,7 @@ final class DecisionSchema {
         if (type.equals("boolean")) return primitive.isBoolean();
         if (type.equals("string")) {
             if (!primitive.isString()) return false; String text = primitive.getAsString();
+            if(rule.has("maxLength") && text.length()>rule.get("maxLength").getAsInt())return false;
             if (rule.has("pattern") && !java.util.regex.Pattern.compile(rule.get("pattern").getAsString()).matcher(text).find()) return false;
             if (rule.has("format")) try { if (!java.util.UUID.fromString(text).toString().equalsIgnoreCase(text)) return false; } catch (IllegalArgumentException invalid) { return false; }
             return true;

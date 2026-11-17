@@ -18,7 +18,10 @@ public interface InferenceProvider {
         }
         @Override public JsonObject arguments() { return arguments.deepCopy(); }
     }
-    record Decision(List<Call> calls) { public Decision { calls = List.copyOf(calls); } }
+    record Decision(List<Call> calls,String note) {
+        public Decision(List<Call> calls){this(calls,"");}
+        public Decision { calls = List.copyOf(calls);note=note==null?"":note;if(note.length()>2048)throw new IllegalArgumentException("Decision note must be concise (at most 2048 characters)"); }
+    }
     /** Every invocation is independent. Providers receive explicit context, never an implicit conversation. */
     record Request(Route route, ModelRoute model, JsonObject snapshot, JsonObject trigger, JsonObject observations, java.util.function.Consumer<JsonObject> onOutput) {
         public Request(Route route, ModelRoute model, JsonObject snapshot, JsonObject trigger, JsonObject observations) { this(route, model, snapshot, trigger, observations, ignored -> {}); }

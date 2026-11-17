@@ -217,7 +217,7 @@ final class SurvivalController implements AutoCloseable {
             initialBed.addProperty("cursor", cursor);
             if (bedJob == null && cursor >= 17 * 17 * 9) {
                 initialBed.addProperty("state", "not_found"); initialBed.addProperty("error", "No available bed in the loaded 17x9x17 initial neighborhood; using normal fallback spawn");
-                avatars.control().event(entry.id, "spawn_point", initialBed);
+                var details=initialBed.deepCopy();details.addProperty("wake",false);avatars.control().event(entry.id, "spawn_point", details);
             }
         }
         if (bedJob == null || bedJob.state().terminal()) return;

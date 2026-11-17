@@ -20,6 +20,8 @@ Requests use OpenRouter's [Chat Completions API](https://openrouter.ai/docs/api/
 
 Reasoning `auto` leaves the model default untouched; explicit efforts use OpenRouter's [unified reasoning parameters](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). Hidden reasoning is excluded from diagnostic output. Requests are independent, non-streaming decisions; there is no implicit conversation retained by Paracraft. Pause, disconnect and provider/settings changes cancel or invalidate pending inference. HTTP and model errors appear through the normal paused-agent error handling, with credential text redacted.
 
+The shared [continuity layer](CONTINUITY.md) explicitly replays recent decisions/results and supplies the saved task request and next-step note with each fresh snapshot. OpenRouter uses the same bounded journal, empty-decision recovery and mechanical-work scheduling as ChatGPT. OpenRouter's local HTTP fixtures cover this message shape; the live gameplay measurements use Luna through the linked ChatGPT plan.
+
 ## Usage
 
 The K menu and **Usage details** show daily input/output tokens for the saved OpenRouter key. Cost comes from the API response's [`usage.cost`](https://openrouter.ai/docs/cookbook/administration/usage-accounting), including a reported zero for free calls. Missing usage/cost stays marked partial; Luna token prices are not applied. **Manage usage** opens OpenRouter Activity, and the pricing link opens OpenRouter models.

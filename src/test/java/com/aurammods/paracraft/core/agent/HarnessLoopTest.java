@@ -139,10 +139,9 @@ class HarnessLoopTest {
             loop.accept(snapshot); loop.accept(snapshot); pump(loop);
             assertEquals(1, provider.requests.size());
             assertEquals(100, provider.requests.get(0).trigger().get("occurrences").getAsInt());
-            clock.advance(5_000); pump(loop); assertEquals(2, provider.requests.size());
-            assertEquals(100, provider.requests.get(1).trigger().get("occurrences").getAsInt());
-            assertEquals(50, provider.requests.get(1).trigger().get("amount").getAsDouble());
-            clock.advance(60_000); loop.accept(snapshot); pump(loop); assertEquals(2, provider.requests.size()); assertEquals("Idle", loop.status());
+            var damage=provider.requests.get(0).trigger().getAsJsonArray("coalescedEvents").get(0).getAsJsonObject();assertEquals(100,damage.get("occurrences").getAsInt());assertEquals(50,damage.get("amount").getAsDouble());
+            clock.advance(5_000);pump(loop);assertEquals(1,provider.requests.size());
+            clock.advance(60_000); loop.accept(snapshot); pump(loop); assertEquals(1, provider.requests.size()); assertEquals("Idle", loop.status());
         }
     }
     @Test void explicitEventWaitSuppressesTaskPollingUntilWakeAndTimerWaitWorksWithoutTasks() {
@@ -152,8 +151,8 @@ class HarnessLoopTest {
                 ? decision("think_harder", new JsonObject()) : decision("wait", json("{\"event\":\"weather\"}")));
         try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, sink, () -> {})) {
             loop.accept(frame()); pump(loop); clock.advance(5_000); pump(loop); assertEquals("Waiting: weather", loop.status());
-            clock.advance(600_000); loop.accept(frame(event(1, "unrelated"))); pump(loop); assertEquals(2, provider.requests.size());
-            loop.accept(frame(event(1, "unrelated"), event(2, "damage"))); pump(loop); assertEquals(3, provider.requests.size());
+            clock.advance(600_000); loop.accept(frame(event(1, "unrelated"))); pump(loop); assertEquals(1, provider.requests.size());
+            loop.accept(frame(event(1, "unrelated"), event(2, "damage"))); pump(loop); assertEquals(2, provider.requests.size());
         }
         Clock timerClock = new Clock(); Provider timer = new Provider(timerClock);
         timer.answer = request -> CompletableFuture.completedFuture(timer.requests.size() == 1 ? decision("think_harder", new JsonObject())

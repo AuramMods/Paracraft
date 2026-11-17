@@ -1,5 +1,7 @@
 # Live Luna gameplay QA
 
+The continuity pass passed both live scenarios in server JVM **83536**, using separate credential-owning clients **83629** (delivery) and **84222** (crafting). Each used **three decisions: one Light and two Planning**, with Luna `none`/`xhigh`. Delivery transferred exactly twelve new diamonds, retained three and walked 32.22 blocks. Crafting left two logs, one plank, nine sticks and one wooden pickaxe. Both tasks completed and stayed idle with no additional inference. Compared with earlier recorded runs below (eight delivery decisions and six crafting decisions), this run used fewer requests; it is not a statistical latency/cost guarantee. Trigger diagnostics exposed and removed redundant spawn-point bookkeeping wakes. No graphical client or browser was launched. See [CONTINUITY.md](CONTINUITY.md).
+
 After linking through `/paracraft link chatgpt` or the optional `./gradlew chatgptLogin`, run with Java 17:
 
 ```sh

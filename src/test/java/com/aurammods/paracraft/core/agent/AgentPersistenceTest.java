@@ -27,6 +27,7 @@ class AgentPersistenceTest {
         assertTrue(pending.isCancelled());
         AgentStore store = new AgentStore(temp); store.save(BINDING, state);
         AgentState restored = store.load(BINDING).orElseThrow(); Provider freshProvider = new Provider(clock);
+        freshProvider.answer=request->CompletableFuture.completedFuture(decision("chat",json("{\"message\":\"I need the destination before I can continue.\"}")));
         try (HarnessLoop fresh = new HarnessLoop(BINDING, restored, freshProvider, clock, new Sink(), () -> {})) {
             JsonObject snapshot = frame(chat(17, "Josh, collect diamonds")); snapshot.addProperty("session", "new-lease"); snapshot.addProperty("health", 8);
             fresh.accept(snapshot); clock.advance(4_999); pump(fresh); assertTrue(freshProvider.requests.isEmpty());

@@ -34,9 +34,11 @@ public final class LiveClientProcess {
                         var value = new JsonObject(); value.addProperty("tool", call.tool()); value.add("arguments", call.arguments()); calls.add(value);
                     }
                     result.add("calls", calls);
+                    result.addProperty("note",decision.note());
                     var event = new JsonObject(); event.addProperty("event", "live_luna_decision"); event.addProperty("status", "pass");
                     var context = new JsonObject(); context.addProperty("model", request.model().model()); context.addProperty("effort", request.model().effort());
                     context.addProperty("route", request.route().name()); context.addProperty("clientPid", ProcessHandle.current().pid());
+                    context.addProperty("triggerType",request.trigger().get("type").getAsString());context.addProperty("triggerEvent",request.trigger().get("id").getAsLong());
                     context.addProperty("tools", decision.calls().stream().map(InferenceProvider.Call::tool).toList().toString());
                     event.add("context", context); System.err.println("QA_EVT " + event);
                 } catch (Exception failure) { result.addProperty("error", ChatGptClient.message(failure)); }
@@ -77,7 +79,7 @@ public final class LiveClientProcess {
                     if (reply.has("error")) throw new IOException(reply.get("error").getAsString());
                     var calls = new ArrayList<Call>();
                     for (var item : reply.getAsJsonArray("calls")) { var value = item.getAsJsonObject(); calls.add(new Call(value.get("tool").getAsString(), value.getAsJsonObject("arguments"))); }
-                    return new Decision(calls);
+                    return new Decision(calls,reply.has("note")?reply.get("note").getAsString():"");
                 } catch (Exception failure) { throw new CompletionException(failure); }
             }, worker);
             result.whenComplete((value, failure) -> { if (result.isCancelled()) close(); });

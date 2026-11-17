@@ -162,7 +162,7 @@ public final class AvatarManager {
         player.moveTo(position.x, position.y, position.z, 0, 0);
         attach(entry, player);
         saved.put(entry);
-        control.event(entry.id, "spawn", new com.google.gson.JsonObject());
+        var spawned=new com.google.gson.JsonObject();spawned.addProperty("wake",false);control.event(entry.id, "spawn", spawned);
         checkpoint(entry);
         return entry;
     }
