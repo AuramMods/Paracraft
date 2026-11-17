@@ -2,6 +2,12 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## Nearest nearby block positions
+
+- `search_blocks` now retains the nearest N matches instead of the first scan-order prefix, using `limit` with a bounded top-N queue. Results are sorted by three-dimensional block-center distance from the fixed starting position, with deterministic coordinate ties, actual IDs, distances, counts and truncation. Exact registered block IDs and block tags are supported.
+- Added optional spherical `radius`, typed agent arguments, planning guidance and a finite simulator phrase. Queries remain incremental and limited to loaded blocks in the current chunk and its eight neighbors, with full build height unless narrowed by radius. Missing chunks and radius clipping explicitly prevent claiming complete coverage; queries do not generate missing chunks. Saved origins/cursors/nearest matches resume consistently after movement, while older scan-order checkpoints restart the read-only query in their saved scope.
+- Validation: build, all 96 unit tests and all 124 native headless GameTests pass. Five new native scenarios cover nearest retention/order/distances, tags/radius/ties/argument validation, checkpoint origin and legacy recovery, actual unloaded neighbors, and nine-chunk radius clipping. No graphical client, browser, live inference or new release was launched. See [block search](PORTALS.md#block-query-scope-and-freshness) and [QA](QA.md).
+
 ## Worn-equipment removal and existing-item drops
 
 - Added advertised, typed `unequip` and `drop_items` program operations with server syntax validation and checkpoint restoration. Unequipping moves native equipment/held stacks into inventory, respects binding/space rules, and returns exact stacks usable by the existing delivery action. Dropping can select inventory/offhand or an explicit equipment slot and optionally walk to a recipient; no collection/crafting ledger is required, and direct worn drops work with full inventory.

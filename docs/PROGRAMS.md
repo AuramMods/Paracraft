@@ -61,7 +61,7 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `set_spawn` | `bed` block position; native spawn setting and brief sleep when permitted |
 | `discover_commands` | Optional `prefix`; native usage forms and completions for this avatar |
 | `execute_command` | `command`, optional `await: "teleport"` and outcome predicates; native dispatch and actual observed arrival |
-| `search_blocks` | `block` ID/tag, optional result `limit`; full-height loaded nine-chunk block observation |
+| `search_blocks` | `block` ID/tag, optional nearest-result `limit` and spherical `radius`; loaded nine-chunk observation with distances and explicit coverage |
 | `use_portal` | Selected `position`, optional expected `dimension`/`timeoutTicks`; physical approach and native portal transition |
 | `open_inventory` | `position`, optional inspected-slot `limit`; native interaction and bounded slot/view observation |
 | `take_items` | `position`, `item`, exact integer `quantity`; fixed-source extraction and acquired-stack ledger |

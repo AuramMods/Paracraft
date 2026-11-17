@@ -72,7 +72,7 @@ final class DecisionSchema {
         variants.add(operation("unequip","slot",values("mainhand","offhand","head","chest","legs","feet")));
         for (String op : List.of("follow", "attack_entity")) variants.add(operation(op, "target", uuid(), "distance", optional(minimum(type("number"), 0.5)), "ticks", optional(integer(0, Long.MAX_VALUE))));
         variants.add(operation("set_spawn", "bed", position(true)));
-        variants.add(operation("search_blocks", "block", text(), "limit", optional(integer(1, 4096))));
+        variants.add(operation("search_blocks", "block", text(), "limit", optional(integer(1, 4096)),"radius",optional(minimum(type("number"),0))));
         variants.add(operation("use_portal", "position", position(true), "dimension", optional(text()), "timeoutTicks", optional(integer(0, Long.MAX_VALUE))));
         variants.add(operation("execute_command", "command", text(), "await", optional(values("command", "teleport")), "timeoutTicks", optional(integer(0, Long.MAX_VALUE)),
                 "dimension", optional(text()), "destination", optional(position(false)), "playerUuid", optional(uuid()), "tolerance", optional(minimum(type("number"), 0))));

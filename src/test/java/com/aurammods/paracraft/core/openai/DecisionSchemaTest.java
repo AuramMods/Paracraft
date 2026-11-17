@@ -9,6 +9,15 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DecisionSchemaTest {
+    @Test void blockQueriesExposeTypedNearestCountAndOptionalRadius() throws Exception {
+        var args=json("{\"schema\":1,\"id\":\"5680d971-0dcf-425a-94a7-2778b8e98258\",\"taskId\":null,\"mode\":\"replace\",\"observationRefs\":[],\"steps\":[{\"op\":\"search_blocks\",\"block\":\"#minecraft:logs\",\"limit\":3,\"radius\":16.5,\"saveAs\":\"nearest\"}]}");
+        var step=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments().getAsJsonArray("steps").get(0).getAsJsonObject();
+        assertEquals(3,step.get("limit").getAsInt());assertEquals(16.5,step.get("radius").getAsDouble());
+        var source=args.getAsJsonArray("steps").get(0).getAsJsonObject();source.add("radius",JsonNull.INSTANCE);source.add("limit",JsonNull.INSTANCE);
+        step=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments().getAsJsonArray("steps").get(0).getAsJsonObject();assertFalse(step.has("radius"));assertFalse(step.has("limit"));
+        source.addProperty("radius",-1);assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+        source.add("radius",JsonNull.INSTANCE);source.addProperty("limit",0);assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+    }
     @Test void wornAndExistingItemsHaveTypedUnequipAndDropOperations() throws Exception {
         var args=json("{\"schema\":1,\"id\":\"5680d971-0dcf-425a-94a7-2778b8e98258\",\"taskId\":null,\"mode\":\"replace\",\"observationRefs\":[],\"steps\":[{\"op\":\"unequip\",\"slot\":\"head\",\"saveAs\":\"gear\"},{\"op\":\"drop_items\",\"item\":\"minecraft:diamond_helmet\",\"quantity\":1,\"slot\":\"head\",\"recipient\":{\"playerUuid\":\"5680d971-0dcf-425a-94a7-2778b8e98258\"},\"saveAs\":null}]}");
         var steps=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments().getAsJsonArray("steps");

@@ -26,7 +26,7 @@ Linked agents can also [craft items](docs/CRAFTING.md) in their internal 2×2 gr
 
 Agents can [unequip and drop items](docs/GAMEPLAY.md#unequipping-and-dropping-existing-belongings), including giving a worn helmet or other existing gear to a player. Native slot restrictions and drop hooks apply.
 
-Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
+Agents can [search for the nearest N blocks](docs/PORTALS.md#block-query-scope-and-freshness) by block ID or tag, optionally within a radius, receiving positions and distances from loaded nearby chunks. Try `Find the nearest three crafting tables within sixteen blocks.` Explicit Nether/End portal actions are also available. Normal travel does not automatically enter portals.
 
 [Physical navigation](docs/NAVIGATION.md) walks or sprints through existing routes, opens doors and fence gates, and preserves builds by default. Automatic breaking/bridging/pillaring requires a server opt-in. Look directly at an avatar to see Idle, Thinking, Traveling, or other activity with its unfinished task count above its name. [Agent output debugging](docs/DEBUG.md) is enabled for Gradle launches.
 

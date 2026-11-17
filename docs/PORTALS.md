@@ -32,18 +32,27 @@ Native portal adapters beyond Nether/End, unusual mod teleporters, and graphical
 
 ## Block query scope and freshness
 
-`search_blocks` accepts an exact registered block ID or `#block_tag`. It freezes the avatar's current chunk and eight neighbors, including diagonals, and inspects their full build height. It reads loaded chunks without generating missing chunks merely to answer the query. Results contain:
+`search_blocks` accepts an exact registered block ID or `#block_tag` and returns the nearest `limit` positions, sorted by three-dimensional distance from the avatar's position when the query starts. Equal distances use X, then Y, then Z coordinate order. For example, find the three closest crafting tables within sixteen blocks:
 
-- `blocks`: positions, actual block IDs, and observation ticks.
-- `total`: all matching blocks counted, including positions omitted from the response.
-- `coveredChunks`, `missingChunks`, and `complete`: explicit loaded coverage.
-- `observedAt`, the fixed center chunk, selector, and dimension.
+```json
+{"steps":[{"op":"search_blocks","block":"minecraft:crafting_table","limit":3,"radius":16,"saveAs":"tables"}]}
+```
+
+The query freezes the avatar's current chunk and eight neighbors, including diagonals, and inspects their full build height. An optional nonnegative `radius` narrows this to a sphere measured from the fixed origin to block centers; it cannot expand the nine-chunk scope. Omit it to search the full height of all nine chunks. Only loaded chunks are read; missing chunks are never generated merely to answer a query. Results contain:
+
+- `blocks`: nearest-first positions, actual block IDs, block-center distances, and observation ticks.
+- `total`: all observed matching blocks inside the requested scope/radius, including positions omitted from the response.
+- `coveredChunks`, `missingChunks`, and `excludedChunks`: inspected, unavailable, and outside-radius chunks, respectively.
+- `scanComplete`: whether the bounded scan finished; `complete` additionally requires no missing relevant chunks and no requested-radius clipping by the nine-chunk boundary.
+- `origin`, `order: "nearest"`, `limit`, `observedAt`, the fixed center chunk, selector, and dimension. When supplied, `radius` and `radiusFullyCovered` expose radius clipping.
 - `truncated`: whether the position list omits counted matches.
 
-The default position limit is 256 and can be set from 1 through 4,096 using `limit`. This bounds response size; the query still counts all matches in covered chunks. Palette checks skip nonmatching sections and a bounded block budget yields between ticks. Saved cursors/results resume without recounting earlier entries. Completed observation timestamps stay frozen. Concurrent world changes are observed when each position is read; this is not an atomic whole-world snapshot. A new query is needed for fresh contents.
+The default position limit is 256 and can be set from 1 through 4,096 using `limit`. A bounded top-N queue keeps the closest matches rather than the first positions encountered during scanning; all matches in the observed scope still contribute to `total`. Palette/radius checks skip irrelevant sections and a bounded block budget yields between ticks. Saved cursors, nearest matches, and origin resume without recounting earlier entries, even if the body moves. Older scan-order checkpoints restart the read-only query within their saved chunk scope. Completed observation timestamps stay frozen. Concurrent world changes are observed when each position is read; this is not an atomic whole-world snapshot. A new query is needed for fresh contents. Incomplete coverage cannot establish that these are the closest blocks in an unobserved area.
 
-Block queries currently run as program operations, with their results visible in program snapshots. The standalone `observe` continuation remains inventory-specific. The deterministic simulator accepts `Josh, search blocks #minecraft:portals` and `Josh, use portal X Y Z`; both escalate from Light and create planning tasks. It does not automatically choose a portal from a query or claim general language understanding.
+Block queries run as program operations, with their results visible in program snapshots. The linked agent has typed count/radius arguments and can use natural instructions such as `Find the nearest three crafting tables within sixteen blocks.` The standalone `observe` continuation remains inventory-specific. The deterministic simulator accepts `Josh, search blocks #minecraft:portals`, `Josh, search blocks minecraft:crafting_table nearest 3 radius 16`, and `Josh, use portal X Y Z`; these escalate from Light and create planning tasks. It does not automatically choose a portal from a query or claim general language understanding.
 
 ## Verified behavior
 
 Seven actual-world GameTests cover walking into an End portal, full-height nine-chunk block counts/result truncation/freshness/checkpoint recovery, native Nether delay and destination follow-up, paused contact and body restoration, actual Forge travel refusal with timeout/recovery, End entry/credits return with item/health/hunger/XP/roster/program assertions, and cancellation preventing a later transition. These are headless native checks; no client rendering or credits screen has been observed. Existing cold-process inventory/command recovery remains a separate suite; a cold-process portal transition is not claimed as tested.
+
+Five additional native block-query tests cover nearest-N retention despite scan order, distance sorting/counts at full height, ID/tag and spherical-radius filtering with stable ties, zero radius and invalid raw arguments, frozen-origin checkpoint restoration after movement, legacy checkpoint restart, unloaded-neighbor coverage without query-triggered generation, and explicit radius clipping at the nine-chunk boundary. Typed schema and simulator forwarding have unit coverage. These are headless checks without live inference.

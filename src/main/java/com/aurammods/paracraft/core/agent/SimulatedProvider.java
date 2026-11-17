@@ -18,7 +18,7 @@ public final class SimulatedProvider implements InferenceProvider {
     private static final Pattern COMMAND=Pattern.compile("(?i)\\b(execute|teleport) command (.+)$");
     private static final Pattern DISCOVER=Pattern.compile("(?i)\\bdiscover commands(?: (.*))?$");
     private static final Pattern PORTAL=Pattern.compile("(?i)\\buse portal (-?\\d+) (-?\\d+) (-?\\d+)\\b");
-    private static final Pattern BLOCKS=Pattern.compile("(?i)\\bsearch blocks (#[a-z0-9_]+:[a-z0-9_/.-]+|[a-z0-9_]+:[a-z0-9_/.-]+)\\b");
+    private static final Pattern BLOCKS=Pattern.compile("(?i)\\bsearch blocks (#[a-z0-9_]+:[a-z0-9_/.-]+|[a-z0-9_]+:[a-z0-9_/.-]+)(?:\\s+(?:nearest|limit)\\s+(\\d+))?(?:\\s+radius\\s+(\\d+(?:\\.\\d+)?))?\\b");
     private static final Set<String> TERMINAL_TASK = Set.of("COMPLETED", "FAILED");
     @Override public String label() { return "SIMULATED — deterministic QA scripts, no AI usage"; }
     @Override public boolean simulated() { return true; }
@@ -62,7 +62,8 @@ public final class SimulatedProvider implements InferenceProvider {
             var portal=PORTAL.matcher(text);var blocks=BLOCKS.matcher(text);boolean usePortal=portal.find(),searchBlocks=blocks.find();
             if(usePortal || searchBlocks){
                 String id=identity(frame,event,usePortal?"portal":"blocks");var program=baseProgram(id);var step=new JsonObject();step.addProperty("op",usePortal?"use_portal":"search_blocks");step.addProperty("saveAs",usePortal?"portal":"blocks");
-                if(usePortal){var position=new JsonArray();for(int i=1;i<=3;i++)position.add(Integer.parseInt(portal.group(i)));step.add("position",position);}else step.addProperty("block",blocks.group(1).toLowerCase(Locale.ROOT));
+                if(usePortal){var position=new JsonArray();for(int i=1;i<=3;i++)position.add(Integer.parseInt(portal.group(i)));step.add("position",position);}
+                else {step.addProperty("block",blocks.group(1).toLowerCase(Locale.ROOT));if(blocks.group(2)!=null)step.addProperty("limit",Integer.parseInt(blocks.group(2)));if(blocks.group(3)!=null)step.addProperty("radius",Double.parseDouble(blocks.group(3)));}
                 var steps=new JsonArray();steps.add(step);program.add("steps",steps);return startTask(frame,task(id,text,"ACTIVE",-1),program);
             }
             var command=COMMAND.matcher(text);var discover=DISCOVER.matcher(text);boolean execute=command.find(),discovery=discover.find();

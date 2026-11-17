@@ -67,6 +67,7 @@ It writes a forced temporary file and replaces the destination atomically when t
 | `Josh, execute command list` | Escalate and dispatch as the avatar; native command return completes the task |
 | `Josh, teleport command home base` | Escalate, dispatch once, and wait for an actual native teleport or timeout |
 | `Josh, search blocks #minecraft:portals` | Escalate and run a nearby block query task; inspect actual positions in its program result |
+| `Josh, search blocks minecraft:crafting_table nearest 3 radius 16` | Return up to three nearest matching positions within sixteen blocks and the loaded nine-chunk scope |
 | `Josh, use portal 100 64 100` | Escalate and physically approach/use that selected native portal |
 
 An inactive task remains eligible for automatic later resumption; `pause work` is not a permanent pause. Use an explicit wait or the runtime's owner pause control to suspend polling.

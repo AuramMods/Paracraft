@@ -11,6 +11,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Script QA against a stubbed service; physical inventory behavior is covered separately by GameTests. */
 class SimulatedProviderTest {
+    @Test void nearestBlockScriptEscalatesAndForwardsCountAndRadius() {
+        Clock clock=new Clock();Sink sink=new Sink();sink.reply=sent->CompletableFuture.completedFuture(ok(job(sent.args().get("id").getAsString(),"RUNNING")));
+        try(var loop=new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{})){
+            loop.accept(frame(chat(1,"Josh, search blocks minecraft:crafting_table nearest 3 radius 16")));pump(loop);assertTrue(sink.sent.isEmpty());clock.advance(5000);pump(loop);
+            assertEquals(1,loop.planningCalls());var step=sink.sent.get(0).args().getAsJsonArray("steps").get(0).getAsJsonObject();
+            assertEquals("search_blocks",step.get("op").getAsString());assertEquals("minecraft:crafting_table",step.get("block").getAsString());assertEquals(3,step.get("limit").getAsInt());assertEquals(16,step.get("radius").getAsDouble());
+        }
+    }
     @Test void progressReportsActualCountsWithoutDumpingInventoryMetadata(){
         Clock clock=new Clock();Sink sink=new Sink();AgentState state=new AgentState();String id=UUID.randomUUID().toString();
         state.mutate("task_upsert",json("{\"id\":\""+id+"\",\"programId\":\""+id+"\",\"goal\":\"Collect diamonds\",\"status\":\"ACTIVE\"}"));
