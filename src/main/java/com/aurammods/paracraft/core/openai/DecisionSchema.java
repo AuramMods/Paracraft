@@ -57,6 +57,8 @@ final class DecisionSchema {
         variants.add(operation("collect_items", "item", text(), "quantity", optional(any(integer(0, Integer.MAX_VALUE), values("all"))), "containersFrom", optional(text())));
         variants.add(operation("deposit_items", "destination", position(true), "item", text(), "quantity", integer(0, Integer.MAX_VALUE)));
         variants.add(operation("deliver_items", "itemsFrom", text(), "recipient", object("playerUuid", uuid())));
+        variants.add(operation("drop_items","item",text(),"quantity",any(integer(0,Integer.MAX_VALUE),values("all")),
+                "slot",optional(values("mainhand","offhand","head","chest","legs","feet")),"recipient",optional(object("playerUuid",uuid()))));
         variants.add(operation("open_inventory", "position", position(true), "limit", optional(integer(1, 4096))));
         variants.add(operation("take_items", "position", position(true), "item", text(), "quantity", integer(0, Integer.MAX_VALUE)));
         for (String op : List.of("mine_blocks", "farm")) {
@@ -67,6 +69,7 @@ final class DecisionSchema {
         }
         variants.add(operation("place_blocks", "placements", array(object("position", position(true), "item", text()))));
         variants.add(operation("equip", "item", text(), "slot", values("mainhand", "offhand", "head", "chest", "legs", "feet")));
+        variants.add(operation("unequip","slot",values("mainhand","offhand","head","chest","legs","feet")));
         for (String op : List.of("follow", "attack_entity")) variants.add(operation(op, "target", uuid(), "distance", optional(minimum(type("number"), 0.5)), "ticks", optional(integer(0, Long.MAX_VALUE))));
         variants.add(operation("set_spawn", "bed", position(true)));
         variants.add(operation("search_blocks", "block", text(), "limit", optional(integer(1, 4096))));

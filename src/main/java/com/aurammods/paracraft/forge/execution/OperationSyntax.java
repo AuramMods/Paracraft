@@ -64,6 +64,11 @@ public final class OperationSyntax {
                 String recipient = spec.get("recipient").isJsonObject() ? string(spec.getAsJsonObject("recipient"), "playerUuid") : string(spec, "recipient");
                 UUID.fromString(recipient);
             }
+            case "drop_items" -> {
+                string(spec,"item");if(!(spec.has("quantity") && spec.get("quantity").isJsonPrimitive() && spec.getAsJsonPrimitive("quantity").isString() && spec.get("quantity").getAsString().equals("all")))integer(spec,"quantity");
+                if(spec.has("slot"))equipmentSlot(spec);
+                if(spec.has("recipient")){var recipient=spec.get("recipient");UUID.fromString(recipient.isJsonObject()?string(recipient.getAsJsonObject(),"playerUuid"):string(spec,"recipient"));}
+            }
             case "wait_ticks" -> integer(spec, "ticks");
             case "mine_blocks", "farm" -> {
                 new com.aurammods.paracraft.core.program.BlockTargets(spec);
@@ -76,11 +81,8 @@ public final class OperationSyntax {
                     com.aurammods.paracraft.core.program.BlockTargets.position(placement.get("position"));
                 }
             }
-            case "equip" -> {
-                string(spec, "item");
-                if (!java.util.Set.of("mainhand", "offhand", "head", "chest", "legs", "feet").contains(string(spec, "slot")))
-                    throw new IllegalArgumentException("Unknown equipment slot");
-            }
+            case "equip" -> {string(spec,"item");equipmentSlot(spec);}
+            case "unequip" -> equipmentSlot(spec);
             case "follow", "attack_entity" -> {
                 UUID.fromString(string(spec, "target")); if (spec.has("ticks")) integer(spec, "ticks");
                 if (spec.has("distance") && (!spec.get("distance").isJsonPrimitive() || !spec.getAsJsonPrimitive("distance").isNumber()
@@ -93,6 +95,7 @@ public final class OperationSyntax {
             default -> throw new IllegalArgumentException("Unsupported operation: " + op);
         }
     }
+    private static void equipmentSlot(JsonObject spec){if(!java.util.Set.of("mainhand","offhand","head","chest","legs","feet").contains(string(spec,"slot")))throw new IllegalArgumentException("Unknown equipment slot");}
     private static void coordinates(JsonObject spec) {
         if (!spec.has("destination") || !spec.get("destination").isJsonArray() || spec.getAsJsonArray("destination").size() != 3)
             throw new IllegalArgumentException("destination must be [x,y,z]");

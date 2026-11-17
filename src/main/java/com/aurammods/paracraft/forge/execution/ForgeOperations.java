@@ -14,7 +14,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     public ForgeOperations(CompanionPlayer actor) { this(actor,()->{}); }
     public ForgeOperations(CompanionPlayer actor,Runnable acceptDimension) { this.actor = actor;this.acceptDimension=acceptDimension; }
     @Override public Set<String> operations() {
-        return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items",
+        return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items", "drop_items", "unequip",
                 "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn", "execute_command", "discover_commands", "use_portal", "search_blocks", "open_inventory", "take_items", "craft_item", "search_recipes");
     }
     @Override public void validate(JsonObject specification) { OperationSyntax.validate(specification); }
@@ -66,6 +66,8 @@ public final class ForgeOperations implements ProgramMachine.Factory {
             case "mine_blocks", "farm" -> new BlockWorkJob(id, actor, op, spec);
             case "place_blocks" -> new PlaceBlocksJob(id, actor, spec.getAsJsonArray("placements"));
             case "equip" -> new EquipJob(id, actor, spec.get("item").getAsString(), spec.get("slot").getAsString());
+            case "unequip" -> new UnequipJob(id,actor,spec.get("slot").getAsString());
+            case "drop_items" -> new DropItemsJob(id,actor,spec);
             case "follow", "attack_entity" -> new EntityWorkJob(id, actor, op, UUID.fromString(spec.get("target").getAsString()),
                     spec.has("distance") ? spec.get("distance").getAsDouble() : 2.0, spec.has("ticks") ? spec.get("ticks").getAsLong() : 0);
             case "chat", "report_result", "report_failure", "fail" -> new ImmediateJob(id, actor, spec, context);

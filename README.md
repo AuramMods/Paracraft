@@ -24,6 +24,8 @@ The K menu shows [today's input/output tokens and Luna API cost estimate](docs/U
 
 Linked agents can also [craft items](docs/CRAFTING.md) in their internal 2×2 grid or at an actual crafting table. For example: `Craft eight sticks with the planks you're carrying` or `Use that crafting table to make a wooden pickaxe.` The server handles recipes, ingredients, navigation, and native crafting interactions.
 
+Agents can [unequip and drop items](docs/GAMEPLAY.md#unequipping-and-dropping-existing-belongings), including giving a worn helmet or other existing gear to a player. Native slot restrictions and drop hooks apply.
+
 Nearby [block queries and explicit Nether/End portals](docs/PORTALS.md) are available through programs and finite simulator instructions. Normal travel does not automatically enter portals.
 
 [Physical navigation](docs/NAVIGATION.md) walks or sprints through existing routes, opens doors and fence gates, and preserves builds by default. Automatic breaking/bridging/pillaring requires a server opt-in. Look directly at an avatar to see Idle, Thinking, Traveling, or other activity with its unfinished task count above its name. [Agent output debugging](docs/DEBUG.md) is enabled for Gradle launches.

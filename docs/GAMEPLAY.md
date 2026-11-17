@@ -67,6 +67,20 @@ Items accept registry IDs or tags. Slots are `mainhand`, `offhand`, `head`, `che
 
 If no spare matching item is carried and the requested item is already equipped, it acknowledges that state. Otherwise it uses a matching carried item. Stack data is preserved. Extra accessory/custom equipment slots require adapters.
 
+### Unequipping and dropping existing belongings
+
+```json
+{"op":"unequip","slot":"head","saveAs":"removed"}
+{"op":"drop_items","item":"minecraft:diamond_helmet","quantity":1,"slot":"head","recipient":{"playerUuid":"<recipient UUID>"},"saveAs":"given"}
+{"op":"drop_items","item":"minecraft:cobblestone","quantity":"all"}
+```
+
+`unequip` moves the entire named equipment/held stack into main inventory, preserving NBT, damage and enchantments. Main-hand unequipping excludes the selected hotbar cell so the hand actually becomes empty. Empty slots succeed with zero moved. Native removal restrictions, including Curse of Binding, apply. Insufficient inventory space leaves gear equipped. The result contains `moved` and an exact `acquiredStacks` ledger; this ledger may feed `deliver_items` even though the gear was previously owned.
+
+`drop_items` needs no collection or crafting ledger. It accepts an item ID/tag and a nonnegative integer quantity or `"all"`. Without `slot`, it selects main inventory and offhand. A named equipment slot allows a direct worn/held drop, including when main inventory is full. Optional `recipient` makes the server walk to that player and drop at their feet with native pickup ownership; otherwise it uses the normal local toss. A missing recipient or different dimension fails without removing items.
+
+Drops use native slot removal and Forge toss hooks. A cancelled toss or refused world entity returns missing items, without duplicating an item already refunded by the cancelling hook. Results retain actual dropped stacks after hook metadata changes, entity UUIDs, removed/dropped counts and any partial progress. At most 64 items drop per tick. Selection is frozen when dropping begins; an interrupted/restored action resumes its remaining source quantities instead of replaying prior drops. A shortage can leave successful partial drops and then report failure. No implicit crafting of replacement gear is needed to give away an existing helmet.
+
 ## Following and melee
 
 ```json

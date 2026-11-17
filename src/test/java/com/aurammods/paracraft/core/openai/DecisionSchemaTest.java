@@ -9,6 +9,16 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DecisionSchemaTest {
+    @Test void wornAndExistingItemsHaveTypedUnequipAndDropOperations() throws Exception {
+        var args=json("{\"schema\":1,\"id\":\"5680d971-0dcf-425a-94a7-2778b8e98258\",\"taskId\":null,\"mode\":\"replace\",\"observationRefs\":[],\"steps\":[{\"op\":\"unequip\",\"slot\":\"head\",\"saveAs\":\"gear\"},{\"op\":\"drop_items\",\"item\":\"minecraft:diamond_helmet\",\"quantity\":1,\"slot\":\"head\",\"recipient\":{\"playerUuid\":\"5680d971-0dcf-425a-94a7-2778b8e98258\"},\"saveAs\":null}]}");
+        var steps=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING).calls().get(0).arguments().getAsJsonArray("steps");
+        assertEquals("unequip",steps.get(0).getAsJsonObject().get("op").getAsString());assertEquals("head",steps.get(1).getAsJsonObject().get("slot").getAsString());
+        assertFalse(steps.get(1).getAsJsonObject().has("saveAs"));
+        var drop=args.getAsJsonArray("steps").get(1).getAsJsonObject();drop.addProperty("quantity","all");drop.add("slot",JsonNull.INSTANCE);drop.add("recipient",JsonNull.INSTANCE);
+        assertDoesNotThrow(()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+        drop.addProperty("quantity",-1);assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+        drop.addProperty("quantity",1);drop.addProperty("slot","helmet");assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+    }
     private static final String ID = "5680d971-0dcf-425a-94a7-2778b8e98258";
     @Test void bothRoutesEmitStrictTypedSchemasWithoutEncodedJsonFields() {
         for (var route : InferenceProvider.Route.values()) {

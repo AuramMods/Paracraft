@@ -54,6 +54,8 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `place_blocks` | `placements` with `position` and `item`; physical placement and actual consumption |
 | `farm` | Same target forms as mining, optional `plant`; mature crop harvest/pickup/replant |
 | `equip` | `item`, `slot`; native armor/offhand rules or main-hand selection |
+| `unequip` | `slot`; move worn/held items to main inventory, returning an exact `acquiredStacks` ledger |
+| `drop_items` | `item`, integer quantity or `"all"`, optional equipment `slot` and player `recipient`; drop existing belongings with native hooks and partial results |
 | `follow` | `target` entity UUID, optional `distance`/`ticks`; moving-target following |
 | `attack_entity` | Living `target` UUID, optional `distance`/`ticks`; basic native melee |
 | `set_spawn` | `bed` block position; native spawn setting and brief sleep when permitted |

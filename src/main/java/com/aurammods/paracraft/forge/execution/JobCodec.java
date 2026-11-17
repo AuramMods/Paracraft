@@ -34,6 +34,8 @@ public final class JobCodec {
             case "mine_blocks", "farm" -> new BlockWorkJob(id, actor, type, data.getAsJsonObject("specification"));
             case "place_blocks" -> new PlaceBlocksJob(id, actor, data.getAsJsonArray("placements"));
             case "equip" -> new EquipJob(id, actor, data.get("item").getAsString(), data.get("slot").getAsString());
+            case "unequip" -> new UnequipJob(id,actor,data.get("slot").getAsString());
+            case "drop_items" -> new DropItemsJob(id,actor,data.getAsJsonObject("specification"));
             case "follow", "attack_entity" -> new EntityWorkJob(id, actor, type, UUID.fromString(data.get("target").getAsString()), data.get("distance").getAsDouble(), data.get("duration").getAsLong());
             case "chat", "report_result", "report_failure", "fail" -> new ImmediateJob(id, actor, data.getAsJsonObject("specification"),
                     new ProgramMachine.Context(data.getAsJsonObject("results"), data.has("caught") ? data.getAsJsonObject("caught") : null));

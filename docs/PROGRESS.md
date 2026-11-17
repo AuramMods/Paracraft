@@ -2,6 +2,12 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## Worn-equipment removal and existing-item drops
+
+- Added advertised, typed `unequip` and `drop_items` program operations with server syntax validation and checkpoint restoration. Unequipping moves native equipment/held stacks into inventory, respects binding/space rules, and returns exact stacks usable by the existing delivery action. Dropping can select inventory/offhand or an explicit equipment slot and optionally walk to a recipient; no collection/crafting ledger is required, and direct worn drops work with full inventory.
+- Native toss hooks, actual world admission, item metadata and partial progress are preserved. Cancellation restores only the actual missing item count so hooks that already refund do not duplicate items. Frozen source quantities, incremental drops and saved cursors prevent earlier drops being repeated after pause/body restoration. Planning instructions explicitly permit giving away existing worn gear instead of claiming the tools cannot do it or offering to craft a replacement.
+- Validation: all 94 unit tests, 119 native headless GameTests and build pass. Seven new native scenarios cover the worn helmet, recipient travel, full inventory, binding, cancellation/refund/world rejection, native hook metadata, hands, shortages and checkpoint replay. No graphical client, browser, live inference or new release was launched for this change. See [gameplay actions](GAMEPLAY.md#unequipping-and-dropping-existing-belongings) and [QA](QA.md).
+
 ## November 17: Ambient server idling
 
 - Added default-on `ambientIdle` behavior with brief smoothed owner glances, random looks, and short walking-only routes around a saved sixteen-block resting center. Ambient paths preserve terrain even when ordinary terrain recovery is enabled; wandering never moves the center. Work, explicit teleports/dimension changes, survival responses and respawn can establish the next actual resting location; reconnect preserves it.
