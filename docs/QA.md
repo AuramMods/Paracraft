@@ -45,6 +45,8 @@ The harness GameTests additionally exercise:
 
 These checks use actual Minecraft state through an in-process client/service bridge. Signed client chat, native TCP delivery, client UI, and live model usage are not exercised.
 
+The chat regression suite additionally invokes Forge's actual asynchronous chat decorator and event bus using ordinary `ServerPlayer` senders. It verifies normal chat futures complete unchanged, authorized mentions are handed to the server thread exactly once, unauthorized mentions still decorate normally, and cancelled/companion-originated messages cannot wake agents. The regression reproduced the owner's worker-thread exception before the fix. The current normal suite passes 88 native GameTests and 73 unit tests; actual client packet/signature delivery is still an owner check.
+
 The client transport suite additionally runs the actual coordinator with local JSON files through native Minecraft custom-payload constructors and Forge buffer codecs. It forces multi-fragment snapshots with valid large item metadata, asks for progress, marks gathering inactive for a real travel program, resumes the same gathering request, delivers the items, and remains idle across heartbeat polls. It verifies native-sender authority and controller expiry after a missed heartbeat. Its clock is virtual and its endpoint delivery is in-process; it does not simulate a real TCP login.
 
 The gameplay suite uses actual Minecraft operations for:

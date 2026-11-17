@@ -2,6 +2,13 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 17: Fix normal Minecraft chat dispatch
+
+- The owner's real client log exposed `ServerEvents.chat` calling the server-only control service from Forge's asynchronous chat decorator. Its exception failed Minecraft's chat future, including messages that did not mention a companion.
+- Capture the sender UUID/raw text in the event callback and enqueue companion routing on the Minecraft server thread. The decorator returns normally without waiting on that thread. Existing cancellation and companion-origin filtering remain intact.
+- Added native tests invoking the actual Forge decorator/event bus from its worker executor, with ordinary players and native avatar state. They verify unchanged ordinary/unauthorized chat, exactly one authorized owner wake, cancelled messages, and companion feedback suppression. The owner-wake test reproduced the exact exception before the fix; afterward all 88 normal GameTests and all 73 unit tests passed with a successful build.
+- No graphical client or live inference was needed for this regression. The running owner client must be restarted to load the updated event handler; actual TCP/signed-chat delivery remains a separate owner check.
+
 ## November 17: In-game linking and actual Luna gameplay
 
 - Added the client command `/paracraft link chatgpt`, opening Accounts after chat closes. The same root continues to support server gameplay commands. Unlinked players see clickable join and new-avatar reminders, covering avatars created through either raw commands or the controls. Account completion/errors now update the open screen.
