@@ -6,6 +6,8 @@ The controlling client reports only aggregate phase/count and a Planning flag. C
 
 ## Output logging
 
+Client harness failures are logged once when they pause an avatar, with its name, UUID, and error, independently of the server's output-debug setting. An explicit retry that fails reports its new failure; an already paused avatar does not flood the console. API connection failures identify the target endpoint. Provider failures also enter the sanitized inference diagnostics relayed to the server when output debugging is enabled; intentional cancellation emits no error diagnostic.
+
 For now all Gradle launch configurations enable server-side agent output debugging, including `runClient`, `runServer` and `runGameTestServer`. An integrated single-player server logs into the same launch console. A dedicated server writes its own console/logs. To turn it off for a Gradle run:
 
 ```sh

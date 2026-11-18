@@ -17,6 +17,7 @@ import java.util.function.Function;
 /** Client-thread runtime shared by Forge and headless transport QA. No credentials or Minecraft types. */
 public final class ClientCoordinator implements AutoCloseable {
     public record View(UUID id, String name, String status, JsonObject snapshot, AgentState memory, boolean freshMemory, long decisions, long planningDecisions) { }
+    public record Failure(UUID avatar,String name,String error) { }
     private record Pending(CompletableFuture<JsonObject> future, long started, UUID attempt) { }
     private final UUID owner, client = UUID.randomUUID();
     private final AgentStore store;
@@ -24,6 +25,7 @@ public final class ClientCoordinator implements AutoCloseable {
     private final Consumer<JsonObject> send;
     private final Function<AgentBinding, InferenceProvider> providers;
     private final java.util.function.Supplier<String> providerStatus;
+    private final Consumer<Failure> failureSink;
     private final Map<UUID, Companion> companions = new LinkedHashMap<>();
     private final Map<UUID, Pending> pending = new HashMap<>();
     private final Map<UUID, String> failures = new HashMap<>();
@@ -65,7 +67,10 @@ public final class ClientCoordinator implements AutoCloseable {
         this(owner,store,clock,send,providers,()->"SIMULATED provider; account disconnected");
     }
     public ClientCoordinator(UUID owner, AgentStore store, AgentClock clock, Consumer<JsonObject> send, Function<AgentBinding, InferenceProvider> providers,java.util.function.Supplier<String> providerStatus) {
-        this.owner = owner; this.store = store; this.clock = clock; this.send = send; this.providers = providers;this.providerStatus=providerStatus;status="Connecting — "+providerStatus.get();nextPoll = clock.nanoTime();
+        this(owner,store,clock,send,providers,providerStatus,ignored->{});
+    }
+    public ClientCoordinator(UUID owner, AgentStore store, AgentClock clock, Consumer<JsonObject> send, Function<AgentBinding, InferenceProvider> providers,java.util.function.Supplier<String> providerStatus,Consumer<Failure> failureSink) {
+        this.owner = owner; this.store = store; this.clock = clock; this.send = send; this.providers = providers;this.providerStatus=providerStatus;this.failureSink=failureSink;status="Connecting — "+providerStatus.get();nextPoll = clock.nanoTime();
     }
     public void tick() {
         if (closed || suspended) return;
@@ -82,7 +87,7 @@ public final class ClientCoordinator implements AutoCloseable {
                 try { companion.loop.tick(); }
                 catch (RuntimeException failure) { failures.put(companion.binding.avatar(), failure.toString()); }
                 if ((!companion.loop.lastError().isEmpty() || failures.containsKey(companion.binding.avatar())) && !companion.faultReported) {
-                    companion.faultReported = true; pause(companion.binding.avatar(), true);
+                    companion.faultReported = true; reportFailure(companion.binding.avatar(),companion.snapshot.get("name").getAsString(),failures.getOrDefault(companion.binding.avatar(),companion.loop.lastError()));pause(companion.binding.avatar(), true);
                 }
             }
             var activities = new com.google.gson.JsonArray();
@@ -148,6 +153,7 @@ public final class ClientCoordinator implements AutoCloseable {
                 }
             } catch (IOException | RuntimeException failure) {
                 failures.put(id, failure.toString()); failedSnapshots.put(id, snapshot.deepCopy());
+                reportFailure(id,snapshot.get("name").getAsString(),failure.toString());
                 manage(id, "pause", new JsonObject()); // Keep damaged memory intact and stop that avatar's execution.
             }
         }
@@ -190,10 +196,12 @@ public final class ClientCoordinator implements AutoCloseable {
     private void failLink(String error) {
         if (suspended || closed) return;
         status = "Paused: " + error; suspended = true;
+        reportFailure(null,"Client harness",error);
         for (Companion companion : companions.values()) try { companion.loop.close(); } catch (RuntimeException failure) { failures.put(companion.binding.avatar(), failure.toString()); }
         try { send.accept(envelope("release", UUID.randomUUID())); } catch (RuntimeException ignored) { /* Server lease expiry is the independent fallback. */ }
         failPending(error);
     }
+    private void reportFailure(UUID avatar,String name,String error){try{failureSink.accept(new Failure(avatar,name,error));}catch(RuntimeException ignored){/* Diagnostics must not prevent pausing failed execution. */}}
     private void failPending(String reason) {
         var waiting = new ArrayList<>(pending.values()); pending.clear();
         waiting.forEach(p -> p.future.completeExceptionally(new IllegalStateException(reason)));

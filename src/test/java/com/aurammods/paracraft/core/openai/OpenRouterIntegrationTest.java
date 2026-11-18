@@ -155,6 +155,16 @@ class OpenRouterIntegrationTest {
             assertEquals(110,client.todayUsage().total());assertEquals(1,client.todayUsage().unpricedCalls());assertEquals(0,client.todayUsage().estimatedCalls());assertTrue(client.todayUsage().costLabel().endsWith("*"));
         }
     }
+    @Test void connectionFailureNamesTheEndpointAndEmitsRedactedDiagnostics()throws Exception{
+        int port;try(var socket=new java.net.ServerSocket(0,0,InetAddress.getByName("127.0.0.1"))){port=socket.getLocalPort();}
+        try(var client=new ChatGptClient(directory)){
+            String base="http://localhost:"+port+"/v1";client.configureOpenRouter(KEY,"local-model","auto","","",base).get(5,TimeUnit.SECONDS);
+            var provider=new OpenRouterProvider(client);var output=new CopyOnWriteArrayList<JsonObject>();
+            var failure=assertThrows(ExecutionException.class,()->provider.infer(request(provider,InferenceProvider.Route.LIGHT,output::add)).get(5,TimeUnit.SECONDS));
+            String message=ChatGptClient.message(failure);assertTrue(message.contains("Cannot connect to API at "+base+"/chat/completions"));assertFalse(message.contains(KEY));
+            assertEquals(1,output.size());assertEquals("inference_error",output.get(0).get("type").getAsString());assertEquals(message,output.get(0).get("message").getAsString());assertEquals(0,client.todayUsage().total());
+        }
+    }
     private void configureLegacyProfile()throws Exception{
         var store=new AccountStore(directory);store.transact(state->{state.addProperty("mode","openrouter");var profile=json("{\"id\":\"legacy\",\"light_model\":\"exact/model\",\"planning_model\":\"exact/model\"}");profile.addProperty("api_key",KEY);state.add("openrouter",profile);return null;});
     }

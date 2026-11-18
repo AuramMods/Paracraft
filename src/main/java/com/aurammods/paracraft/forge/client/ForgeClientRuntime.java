@@ -91,7 +91,8 @@ public final class ForgeClientRuntime {
     private static void start() {
         Minecraft minecraft = Minecraft.getInstance();
         coordinator = new ClientCoordinator(minecraft.player.getUUID(), new AgentStore(minecraft.gameDirectory.toPath().resolve("paracraft/memory")),
-                AgentClock.SYSTEM, ForgeNetwork::toServer,binding->{var account=accounts();if(account==null)return new InferenceProvider(){public String label(){return "Account storage unavailable";}public boolean simulated(){return false;}public java.util.concurrent.CompletableFuture<Decision> infer(Request request){return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException(accountError));}};return switch(account.mode()){case "chatgpt"->new ChatGptProvider(account);case "openrouter"->new OpenRouterProvider(account);default->new SimulatedProvider();};},ForgeClientRuntime::providerLabel);
+                AgentClock.SYSTEM, ForgeNetwork::toServer,binding->{var account=accounts();if(account==null)return new InferenceProvider(){public String label(){return "Account storage unavailable";}public boolean simulated(){return false;}public java.util.concurrent.CompletableFuture<Decision> infer(Request request){return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException(accountError));}};return switch(account.mode()){case "chatgpt"->new ChatGptProvider(account);case "openrouter"->new OpenRouterProvider(account);default->new SimulatedProvider();};},ForgeClientRuntime::providerLabel,
+                failure->Paracraft.LOG.error("Companion {} ({}) paused: {}",failure.name(),failure.avatar(),failure.error()));
     }
     public static void retry() {
         if (coordinator != null) coordinator.close(); INCOMING.clear();

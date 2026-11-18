@@ -16,6 +16,21 @@ import java.util.Map;
 final class OpenAiHttp {
     static final int MAX_BODY=16*1024*1024;
     final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NEVER).build();
+    /** Java 17 can try only localhost's first address. Retry literal loopbacks only after a failed connection. */
+    HttpResponse<java.io.InputStream> send(HttpRequest request)throws IOException,InterruptedException{
+        try{return client.send(request,HttpResponse.BodyHandlers.ofInputStream());}
+        catch(java.net.ConnectException original){
+            URI uri=request.uri();if(!"http".equalsIgnoreCase(uri.getScheme()) || !"localhost".equalsIgnoreCase(uri.getHost()))throw original;
+            for(String host:java.util.List.of("127.0.0.1","[::1]")){
+                if(Thread.currentThread().isInterrupted())throw new InterruptedException("API request cancelled");
+                String address="http://"+host+(uri.getPort()<0?"":":"+uri.getPort())+(uri.getRawPath()==null?"":uri.getRawPath())+(uri.getRawQuery()==null?"":"?"+uri.getRawQuery());
+                var alternate=HttpRequest.newBuilder(request,(name,value)->true).uri(URI.create(address)).build();
+                try{return client.send(alternate,HttpResponse.BodyHandlers.ofInputStream());}
+                catch(java.net.ConnectException refused){original.addSuppressed(refused);}
+            }
+            throw original;
+        }
+    }
     static String form(Map<String,String> values){return values.entrySet().stream().map(e->encode(e.getKey())+"="+encode(e.getValue())).collect(java.util.stream.Collectors.joining("&"));}
     static String encode(String value){return URLEncoder.encode(value,StandardCharsets.UTF_8);}
     JsonObject get(URI uri,String token)throws IOException,InterruptedException{

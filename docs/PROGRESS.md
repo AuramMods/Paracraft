@@ -2,6 +2,12 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 18: Localhost connection fallback and visible inference errors
+
+- Reproduced Java 17 choosing IPv6 `::1` for `localhost` while the running Ollama server accepts only IPv4 `127.0.0.1`; Java failed before HTTP while the literal IPv4 address returned the server version. Plain HTTP localhost requests now retry literal loopback addresses only after a real TCP connection failure, preserving the method, body, headers, port and encoded path/query. HTTP responses, cancellation, remote hosts and HTTPS are not retried through this mechanism. In-game setup recommends the literal IPv4 URL.
+- API connection errors identify their endpoint and emit sanitized inference diagnostics. Client pauses now log once with companion identity independently of server output-debug settings; a failed explicit retry logs its new failure. Logger failure cannot prevent pausing, and deliberate cancellation/settings changes suppress stale error output.
+- Validation: reobfuscated build and all 130 unit tests pass, including child JVMs forced to resolve IPv6 first, an actual IPv4-only HTTP server, preserved POST data, exactly one delivered request, HTTP-error non-retry, endpoint diagnostics, cancellation, and once-per-failure logging/resume. The most recent server gameplay suite remains 148 passing native GameTests. No graphical client, browser, or additional live model inference was launched; the existing game and Ollama process were left running.
+
 ## November 18: Explicit native villager trading
 
 - Added advertised, typed Planning program operations `inspect_trades` and `trade`, plus merchant flags on nearby snapshot entities. Inspection approaches and opens a real merchant menu for avatar-specific prices, item/NBT costs and output, stock, affordability, and stable offer IDs; it purchases nothing. Trading requires the observed index/offer ID, pays from actual main inventory/offhand stacks, and uses native result pickup for consumption, stock, stats, XP, advancements and Forge trade hooks. Server idling never initiates trades, and the planning policy requires player/task authorization.

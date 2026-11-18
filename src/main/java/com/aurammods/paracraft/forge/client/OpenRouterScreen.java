@@ -12,7 +12,7 @@ import net.minecraft.util.FormattedCharSequence;
 /** API keys are entered locally, masked, and never submitted as Minecraft commands. */
 final class OpenRouterScreen extends Screen {
     private final Screen parent;
-    private final String[] labels={"API base URL (Ollama: http://localhost:11434/v1)","API key (optional locally; blank keeps key for this URL)","Light model ID","Light effort (auto = default)","Planning model ID (blank uses Light)","Planning effort (auto = default)"};
+    private final String[] labels={"API base URL (Ollama: http://127.0.0.1:11434/v1)","API key (optional locally; blank keeps key for this URL)","Light model ID","Light effort (auto = default)","Planning model ID (blank uses Light)","Planning effort (auto = default)"};
     private final EditBox[] fields=new EditBox[6];
     private final String[] draft;
     private String notice="Use OpenRouter or a compatible API. Model routes apply to all local companions.";

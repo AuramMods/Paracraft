@@ -82,6 +82,16 @@ class ClientCoordinatorTest {
             assertEquals(5_000_000_000L, clock.nanoTime(), "Completion reports without any further heartbeat delay");
         }
     }
+    @Test void providerFailuresReachTheDiagnosticSinkOnceWithoutBlockingPauseOrResume(){
+        Clock clock=new Clock();Remote remote=new Remote();remote.snapshot.getAsJsonArray("events").add(chat(1,"hello"));
+        var provider=new Provider(clock);provider.answer=request->CompletableFuture.failedFuture(new java.io.IOException("Cannot connect to API at http://localhost:12345/v1/chat/completions"));
+        var failures=new ArrayList<ClientCoordinator.Failure>();
+        try(var client=new ClientCoordinator(BINDING.owner(),new AgentStore(temp),clock,remote::send,binding->provider,()->"Local API",failure->{failures.add(failure);throw new IllegalStateException("Logger unavailable");})){
+            remote.client=client;pump(client);assertEquals(1,failures.size());assertEquals("Josh",failures.get(0).name());assertEquals(BINDING.avatar(),failures.get(0).avatar());assertTrue(failures.get(0).error().contains("Cannot connect to API"));assertTrue(client.views().get(0).memory().paused());
+            clock.advance(2000);pump(client);assertEquals(1,failures.size(),"A paused error does not flood logs every tick");
+            client.pause(BINDING.avatar(),false).join();clock.advance(5000);pump(client);assertEquals(2,failures.size(),"A failed explicit retry reports its new failure");assertTrue(client.views().get(0).memory().paused());
+        }
+    }
     @Test void anOwnerResumeThroughRawServerControlsClearsTheLocalPause() {
         Clock clock = new Clock(); Remote remote = new Remote();
         try (ClientCoordinator client = connect(remote, new AgentStore(temp), clock)) {
