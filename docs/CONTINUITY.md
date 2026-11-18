@@ -22,6 +22,14 @@ Explicit waits remain supported. Program waits notice an actual paused/failed/mi
 
 Empty Planning replies retain unresolved player requests as queued tasks when necessary, preserve their context, and receive corrective feedback. One immediate continuation retains the original trigger; repeated empty replies yield to normal scheduling so newer chat can run. The agent still chooses actions, explicit waits, clarification and terminal task status. This does not invent success, repeat side effects, impose a usage budget or change models.
 
+## Selective context
+
+Provider requests begin with fixed instructions and the companion profile. Recent conversation, the current request, health and location, relevant task and program summaries, and a small set of historical decisions and results follow. Requests about items or nearby entities include short previews when the request mentions them. Inventory NBT, memory values, and complete job results are available on demand.
+
+Light and Planning can call `get_context` with one or more sections. Use `query` to filter records by item, entity, task or program ID, name, memory key, or text. Choose `detail: "full"` for exact records and use `nextOffset` to fetch another page. The latest selection per section stays available during that turn and refreshes from the client snapshot before inference. `observe` can perform a fresh world container search on Planning. Its server receipt is still available for action programs.
+
+Fixed instructions and tool definitions give each route a stable prefix for repeated requests. Cache reuse depends on the provider, model, and matching rendered tokens. A switch between Light and Planning can change the prefix.
+
 ## Verification
 
 Tests cover saved notes/goals/replies across restart, direct continuation routing, five virtual minutes of mechanical work without extra inference, Light progress checks, empty-decision recovery, changed-state waits without spinning, chat priority/background batching, idle wake behavior, escaped large history, typed notes, both providers' replayed messages, relevant-program retention and separation of world text from system instructions.

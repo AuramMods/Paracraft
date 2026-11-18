@@ -52,7 +52,7 @@ class DecisionSchemaTest {
         var encoded = batch("chat", args); var wire = JsonParser.parseString(encoded.toString()).getAsJsonObject();
         assertEquals(message, DecisionSchema.decode(wire, InferenceProvider.Route.LIGHT).calls().get(0).arguments().get("message").getAsString());
         wire.getAsJsonArray("calls").get(0).getAsJsonObject().addProperty("arguments", args.toString());
-        assertThrows(IOException.class, () -> DecisionSchema.decode(wire, InferenceProvider.Route.LIGHT));
+        assertEquals(message, DecisionSchema.decode(wire, InferenceProvider.Route.LIGHT).calls().get(0).arguments().get("message").getAsString());
     }
     @Test void nullablePartialTaskUpdatesPreserveExistingMemory() throws Exception {
         var memory = new AgentState(); memory.mutate("task_upsert", json("{\"id\":\"task\",\"goal\":\"Collect diamonds\",\"status\":\"ACTIVE\",\"priority\":3}"));

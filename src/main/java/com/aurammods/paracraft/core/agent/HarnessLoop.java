@@ -113,7 +113,9 @@ public final class HarnessLoop implements AutoCloseable {
                 if (!inference.isDone()) return;
                 flushOutputs();
                 var decision = inference.join(); inference = null;
+                state.turn.remove("formatFailures");
                 ToolPolicy.validate(route(), decision); // Reject the whole reply before any effects.
+                state.turn.getAsJsonObject("observations").remove("format_feedback");
                 JsonArray calls = new JsonArray();
                 for (var call : decision.calls()) {
                     JsonObject encoded = new JsonObject(); encoded.addProperty("tool", call.tool()); encoded.add("arguments", call.arguments()); calls.add(encoded);
@@ -138,6 +140,7 @@ public final class HarnessLoop implements AutoCloseable {
                 }
                 var call = pendingCall();
                 switch (call.tool()) {
+                    case "get_context" -> {DecisionContext.select(state.turn,call.arguments());var read=identity();read.add("arguments",call.arguments());state.history("context_read",read);continueDecision();}
                     case "think_harder" -> {if(trigger().get("type").getAsString().equals("chat"))state.workRequest=trigger().deepCopy();continuePlanning();}
                     case "task_upsert", "task_remove", "remember", "forget", "personality" -> {state.mutate(call.tool(), call.arguments());var applied=identity();applied.addProperty("tool",call.tool());applied.add("arguments",call.arguments());applied.addProperty("applied",true);state.history("local_result",applied);advanceCall();}
                     case "wait" -> {
@@ -180,7 +183,8 @@ public final class HarnessLoop implements AutoCloseable {
                 state.turn.add("trigger", event);state.turn.addProperty("route",Set.of("tasks","program","program_state","timer").contains(event.get("type").getAsString())?InferenceProvider.Route.PLANNING.name():InferenceProvider.Route.LIGHT.name());
                 state.turn.addProperty("round", 0); state.turn.add("observations", new JsonObject()); state.cycleCounter++;
             }
-            JsonObject frame = latest.deepCopy(); frame.add("agent", state.context());
+            JsonObject frame = latest.deepCopy();var agent=state.context();frame.add("agent",agent);
+            var observations=DecisionContext.forRequest(state.turn,frame,agent);
             var route = route();
             var model = provider.model(route, route == InferenceProvider.Route.LIGHT ? new InferenceProvider.ModelRoute(state.lightModel, state.lightEffort)
                     : new InferenceProvider.ModelRoute(state.planningModel, state.planningEffort));
@@ -188,7 +192,7 @@ public final class HarnessLoop implements AutoCloseable {
             save.run(); // Preserve the request before inference can begin.
             calls++; if (route == InferenceProvider.Route.PLANNING) planningCalls++;
             long generation = outputGeneration; String turn = state.turn.get("id").getAsString();String triggerType=trigger().get("type").getAsString();long triggerId=trigger().get("id").getAsLong();
-            inference = provider.infer(new InferenceProvider.Request(route, model, frame, trigger(), state.turn.getAsJsonObject("observations"), output -> {
+            inference = provider.infer(new InferenceProvider.Request(route, model, frame, trigger(), observations, output -> {
                 if (generation != outputGeneration) return;
                 var trace = new JsonObject(); trace.addProperty("turn", turn); trace.addProperty("route", route.name());
                 trace.addProperty("triggerType",triggerType);trace.addProperty("triggerEvent",triggerId);
@@ -197,6 +201,11 @@ public final class HarnessLoop implements AutoCloseable {
             }));
         } catch (RuntimeException failure) {
             flushOutputs();
+            Throwable cause=failure;while((cause instanceof java.util.concurrent.CompletionException || cause instanceof java.util.concurrent.ExecutionException) && cause.getCause()!=null)cause=cause.getCause();
+            if(cause instanceof InferenceProvider.DecisionFormatException && state.turn!=null && (!state.turn.has("formatFailures") || state.turn.get("formatFailures").getAsInt()<1)){
+                var feedback=new JsonObject();feedback.addProperty("format_error",cause.getMessage());feedback.addProperty("instruction","The previous decision batch was rejected before any of its actions ran. Correct its JSON/arguments and return one paracraft.decide/paracraft_decide batch with note and calls. Optional fields may be omitted. Put game actions inside program.steps; use actual IDs and native argument types. Do not repeat acknowledged actions from earlier decisions.");
+                state.turn.getAsJsonObject("observations").add("format_feedback",feedback);state.turn.addProperty("formatFailures",1);state.history("decision_rejected",feedback);inference=null;continueDecision();save.run();return;
+            }
             lastError = failure.getCause() == null ? failure.toString() : failure.getCause().toString();
             state.history("error", lastError); abortFutures(); paused = true; state.paused = true; state.lastError = lastError; save.run();
         }
@@ -231,6 +240,9 @@ public final class HarnessLoop implements AutoCloseable {
     private void advanceCall() { state.turn.addProperty("cursor", state.turn.get("cursor").getAsInt() + 1); }
     private void continuePlanning() {
         state.turn.addProperty("route", InferenceProvider.Route.PLANNING.name());
+        continueDecision();
+    }
+    private void continueDecision(){
         state.turn.addProperty("round", state.turn.get("round").getAsInt() + 1); state.turn.remove("calls"); state.turn.remove("cursor");
     }
     private void mergeProgram(JsonObject program) {
@@ -251,7 +263,7 @@ public final class HarnessLoop implements AutoCloseable {
     public String status() {
         return !lastError.isEmpty() ? "Paused: " + lastError : paused ? "Paused" : !active ? "Disconnected / server paused"
                 : inference != null ? "Thinking: " + route()
-                : state.turn != null && !state.turn.has("calls") && route() == InferenceProvider.Route.PLANNING ? "Planning"
+                : state.turn != null && !state.turn.has("calls") ? route() == InferenceProvider.Route.PLANNING ? "Planning" : "Thinking: LIGHT"
                 : !state.wakeEvent.isEmpty() ? !state.hasWork() && !mechanicalWorkRunning() && state.wakeAtMillis==Long.MAX_VALUE && Set.of("any","chat").contains(state.wakeEvent)?"Idle":"Waiting: " + state.wakeEvent
                 : state.turn != null || !state.inbox.isEmpty() || state.hasWork() ? "Working" : "Idle";
     }

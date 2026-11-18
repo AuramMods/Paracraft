@@ -41,7 +41,7 @@ class OpenRouterIntegrationTest {
             configure(client);var provider=new OpenRouterProvider(client,fixture.uri());var outputs=new CopyOnWriteArrayList<JsonObject>();
             for(var route:InferenceProvider.Route.values()){
                 var decision=provider.infer(request(provider,route,outputs::add)).get(5,TimeUnit.SECONDS);assertEquals("Hello!",decision.calls().get(0).arguments().get("message").getAsString());
-                var body=fixture.requests.get(fixture.requests.size()-1);assertEquals(route==InferenceProvider.Route.LIGHT?"vendor/exact-light:free":"vendor/exact-planner",body.get("model").getAsString());assertFalse(body.get("stream").getAsBoolean());assertEquals(2,body.getAsJsonArray("messages").size());
+                var body=fixture.requests.get(fixture.requests.size()-1);assertEquals(route==InferenceProvider.Route.LIGHT?"vendor/exact-light:free":"vendor/exact-planner",body.get("model").getAsString());assertFalse(body.get("stream").getAsBoolean());assertEquals(3,body.getAsJsonArray("messages").size());
                 assertEquals("Bearer "+KEY,fixture.authorization);assertFalse(body.toString().contains(KEY));assertEquals("paracraft_decide",body.getAsJsonObject("tool_choice").getAsJsonObject("function").get("name").getAsString());var fn=body.getAsJsonArray("tools").get(0).getAsJsonObject().getAsJsonObject("function");assertTrue(fn.get("strict").getAsBoolean());assertEquals(DecisionSchema.parameters(route),fn.getAsJsonObject("parameters"));
                 if(route==InferenceProvider.Route.LIGHT)assertFalse(body.has("reasoning"));else{assertEquals("high",body.getAsJsonObject("reasoning").get("effort").getAsString());assertTrue(body.getAsJsonObject("reasoning").get("exclude").getAsBoolean());}
             }

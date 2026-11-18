@@ -7,6 +7,10 @@ import java.util.concurrent.CompletableFuture;
 
 /** Client-owned inference boundary. No Minecraft or credential types cross this interface. */
 public interface InferenceProvider {
+    /** Invalid model output, distinct from transport failures; no decision batch was executable. */
+    final class DecisionFormatException extends java.io.IOException {
+        public DecisionFormatException(String message){super(message);}
+    }
     enum Route { LIGHT, PLANNING }
     record ModelRoute(String model, String effort) {
         public ModelRoute { if (model == null || model.isBlank() || effort == null || effort.isBlank()) throw new IllegalArgumentException("A model route needs a model and effort"); }

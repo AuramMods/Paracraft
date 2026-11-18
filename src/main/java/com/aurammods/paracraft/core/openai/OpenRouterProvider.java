@@ -25,8 +25,9 @@ public final class OpenRouterProvider implements InferenceProvider {
         Future<?> worker=account.inference.submit(()->{
             String secret="";URI address=endpoint;
             try{
-                current(future,revision);var credential=account.routerCredential();secret=credential.key();var specification=DecisionProtocol.openRouterRequest(request);current(future,revision);
+                current(future,revision);var credential=account.routerCredential();secret=credential.key();
                 boolean router=URI.create(credential.baseUrl()).getHost().equalsIgnoreCase("openrouter.ai");
+                var specification=DecisionProtocol.openRouterRequest(request,router);current(future,revision);
                 address=endpoint==null?URI.create(credential.baseUrl()+"/chat/completions"):endpoint;
                 var builder=HttpRequest.newBuilder(address).timeout(Duration.ofMinutes(5)).header("Content-Type","application/json").header("Accept","application/json");
                 if(!secret.isEmpty())builder.header("Authorization","Bearer "+secret);if(router)builder.header("X-OpenRouter-Title","Paracraft");
@@ -43,7 +44,7 @@ public final class OpenRouterProvider implements InferenceProvider {
                 else{
                     String message=failure instanceof java.net.ConnectException?"Cannot connect to API at "+address+". Check the base URL and server listen address.":ChatGptClient.message(failure);
                     message=redact(message,secret);var diagnostic=new JsonObject();diagnostic.addProperty("type","inference_error");diagnostic.addProperty("message",message);request.emitOutput(diagnostic);
-                    future.completeExceptionally(new IOException(message));
+                    future.completeExceptionally(failure instanceof InferenceProvider.DecisionFormatException?new InferenceProvider.DecisionFormatException(message):new IOException(message));
                 }
             }finally{var input=body.getAndSet(null);if(input!=null)try{input.close();}catch(IOException ignored){}}
         });

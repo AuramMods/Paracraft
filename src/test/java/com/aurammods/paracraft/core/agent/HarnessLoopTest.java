@@ -9,6 +9,35 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HarnessLoopTest {
+    @Test void contextReadsStayLocalRefreshAtTheNextDecisionAndExpireAtTheEndOfTheTurn(){
+        var clock=new Clock();var state=new AgentState();var provider=new Provider(clock);var sink=new Sink();var snapshot=frame(chat(1,"How many diamonds do you carry?"));
+        snapshot.add("inventory",json("{\"items\":[{\"item\":\"minecraft:diamond\",\"count\":3,\"snbt\":\"PRIVATE_STACK_DETAIL\"}]}").getAsJsonArray("items"));
+        provider.answer=r->CompletableFuture.completedFuture(decision("get_context",json("{\"sections\":[\"inventory\"],\"query\":\"diamond\",\"limit\":1,\"detail\":\"full\"}")));
+        try(var loop=new HarnessLoop(BINDING,state,provider,clock,sink,()->{})){
+            loop.accept(snapshot);pump(loop);assertTrue(sink.sent.isEmpty());assertEquals(1,loop.calls());assertEquals("Thinking: LIGHT",loop.status());
+            snapshot.getAsJsonArray("inventory").get(0).getAsJsonObject().addProperty("count",9);loop.accept(snapshot);
+            provider.answer=r->{assertEquals(InferenceProvider.Route.LIGHT,r.route());var page=r.observations().getAsJsonObject("context").getAsJsonObject("sections").getAsJsonObject("inventory");assertEquals(9,page.getAsJsonArray("items").get(0).getAsJsonObject().get("count").getAsInt());return CompletableFuture.completedFuture(decision("chat",json("{\"message\":\"I have nine diamonds.\"}")));};
+            clock.advance(5000);pump(loop);assertEquals(1,sink.sent.size());assertEquals("chat",sink.sent.get(0).tool());assertFalse(state.save().toString().contains("PRIVATE_STACK_DETAIL"),"Fetched details do not become permanent replay payloads");
+            snapshot.getAsJsonArray("events").add(chat(2,"Hello"));loop.accept(snapshot);provider.answer=r->{assertFalse(r.observations().has("context"));return CompletableFuture.completedFuture(decision("chat",json("{\"message\":\"Hello!\"}")));};clock.advance(5000);pump(loop);assertEquals(3,loop.calls());assertEquals(0,loop.planningCalls());
+        }
+    }
+    @Test void savedContextSelectorsRefreshAfterRestartRatherThanReplayingOldValues(){
+        var clock=new Clock();var state=new AgentState();state.mutate("remember",json("{\"key\":\"home\",\"text\":\"old base\"}"));var provider=new Provider(clock);provider.answer=r->CompletableFuture.completedFuture(decision("get_context",json("{\"sections\":[\"memory\"],\"query\":\"home\",\"detail\":\"full\"}")));AgentState saved;
+        try(var loop=new HarnessLoop(BINDING,state,provider,clock,new Sink(),()->{})){loop.accept(frame(chat(1,"Where is home?")));pump(loop);saved=AgentState.load(state.save());}
+        saved.mutate("remember",json("{\"key\":\"home\",\"text\":\"new base\"}"));var fresh=new Provider(clock);fresh.answer=r->{String pages=r.observations().getAsJsonObject("context").toString();assertTrue(pages.contains("new base"));assertFalse(pages.contains("old base"));return CompletableFuture.completedFuture(new InferenceProvider.Decision(List.of()));};
+        try(var loop=new HarnessLoop(BINDING,saved,fresh,clock,new Sink(),()->{})){loop.accept(frame());clock.advance(5000);pump(loop);assertEquals(1,fresh.requests.size());assertEquals("Idle",loop.status());}
+    }
+    @Test void rejectedModelOutputGetsOneCorrectionWithNoEffectsBeforeAValidBatch(){
+        var clock=new Clock();var state=new AgentState();var provider=new Provider(clock);var sink=new Sink();provider.answer=r->CompletableFuture.failedFuture(new InferenceProvider.DecisionFormatException("$.calls[0].arguments.steps is invalid"));
+        try(var loop=new HarnessLoop(BINDING,state,provider,clock,sink,()->{})){
+            loop.accept(frame(chat(1,"Hello")));pump(loop);assertFalse(state.paused());assertTrue(sink.sent.isEmpty());assertEquals(1,loop.calls());
+            provider.answer=r->{assertTrue(r.observations().getAsJsonObject("format_feedback").has("format_error"));return CompletableFuture.completedFuture(decision("chat",json("{\"message\":\"Hello\"}")));};clock.advance(5000);pump(loop);assertEquals("Idle",loop.status());assertEquals(1,sink.sent.size());assertEquals(2,loop.calls());
+        }
+    }
+    @Test void repeatedMalformedOutputPausesInsteadOfSpinningOrExecutingPartOfIt(){
+        var clock=new Clock();var state=new AgentState();var provider=new Provider(clock);var sink=new Sink();provider.answer=r->CompletableFuture.failedFuture(new InferenceProvider.DecisionFormatException("Broken JSON"));
+        try(var loop=new HarnessLoop(BINDING,state,provider,clock,sink,()->{})){loop.accept(frame(chat(1,"Hello")));pump(loop);clock.advance(5000);pump(loop);assertTrue(state.paused());assertTrue(loop.lastError().contains("Broken JSON"));clock.advance(60_000);pump(loop);assertEquals(2,loop.calls());assertTrue(sink.sent.isEmpty());}
+    }
     @Test void providerRoutesSelectAndTraceActualModelsWithoutChangingSavedAvatarRoutes(){
         var clock=new Clock();var requests=new java.util.ArrayList<InferenceProvider.Request>();var traces=new java.util.ArrayList<JsonObject>();var state=new AgentState();var sink=new Sink();
         InferenceProvider provider=new InferenceProvider(){
