@@ -12,9 +12,9 @@ The player participates in native chunk tracking independently of its owner. Nat
 
 The current adapter supports:
 
-- Walking and sprinting, step/jump motion, physical following, and native wooden-door/fence-gate interaction. Sprinting uses the native speed attribute when fed (food above six), grounded, and neither crouching nor using an item; it stops near arrival or when the job pauses/stops.
-- Local unobstructed swimming, respecting the Forge swim-speed attribute, plus the separately tested oxygen-escape routine.
-- Ladder ascent toward a nearby upper destination, followed by ground pathing onto existing support.
+- Walking, stairs, sprinting, physical following, and native interaction with hand-openable doors, fence gates and trapdoors. Running uses the native speed attribute when fed (food above six), grounded, and neither crouching nor using an item. It stops near arrival or when the job pauses or stops.
+- Local three-dimensional swimming from shore or at depth. Underwater destinations and interaction approaches require the avatar to enter the water and reach the target's depth. The server uses the Forge swim-speed attribute and retains the oxygen-escape routine.
+- Ladder routes across multiple levels, including approaches from nearby rooms, ascent, descent, and opening a hand-operable hatch aligned with the ladder.
 - Walking around fences and walls, including winding routes through an existing maze. Ordinary navigation preserves blocks by default. A sealed or unreachable route fails with its actual position and a useful error instead of breaking through a base.
 
 The server plans nearby destinations in segments of at most 48 blocks, with a spatial search radius of 64 plus the native eight-block margin, up to 256 blocks of cumulative walking within that region, and a 4,096-node search budget. This separates the length of a winding walk from its straight-line distance. Long journeys re-plan as they progress; this is bounded local routing, not an unlimited global maze solver.
@@ -33,7 +33,7 @@ Automatic support selection considers carried full-collision block items without
 
 `navigation` progress exposes current mode, position, replans, recovery block/type, and native break progress. Pausing or cancelling stops velocity, aborts active break cracks/hooks, and restores the preceding crouch state. Completed world changes and item consumption remain completed. Restoring a saved job re-plans from its actual saved position, inventory, and world; transient path/jump/break progress is reconstructed rather than treated as already finished. Arrival during a pillar jump waits until its support placement completes, and land destinations require ground contact.
 
-Ordinary traversal does not grant portal travel; use [explicit portal actions](PORTALS.md). Deep maze routing underwater, arbitrary climbing mods, complex terrain construction, vehicles, and every modded movement type are not claimed as supported.
+Use [explicit portal actions](PORTALS.md) for dimension transitions. Movement searches are local and bounded, including ladder and water routes.
 
 ## Native fall damage
 
@@ -41,6 +41,6 @@ A normal network player's movement listener performs native fall checks. The loc
 
 ## Verification
 
-Thirteen actual-world scenarios verify a fence maze requiring over 120 blocks of physical detours with all fences, tools and carried blocks retained; a sealed fence failing without terrain changes; native fence-gate opening; hunger preventing sprinting and pause clearing sprint state; plus a 216-block physical journey with no nearby owner, generation/loading before a fixture road reaches destination chunks, native tracking/removal, enclosed obstruction removal with shovel wear, three consumed bridge blocks, stable arrival on three consumed pillar blocks, a real fall/landing and health reduction, native wooden-door opening, ladder ascent onto an existing upper platform, actual underwater travel, and denied bridge placement preserving items/world and restoring crouching.
+Native GameTests cover a winding fence maze, closed doors and gates, a staircase to a raised floor, a ladder and trapdoor in both directions, a swim around a submerged wall and a dive to open a chest. Other fixtures verify sprint cleanup, terrain-preserving failures, optional terrain recovery, native fall damage, and independent chunk loading during a 216-block journey.
 
 The long-route test uses a narrow road supplied only four blocks ahead in already-full chunks. The destination must be initially absent and become full through avatar loading before the road fixture touches it. The GameTest world's distant flat terrain was observed to be void; this fixture does not pretend that it verified a natural overworld landscape. General terrain/modpack navigation and distributed 64-avatar performance remain further compatibility/load work.

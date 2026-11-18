@@ -1,6 +1,7 @@
 package com.aurammods.paracraft.forge.execution;
 
 import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
+import com.aurammods.paracraft.forge.inventory.InventoryAccess;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
@@ -31,15 +32,18 @@ final class FlightNavigator {
                 nodeEvaluator = new FlyNodeEvaluator() {
                     @Override public BlockPathTypes getBlockPathType(BlockGetter level, int x, int y, int z) {
                         BlockPos pos = new BlockPos(x, y, z);
-                        if (level.getBlockState(pos).is(BlockTags.PORTALS) && !actor.portalAuthorized(pos))
+                        var state = level.getBlockState(pos);
+                        if (state.is(BlockTags.PORTALS) && !actor.portalAuthorized(pos))
                             return BlockPathTypes.BLOCKED;
+                        if (PlayerPathEvaluator.closedOpenable(state)) return BlockPathTypes.DOOR_WOOD_CLOSED;
                         return super.getBlockPathType(level, x, y, z);
                     }
                 };
                 return new PathFinder(nodeEvaluator, maximum);
             }
         };
-        navigation.setCanPassDoors(false);
+        navigation.setCanPassDoors(true);
+        navigation.setCanOpenDoors(true);
         navigation.setMaxVisitedNodesMultiplier(3);
     }
 
@@ -72,7 +76,8 @@ final class FlightNavigator {
         Vec3 delta = waypoint.subtract(position);
         double speed = Math.min(0.8, actor.getAbilities().getFlyingSpeed() * 10);
         Vec3 step = delta.length() <= speed ? delta : delta.normalize().scale(speed);
-        if (!clear(position, position.add(step))) {
+        Vec3 next = position.add(step);
+        if (!clear(position, next) && (!openFlightBarriers(step) || !clear(position, next))) {
             waypoint = null;
             path = null;
             actor.setDeltaMovement(Vec3.ZERO);
@@ -109,6 +114,23 @@ final class FlightNavigator {
             }
         }
         return true;
+    }
+
+    private boolean openFlightBarriers(Vec3 step) {
+        var level = actor.serverLevel();
+        var box = actor.getBoundingBox().expandTowards(step);
+        boolean opened = false;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(box.minX, box.minY, box.minZ),
+                BlockPos.containing(box.maxX, box.maxY, box.maxZ))) {
+            var state = level.getBlockState(pos);
+            if (!PlayerPathEvaluator.closedOpenable(state) || !actor.canReach(pos, 0)
+                    || state.getCollisionShape(level, pos).toAabbs().stream().noneMatch(shape -> shape.move(pos).intersects(box))) continue;
+            InventoryAccess.open(actor, pos.immutable());
+            if (PlayerPathEvaluator.closedOpenable(level.getBlockState(pos)))
+                throw new IllegalStateException("Route barrier did not open");
+            opened = true;
+        }
+        return opened;
     }
 
     int replans() { return replans; }

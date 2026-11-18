@@ -9,11 +9,15 @@ import com.aurammods.paracraft.forge.execution.GameJob;
 import com.aurammods.paracraft.forge.execution.JobJson;
 import com.google.gson.JsonParser;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
@@ -95,6 +99,153 @@ public final class NavigationGameTests {
         var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(2.5,3,3.5));var actor=m.actor(entry.id);Vec3 start=actor.position();var work=travel(h,m,owner,entry,new Vec3(10.5,3,3.5));
         h.onEachTick(()->{check(h,work);if(work.state()!=JobState.SUCCEEDED)return;h.assertTrue(actor.isInWater() && actor.position().distanceTo(start)>7,"Native physics swam through the actual water volume");clear(m,owner,entry);pass("navigation_native_swimming");h.succeed();});
     }
+
+    @GameTest(batch = "mixed_navigation", template = "empty", timeoutTicks = 420)
+    public static void findsALadderFromAcrossTheRoomAndOpensItsTrapdoor(GameTestHelper h) {
+        floor(h);
+        for (int y = 2; y <= 6; y++) set(h, 7, y, 4, Blocks.STONE.defaultBlockState());
+        for (int y = 2; y <= 5; y++) set(h, 6, y, 4, Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.WEST));
+        for (int x = 7; x <= 11; x++) for (int z = 3; z <= 5; z++) set(h, x, 6, z, Blocks.STONE.defaultBlockState());
+        BlockPos hatch = h.absolutePos(new BlockPos(6, 6, 4));
+        var closed = Blocks.OAK_TRAPDOOR.defaultBlockState().setValue(TrapDoorBlock.FACING, Direction.WEST);
+        h.getLevel().setBlockAndUpdate(hatch, closed);
+        var manager = manager(h);
+        UUID owner = UUID.randomUUID();
+        Vec3 ground = new Vec3(2.5, 2, 4.5);
+        var entry = spawn(h, manager, owner, ground);
+        var actor = manager.actor(entry.id);
+        var upper = h.absoluteVec(new Vec3(10.5, 7, 4.5));
+        GameJob[] job = {travel(h, manager, owner, entry, new Vec3(10.5, 7, 4.5))};
+        boolean[] returning = {false}, descending = {false};
+        h.onEachTick(() -> {
+            check(h, job[0]);
+            if (returning[0] && actor.onClimbable() && actor.getDeltaMovement().y < -0.05) descending[0] = true;
+            if (job[0].state() != JobState.SUCCEEDED) return;
+            if (!returning[0]) {
+                h.assertTrue(actor.onGround() && actor.position().distanceTo(upper) < 0.71
+                        && h.getLevel().getBlockState(hatch).getValue(TrapDoorBlock.OPEN),
+                        "Ground travel finds the ladder, opens the hatch, and reaches the upper floor");
+                h.getLevel().setBlockAndUpdate(hatch, closed);
+                returning[0] = true;
+                job[0] = travel(h, manager, owner, entry, ground);
+                return;
+            }
+            h.assertTrue(descending[0] && h.getLevel().getBlockState(hatch).getValue(TrapDoorBlock.OPEN) && actor.getHealth() == 20,
+                    "The return route opens the hatch and descends the ladder safely");
+            clear(manager, owner, entry);
+            h.succeed();
+        });
+    }
+
+    @GameTest(batch = "mixed_navigation", template = "empty", timeoutTicks = 200)
+    public static void walksUpAStaircaseToARaisedFloor(GameTestHelper h) {
+        floor(h);
+        for (int x = 5; x <= 8; x++) {
+            int height = x - 3;
+            for (int y = 2; y < height; y++) set(h, x, y, 3, Blocks.STONE.defaultBlockState());
+            set(h, x, height, 3, Blocks.STONE_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.EAST));
+        }
+        for (int x = 9; x <= 12; x++) set(h, x, 5, 3, Blocks.STONE.defaultBlockState());
+        for (int x = 2; x <= 12; x++) for (int y = 2; y <= 7; y++) {
+            set(h, x, y, 2, Blocks.BEDROCK.defaultBlockState());
+            set(h, x, y, 4, Blocks.BEDROCK.defaultBlockState());
+        }
+        var manager = manager(h);
+        UUID owner = UUID.randomUUID();
+        var entry = spawn(h, manager, owner, new Vec3(2.5, 2, 3.5));
+        var actor = manager.actor(entry.id);
+        var job = travel(h, manager, owner, entry, new Vec3(11.5, 6, 3.5));
+        h.onEachTick(() -> {
+            check(h, job);
+            if (job.state() != JobState.SUCCEEDED) return;
+            h.assertTrue(actor.onGround() && actor.position().distanceTo(h.absoluteVec(new Vec3(11.5, 6, 3.5))) < 0.71,
+                    "Native stair movement reaches the raised floor");
+            for (int x = 5; x <= 8; x++) h.assertTrue(h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, x - 3, 3))).is(Blocks.STONE_STAIRS),
+                    "The staircase remains intact");
+            clear(manager, owner, entry);
+            h.succeed();
+        });
+    }
+
+    @GameTest(batch = "mixed_navigation", template = "empty", timeoutTicks = 220)
+    public static void divesFromShoreAndSwimsAroundASubmergedWall(GameTestHelper h) {
+        floor(h);
+        for (int x = 3; x <= 13; x++) for (int z = 0; z <= 9; z++) for (int y = 2; y <= 9; y++) {
+            if (y == 9 || x == 3 || x == 13 || z == 0 || z == 9 || x == 7 && z <= 6) set(h, x, y, z, Blocks.STONE.defaultBlockState());
+            else set(h, x, y, z, Blocks.WATER.defaultBlockState());
+        }
+        set(h, 3, 7, 3, Blocks.AIR.defaultBlockState());
+        set(h, 3, 8, 3, Blocks.AIR.defaultBlockState());
+        set(h, 2, 6, 3, Blocks.STONE.defaultBlockState());
+        var manager = manager(h);
+        UUID owner = UUID.randomUUID();
+        var entry = spawn(h, manager, owner, new Vec3(2.5, 7, 3.5));
+        var actor = manager.actor(entry.id);
+        var job = travel(h, manager, owner, entry, new Vec3(10.5, 3, 3.5));
+        double gapZ = h.absoluteVec(new Vec3(0, 0, 7)).z;
+        double wallX = h.absoluteVec(new Vec3(7.5, 0, 0)).x;
+        boolean[] usedGap = {false};
+        double[] maxZ = {actor.getZ()};
+        h.onEachTick(() -> {
+            check(h, job);
+            maxZ[0] = Math.max(maxZ[0], actor.getZ());
+            if (Math.abs(actor.getX() - wallX) < 0.4 && actor.getZ() > gapZ && actor.isInWater()) usedGap[0] = true;
+            if (job.state() != JobState.SUCCEEDED) return;
+            h.assertTrue(usedGap[0] && actor.isUnderWater() && actor.position().distanceTo(h.absoluteVec(new Vec3(10.5, 3, 3.5))) < 0.71,
+                    "The route enters from land, detours around the wall, and reaches the submerged destination. Gap used="
+                            + usedGap[0] + " maxZ=" + maxZ[0] + " gapZ=" + gapZ + " underwater=" + actor.isUnderWater() + " position=" + actor.position());
+            clear(manager, owner, entry);
+            h.succeed();
+        });
+    }
+
+    @GameTest(batch = "mixed_navigation", template = "empty", timeoutTicks = 180)
+    public static void creativeAvatarDivesBeforeOpeningAChestWithinSurfaceReach(GameTestHelper h) {
+        floor(h);
+        for (int x = 2; x <= 8; x++) for (int z = 2; z <= 8; z++) for (int y = 2; y <= 6; y++)
+            set(h, x, y, z, x == 2 || x == 8 || z == 2 || z == 8 ? Blocks.STONE.defaultBlockState() : Blocks.WATER.defaultBlockState());
+        BlockPos chest = h.absolutePos(new BlockPos(5, 5, 5));
+        h.getLevel().setBlockAndUpdate(chest, Blocks.CHEST.defaultBlockState().setValue(net.minecraft.world.level.block.ChestBlock.WATERLOGGED, true));
+        var manager = manager(h);
+        UUID owner = UUID.randomUUID();
+        var entry = spawn(h, manager, owner, new Vec3(5.5, 7.3, 5.5));
+        var actor = manager.actor(entry.id);
+        actor.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+        var program = JsonParser.parseString("""
+                {"steps":[{"op":"open_inventory","position":%s,"saveAs":"chest"}]}
+                """.formatted(JobJson.position(chest))).getAsJsonObject();
+        var job = manager.jobs().submitProgram(owner, entry.id, entry.authority.session(), UUID.randomUUID(), program, "replace");
+        h.onEachTick(() -> {
+            check(h, job);
+            if (job.state() != JobState.SUCCEEDED) return;
+            h.assertTrue(actor.isInWater() && !actor.getAbilities().flying && actor.getY() <= chest.getY() + 1.15,
+                    "An underwater interaction gets to the chest's depth before opening it");
+            clear(manager, owner, entry);
+            h.succeed();
+        });
+    }
+
+    @GameTest(batch = "mixed_navigation", template = "empty", timeoutTicks = 120)
+    public static void flightOpensAClosedDoorInAnEnclosedHall(GameTestHelper h) {
+        corridor(h, false);
+        var door = Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, Direction.EAST);
+        set(h, 6, 2, 3, door);
+        set(h, 6, 3, 3, door.setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER));
+        var manager = manager(h);
+        UUID owner = UUID.randomUUID();
+        var entry = spawn(h, manager, owner, new Vec3(3.5, 2, 3.5));
+        manager.actor(entry.id).setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+        var job = travel(h, manager, owner, entry, new Vec3(10.5, 2, 3.5));
+        h.onEachTick(() -> {
+            check(h, job);
+            if (job.state() != JobState.SUCCEEDED) return;
+            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(new BlockPos(6, 2, 3)))
+                    .getValue(net.minecraft.world.level.block.DoorBlock.OPEN), "Flight uses the hand-openable barrier in its route");
+            clear(manager, owner, entry);
+            h.succeed();
+        });
+    }
     @GameTest(batch="terrain_recovery",template="empty",timeoutTicks=220)
     public static void cancelledBridgePlacementPreservesItemsAndRestoresSneaking(GameTestHelper h){
         corridor(h,true);var m=manager(h);UUID owner=UUID.randomUUID();var entry=spawn(h,m,owner,new Vec3(3.5,2,3.5));var actor=m.actor(entry.id);actor.getInventory().setItem(0,new ItemStack(Items.COBBLESTONE,8));int[] attempts={0};
@@ -151,6 +302,9 @@ public final class NavigationGameTests {
     private static void clear(AvatarManager m,UUID owner,AvatarEntry entry){m.actor(entry.id).getInventory().clearContent();m.destroy(owner,entry.id);}
     private static void check(GameTestHelper h,GameJob work){h.assertTrue(work.state()!=JobState.FAILED && work.state()!=JobState.CANCELLED,"Navigation failed: "+work.view());}
     private static void floor(GameTestHelper h){for(int x=0;x<14;x++)for(int z=0;z<14;z++)h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(x,1,z)),Blocks.STONE.defaultBlockState());}
+    private static void set(GameTestHelper h, int x, int y, int z, net.minecraft.world.level.block.state.BlockState state) {
+        h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(x, y, z)), state);
+    }
     private static void corridor(GameTestHelper h,boolean gap){
         floor(h);for(int x=0;x<14;x++)for(int y=2;y<=4;y++){h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(x,y,2)),Blocks.BEDROCK.defaultBlockState());h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(x,y,4)),Blocks.BEDROCK.defaultBlockState());h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(x,4,3)),Blocks.BEDROCK.defaultBlockState());}
         for(int x:new int[]{0,13})for(int y=2;y<=4;y++)h.getLevel().setBlockAndUpdate(h.absolutePos(new BlockPos(x,y,3)),Blocks.BEDROCK.defaultBlockState());

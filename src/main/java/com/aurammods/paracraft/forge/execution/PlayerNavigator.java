@@ -2,14 +2,13 @@ package com.aurammods.paracraft.forge.execution;
 
 import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
 import com.aurammods.paracraft.forge.inventory.InventoryAccess;
+import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
-import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
 
@@ -55,17 +54,7 @@ public final class PlayerNavigator implements AutoCloseable {
         proxy.getAttribute(Attributes.FOLLOW_RANGE).setBaseValue(64);
         navigation = new GroundPathNavigation(proxy, actor.serverLevel()) {
             @Override protected net.minecraft.world.level.pathfinder.PathFinder createPathFinder(int maximum) {
-                nodeEvaluator = new net.minecraft.world.level.pathfinder.WalkNodeEvaluator() {
-                    @Override public net.minecraft.world.level.pathfinder.BlockPathTypes getBlockPathType(net.minecraft.world.level.BlockGetter level, int x, int y, int z) {
-                        var state = level.getBlockState(new BlockPos(x, y, z));
-                        if (idleCenter != null && (!insideIdle(new Vec3(x + 0.5, y, z + 0.5), 0.5) || !state.getFluidState().isEmpty()))
-                            return net.minecraft.world.level.pathfinder.BlockPathTypes.BLOCKED;
-                        if (state.getBlock() instanceof FenceGateBlock && !state.getValue(FenceGateBlock.OPEN))
-                            return net.minecraft.world.level.pathfinder.BlockPathTypes.DOOR_WOOD_CLOSED;
-                        return super.getBlockPathType(level, x, y, z);
-                    }
-                };
-                nodeEvaluator.setCanPassDoors(true);
+                nodeEvaluator = new PlayerPathEvaluator(actor, idleCenter, idleRadius);
                 return new net.minecraft.world.level.pathfinder.PathFinder(nodeEvaluator, maximum) {
                     @Override public Path findPath(net.minecraft.world.level.PathNavigationRegion region, net.minecraft.world.entity.Mob mob,
                                                    java.util.Set<BlockPos> targets, float range, int accuracy, float visitedMultiplier) {
@@ -82,7 +71,9 @@ public final class PlayerNavigator implements AutoCloseable {
     }
 
     public boolean tick(Vec3 destination, double reach) {
-        if (idleCenter == null && actor.getAbilities().mayfly && !actor.isPassenger()) {
+        var level = actor.serverLevel();
+        boolean diving = underwaterTarget(actor, destination);
+        if (idleCenter == null && actor.getAbilities().mayfly && !actor.isPassenger() && (!diving || !actor.isInWater())) {
             if (flight == null) {
                 if (breaker != null) { breaker.close(); breaker = null; }
                 if (recoveryBlock != null) finishRecovery();
@@ -91,23 +82,29 @@ public final class PlayerNavigator implements AutoCloseable {
                 flight = new FlightNavigator(actor, proxy);
             }
             mode = "flying";
-            boolean arrived = flight.tick(destination, reach);
+            Vec3 flightTarget = destination;
+            if (diving) {
+                BlockPos target = BlockPos.containing(destination);
+                if (!PlayerPathEvaluator.water(level, target) || !level.getBlockState(target).getCollisionShape(level, target).isEmpty())
+                    target = target.above();
+                flightTarget = Vec3.atCenterOf(target);
+            }
+            boolean arrived = flight.tick(flightTarget, diving ? 0.25 : reach);
             flightReplans = flight.replans();
-            return arrived;
+            return arrived && !diving;
         }
         if (flight != null) { flight.stop(); flight = null; }
-        if(recoveryBlock!=null){recoverTick();return false;}
-        if (actor.position().distanceTo(destination) <= reach && (reach>=1.5 || actor.onGround() || actor.isInWater())) { close(); return true; }
-        Vec3 goal=destination.subtract(actor.position());
-        if(actor.onClimbable() && goal.y>0.4 && goal.horizontalDistance()<2){sprint(false);path=null;mode="climbing";actor.setDeltaMovement(goal.x*0.05,0.18,goal.z*0.05);return false;}
-        if(actor.isInWater()){
-            sprint(false);
-            Vec3 direction=goal.normalize();double vertical=goal.y>0.3?0.18:goal.y< -0.3?-0.12:0.02;
-            double scale=actor.getAttributeValue(net.minecraftforge.common.ForgeMod.SWIM_SPEED.get());Vec3 motion=new Vec3(direction.x*0.15,vertical,direction.z*0.15).scale(scale);
-            if(actor.serverLevel().noCollision(actor,actor.getBoundingBox().move(motion.scale(3)))){path=null;mode="swimming";actor.setDeltaMovement(motion);return false;}
+        if (diving && actor.getAbilities().flying && !actor.isSpectator()) {
+            actor.getAbilities().flying = false;
+            actor.onUpdateAbilities();
         }
+        if(recoveryBlock!=null){recoverTick();return false;}
+        if (arrived(actor, destination, reach)) { close(); return true; }
+        Vec3 goal=destination.subtract(actor.position());
+        BlockPos feet = actor.blockPosition();
+        boolean ladder = actor.onClimbable() || PlayerPathEvaluator.climbable(level, feet.below());
         mode="walking";
-        if (!actor.onGround() && !actor.isInWater() && !actor.onClimbable()) return false;
+        if (!actor.onGround() && !actor.isInWater() && !ladder) return false;
         if (lastDestination != null && lastDestination.distanceTo(destination) > 4) path = null;
         lastDestination = destination;
         if (actor.position().distanceTo(lastPosition) < 0.015) stalled++; else stalled = 0;
@@ -116,7 +113,7 @@ public final class PlayerNavigator implements AutoCloseable {
         if (path == null || path.isDone()) {
             pathOrigin=actor.position();
             proxy.moveTo(actor.getX(), actor.getY(), actor.getZ(), actor.getYRot(), actor.getXRot());
-            proxy.setOnGround(actor.onGround() || actor.isInWater() || actor.onClimbable());
+            proxy.setOnGround(actor.onGround() || actor.isInWater() || ladder);
             Vec3 offset = destination.subtract(actor.position());
             Vec3 segment = offset.length() > 48 ? actor.position().add(offset.normalize().scale(48)) : destination;
             path = navigation.createPath(BlockPos.containing(segment), reach > 1 ? 1 : 0);
@@ -124,24 +121,43 @@ public final class PlayerNavigator implements AutoCloseable {
         }
         while (!path.isDone()) {
             Vec3 node = path.getNextEntityPos(proxy);
+            BlockPos nodePos = path.getNextNodePos();
             double horizontalReach=actor.getBbWidth()>0.75F?actor.getBbWidth()/2:0.75F-actor.getBbWidth()/2;
-            // Native ground navigation tolerates partial-height support vertically.
-            if(Math.abs(actor.getX()-node.x)>=horizontalReach || Math.abs(actor.getZ()-node.z)>=horizontalReach || Math.abs(actor.getY()-node.y)>=1)break;
+            boolean preciseHeight = ladder || actor.isInWater() || PlayerPathEvaluator.water(level, nodePos)
+                    || PlayerPathEvaluator.climbable(level, nodePos) || PlayerPathEvaluator.climbable(level, nodePos.below());
+            // Walking nodes tolerate partial-height support. A ladder or swim node needs the actual depth.
+            if(Math.abs(actor.getX()-node.x)>=horizontalReach || Math.abs(actor.getZ()-node.z)>=horizontalReach
+                    || Math.abs(actor.getY()-node.y)>=(preciseHeight ? 0.20 : 1))break;
             path.advance();
         }
         if (path.isDone()) { path = null; closeVelocity();if(pathOrigin!=null && actor.position().distanceTo(pathOrigin)>0.5)attempts=0;else if(++attempts>1)beginRecovery(destination);return false; }
         BlockPos next = path.getNextNodePos();
-        if(idleCenter==null && com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get() && next.getY()<actor.blockPosition().getY()-1 && destination.y>=actor.getY()-0.5){beginRecovery(destination);return false;}
+        if(idleCenter==null && !ladder && !actor.isInWater() && !PlayerPathEvaluator.water(level, next)
+                && com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get() && next.getY()<actor.blockPosition().getY()-1 && destination.y>=actor.getY()-0.5){beginRecovery(destination);return false;}
         if ((actor.serverLevel().getBlockState(next).is(BlockTags.PORTALS) && !actor.portalAuthorized(next))
                 || (actor.serverLevel().getBlockState(next.above()).is(BlockTags.PORTALS) && !actor.portalAuthorized(next.above())))
             throw new IllegalStateException("Route enters a portal; explicit dimension travel is required");
         for (BlockPos pos : listAround(next)) {
             var state = actor.serverLevel().getBlockState(pos);
-            if ((state.getBlock() instanceof DoorBlock || state.getBlock() instanceof FenceGateBlock) && !state.getValue(DoorBlock.OPEN)
-                    && actor.distanceToSqr(Vec3.atCenterOf(pos)) < 9) InventoryAccess.open(actor, pos);
+            if (PlayerPathEvaluator.closedOpenable(state) && actor.distanceToSqr(Vec3.atCenterOf(pos)) < 9) {
+                InventoryAccess.open(actor, pos);
+                if (PlayerPathEvaluator.closedOpenable(level.getBlockState(pos)))
+                    throw new IllegalStateException("Route barrier did not open");
+            }
         }
-        Vec3 delta = path.getNextEntityPos(proxy).subtract(actor.position());
+        Vec3 waypoint = path.getNextEntityPos(proxy);
+        Vec3 delta = waypoint.subtract(actor.position());
         double horizontal = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+        if (actor.isInWater()) {
+            swim(delta);
+            return false;
+        }
+        if (idleCenter == null && ladder && horizontal < 0.8 && Math.abs(delta.y) > 0.12) {
+            sprint(false);
+            mode = "climbing";
+            actor.setDeltaMovement(delta.x * 0.35, delta.y > 0 ? 0.21 : -0.15, delta.z * 0.35);
+            return false;
+        }
         sprint(sprintAllowed && goal.horizontalDistance() > 3 && actor.getFoodData().getFoodLevel() > 6 && !actor.isUsingItem() && !actor.isShiftKeyDown() && actor.onGround());
         mode = actor.isSprinting() ? "sprinting" : "walking";
         double speed = Math.min(actor.getAttributeValue(Attributes.MOVEMENT_SPEED) * 1.9, horizontal);
@@ -156,6 +172,28 @@ public final class PlayerNavigator implements AutoCloseable {
         }
         return false;
     }
+    private void swim(Vec3 delta) {
+        mode = "swimming";
+        sprint(sprintAllowed && actor.isUnderWater() && actor.getFoodData().getFoodLevel() > 6
+                && !actor.isUsingItem() && !actor.isShiftKeyDown());
+        actor.lookAt(EntityAnchorArgument.Anchor.EYES, actor.getEyePosition().add(delta));
+        double speed = Math.min(delta.length(), actor.getAttributeValue(net.minecraftforge.common.ForgeMod.SWIM_SPEED.get()) * 0.22);
+        actor.setDeltaMovement(delta.normalize().scale(speed));
+    }
+
+    static boolean arrived(CompanionPlayer actor, Vec3 destination, double reach) {
+        if (actor.position().distanceTo(destination) > reach) return false;
+        if (underwaterTarget(actor, destination))
+            return actor.isInWater() && actor.getY() <= destination.y + 0.65;
+        return reach >= 1.5 || actor.onGround() || actor.isInWater();
+    }
+
+    private static boolean underwaterTarget(CompanionPlayer actor, Vec3 destination) {
+        var level = actor.serverLevel();
+        BlockPos pos = BlockPos.containing(destination);
+        return level.hasChunkAt(pos) && (PlayerPathEvaluator.water(level, pos)
+                || !level.getBlockState(pos).isAir() && PlayerPathEvaluator.water(level, pos.above()));
+    }
     private void beginRecovery(Vec3 destination){
         path=null;attempts=0;stalled=0;closeVelocity();BlockPos feet=actor.blockPosition();Vec3 delta=destination.subtract(actor.position());
         if(idleCenter != null || !com.aurammods.paracraft.Paracraft.NAVIGATION_TERRAIN_CHANGES.get())
@@ -165,7 +203,7 @@ public final class PlayerNavigator implements AutoCloseable {
         BlockPos front=feet.relative(facing);
         for(BlockPos obstacle:java.util.List.of(front.above(),front)){
             var state=actor.serverLevel().getBlockState(obstacle);
-            if(state.getBlock() instanceof DoorBlock && !state.getValue(DoorBlock.OPEN)){InventoryAccess.open(actor,obstacle);return;}
+            if (PlayerPathEvaluator.closedOpenable(state)) { InventoryAccess.open(actor, obstacle); return; }
             if(!state.getCollisionShape(actor.serverLevel(),obstacle).isEmpty()){
                 if(state.hasBlockEntity() || state.is(BlockTags.PORTALS))throw new IllegalStateException("Navigation obstruction needs an explicit block action");
                 recoveryBlock=obstacle;mode="breaking_obstruction";CarriedItems.miningTool(actor,obstacle,state);breaker=new NativeBlockBreaker(actor,obstacle);return;
@@ -203,6 +241,9 @@ public final class PlayerNavigator implements AutoCloseable {
     private static java.util.List<BlockPos> listAround(BlockPos next) { return java.util.List.of(next, next.above()); }
     private void sprint(boolean value) { if (actor.isSprinting() != value) actor.setSprinting(value); }
     private boolean insideIdle(Vec3 point, double margin) { return idleCenter == null || point.distanceToSqr(idleCenter) <= (idleRadius-margin)*(idleRadius-margin); }
-    private void closeVelocity() { sprint(false); actor.setDeltaMovement(0, actor.getDeltaMovement().y, 0); }
+    private void closeVelocity() {
+        sprint(false);
+        actor.setDeltaMovement(0, actor.isInWater() ? 0 : actor.getDeltaMovement().y, 0);
+    }
     @Override public void close() { if(flight!=null){flight.stop();flight=null;}if(breaker!=null){breaker.close();breaker=null;}if(mode.equals("bridging"))actor.setShiftKeyDown(priorSneaking);recoveryBlock=null;path = null; closeVelocity(); proxy.discard(); }
 }

@@ -52,7 +52,7 @@ public abstract class GameJob {
     protected boolean allowsRestoredDimension(JsonObject checkpoint){return false;}
     protected PlayerNavigator createNavigator(){return new PlayerNavigator(actor);}
     protected boolean navigate(Vec3 target, double reach) {
-        if (navigator==null && actor.position().distanceTo(target) <= reach && (reach>=1.5 || actor.onGround() || actor.isInWater())) { stopMoving(); return true; }
+        if (navigator == null && PlayerNavigator.arrived(actor, target, reach)) { stopMoving(); return true; }
         if (navigator == null) navigator = createNavigator();
         boolean arrived;try{arrived=navigator.tick(target,reach);}finally{result.add("navigation",navigator.view());}
         if (!arrived) return false;
