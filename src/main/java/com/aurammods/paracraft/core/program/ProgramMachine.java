@@ -47,6 +47,9 @@ public final class ProgramMachine {
 
     public ProgramMachine(UUID id, JsonObject program, Factory factory) {
         this.id = id; this.program = program.deepCopy(); this.factory = factory;
+        JsonElement wake = program.get("wakeOnSuccess");
+        if (wake != null && !wake.isJsonNull() && !(wake.isJsonPrimitive() && wake.getAsJsonPrimitive().isBoolean()))
+            throw new IllegalArgumentException("wakeOnSuccess must be a boolean");
         if (program.has("schema") && program.get("schema").getAsInt() != 1)
             throw new IllegalArgumentException("Unsupported action-program schema");
         if (!program.has("steps") || !program.get("steps").isJsonArray())
@@ -60,7 +63,12 @@ public final class ProgramMachine {
     public JobState state() { return state; }
     public JsonObject error() { return error.deepCopy(); }
     public JsonObject results() { return results.deepCopy(); }
-    public String taskId() { return program.has("taskId") ? program.get("taskId").getAsString() : id.toString(); }
+    private boolean hasTask() { return program.has("taskId") && !program.get("taskId").isJsonNull(); }
+    public String taskId() { return hasTask() ? program.get("taskId").getAsString() : id.toString(); }
+    public boolean wakeOnSuccess() {
+        JsonElement wake = program.get("wakeOnSuccess");
+        return hasTask() || wake == null || wake.isJsonNull() || wake.getAsBoolean();
+    }
     public String currentOperation() { return pc < code.size() && code.get(pc).action != null ? code.get(pc).action.get("op").getAsString() : "control"; }
     public boolean hasPendingOperation(){return pending!=null || pendingCheckpoint!=null;}
 

@@ -25,6 +25,8 @@ A continuation (`think_harder` or `observe`) must be the sole tool call in a rep
 
 Fresh chat starts on Light; known task/program/timer continuations start on Planning. Acknowledged running/advancing queued programs suppress routine model polling while native work proceeds. New events/status changes still wake the loop. Chat takes priority over coalesced background notifications; spawn/self-response events are history-only. Explicit program waits compare actual state changes without repeatedly waking on an unchanged pause. See [CONTINUITY.md](CONTINUITY.md).
 
+Planning can send a single program with no task entry and include its completion reply as the final server-side step. With `wakeOnSuccess: false`, its success goes into history and the avatar can return to idle without another inference turn. Programs that need additional decisions can keep the standard success wake and can link a durable task.
+
 Snapshots are bound to persistent world, owner, and avatar UUIDs. Session changes or a server pause cancel pending futures. Results from an old future cannot be applied, including when a provider ignores cancellation. The turn remains saved for resumption under a valid lease.
 
 Respawn advances a persisted life revision. An unfinished decision from the previous body is discarded instead of submitting its remaining effects under the new lease; durable tasks and an unfinished original chat request remain for fresh planning. Ordinary reconnect within the same life preserves retry/deduplication behavior.

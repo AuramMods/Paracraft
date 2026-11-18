@@ -34,6 +34,20 @@ class DecisionSchemaTest {
         drop.addProperty("quantity",1);drop.addProperty("slot","helmet");assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
     }
     private static final String ID = "5680d971-0dcf-425a-94a7-2778b8e98258";
+    @Test void oneShotProgramsCanSuppressSuccessWakeWithoutLinkingATask() throws Exception {
+        var args = json("""
+                {"schema":1,"id":"%s","mode":"replace","wakeOnSuccess":false,
+                 "observationRefs":[],"steps":[{"op":"chat","text":"Done."}]}
+                """.formatted(ID));
+        var decoded = DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING).calls().get(0).arguments();
+        assertFalse(decoded.has("taskId"));
+        assertFalse(decoded.get("wakeOnSuccess").getAsBoolean());
+
+        args.remove("wakeOnSuccess");
+        decoded = DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING).calls().get(0).arguments();
+        assertFalse(decoded.has("wakeOnSuccess"));
+    }
+
     @Test void bothRoutesEmitStrictTypedSchemasWithoutEncodedJsonFields() {
         for (var route : InferenceProvider.Route.values()) {
             var schema = DecisionSchema.parameters(route); assertStrict(schema);

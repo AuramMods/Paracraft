@@ -10,7 +10,7 @@ public final class DefenseJob extends GameJob {
     private final EntityWorkJob combat;
     public DefenseJob(CompanionPlayer actor, UUID target) {
         super(UUID.randomUUID(),"defend",actor); this.target=target;
-        combat=new EntityWorkJob(UUID.randomUUID(),actor,"attack_entity",target,2,0);
+        combat=new EntityWorkJob(UUID.randomUUID(),actor,"attack_entity",target,2,0,false);
     }
     @Override protected void advance() {
         var entity=actor.serverLevel().getEntity(target); result.addProperty("target",target.toString());

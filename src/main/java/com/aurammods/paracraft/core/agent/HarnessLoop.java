@@ -265,7 +265,7 @@ public final class HarnessLoop implements AutoCloseable {
                 : inference != null ? "Thinking: " + route()
                 : state.turn != null && !state.turn.has("calls") ? route() == InferenceProvider.Route.PLANNING ? "Planning" : "Thinking: LIGHT"
                 : !state.wakeEvent.isEmpty() ? !state.hasWork() && !mechanicalWorkRunning() && state.wakeAtMillis==Long.MAX_VALUE && Set.of("any","chat").contains(state.wakeEvent)?"Idle":"Waiting: " + state.wakeEvent
-                : state.turn != null || !state.inbox.isEmpty() || state.hasWork() ? "Working" : "Idle";
+                : state.turn != null || !state.inbox.isEmpty() || state.hasWork() || mechanicalWorkRunning() ? "Working" : "Idle";
     }
     public long calls() { return calls; }
     public long planningCalls() { return planningCalls; }

@@ -1,8 +1,11 @@
 package com.aurammods.paracraft.forge.control;
 
+import com.aurammods.paracraft.core.JobState;
 import com.aurammods.paracraft.forge.avatar.AvatarEntry;
 import com.aurammods.paracraft.forge.avatar.AvatarManager;
+import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
 import com.aurammods.paracraft.forge.execution.GameJob;
+import com.aurammods.paracraft.forge.execution.ProgramJob;
 import com.aurammods.paracraft.forge.inventory.InventorySearch;
 import com.aurammods.paracraft.forge.inventory.ItemSelector;
 import com.google.gson.JsonArray;
@@ -77,6 +80,15 @@ public final class ServerControl {
         JsonObject details = new JsonObject(); details.addProperty("senderUuid", actualSender.toString()); details.addProperty("message", text);
         event(entry.id, "chat", details);
     }
+    public void respond(CompanionPlayer actor, UUID requestId, String message) {
+        thread();
+        server.getPlayerList().broadcastSystemMessage(Component.literal("<" + actor.getGameProfile().getName() + "> " + message), false);
+        JsonObject details = new JsonObject();
+        details.addProperty("message", message);
+        details.addProperty("requestId", requestId.toString());
+        details.addProperty("wake", false);
+        event(actor.getUUID(), "response", details);
+    }
     public JsonObject snapshot(UUID actualOwner, UUID avatar) {
         thread(); AvatarEntry entry = avatars.owned(actualOwner, avatar);
         return SnapshotBuilder.build(avatars, entry, state(entry));
@@ -139,11 +151,8 @@ public final class ServerControl {
                     else result = new JsonObject();
                 }
                 case "chat" -> {
-                    String message = string(args, "message");
-                    server.getPlayerList().broadcastSystemMessage(Component.literal("<" + entry.name + "> " + message), false);
+                    respond(avatars.actor(avatar), id, string(args, "message"));
                     result = new JsonObject(); result.addProperty("sent", true);
-                    JsonObject details = new JsonObject(); details.addProperty("message", message); details.addProperty("requestId", id.toString()); details.addProperty("wake", false);
-                    event(avatar, "response", details);
                 }
                 case "trust", "untrust" -> {
                     if (source == null || !source.has("senderUuid") || !entry.authority.owner().toString().equals(source.get("senderUuid").getAsString()))
@@ -195,7 +204,13 @@ public final class ServerControl {
                 String key = job.id.toString(), current = job.state().name();
                 if (states.has(key) && current.equals(states.get(key).getAsString())) continue;
                 states.addProperty(key, current); avatars.dirty();
-                if (job.state().terminal()) { JsonObject details = new JsonObject(); details.add("program", job.view()); event(entry.id, "program", details); }
+                if (job.state().terminal()) {
+                    JsonObject details = new JsonObject();
+                    details.add("program", job.view());
+                    if (job.state() == JobState.SUCCEEDED && job instanceof ProgramJob program && !program.wakeOnSuccess())
+                        details.addProperty("wake", false);
+                    event(entry.id, "program", details);
+                }
             }
         }
     }

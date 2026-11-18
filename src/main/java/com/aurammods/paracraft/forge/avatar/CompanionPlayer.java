@@ -9,10 +9,16 @@ import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.RelativeMovement;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
 
 import java.util.Set;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 
 /** Real survival player, ticked by its level; it has no socket or authenticated account. */
 public final class CompanionPlayer extends ServerPlayer {
@@ -110,12 +116,28 @@ public final class CompanionPlayer extends ServerPlayer {
     @Override public void readAdditionalSaveData(net.minecraft.nbt.CompoundTag tag) {
         super.readAdditionalSaveData(tag); deathCommitted = tag.getBoolean("ParacraftDeathCommitted");teleportSerial=tag.getLong("ParacraftTeleportSerial");wonGame=tag.getBoolean("ParacraftEndReturn");
     }
-    private final java.util.Set<java.util.function.Consumer<net.minecraft.world.item.ItemStack>> pickupObservers = new java.util.HashSet<>();
-    public Runnable observePickups(java.util.function.Consumer<net.minecraft.world.item.ItemStack> observer) {
+    private final Set<Consumer<ItemStack>> pickupObservers = new java.util.HashSet<>();
+    private Consumer<LivingDropsEvent> meleeDropsObserver;
+    private BiPredicate<ItemEntity, ItemStack> meleePickupObserver;
+    public Runnable observePickups(Consumer<ItemStack> observer) {
         pickupObservers.add(observer); return () -> pickupObservers.remove(observer);
     }
-    public void recordPickup(net.minecraft.world.item.ItemStack stack) {
+    public boolean recordPickup(ItemEntity drop, ItemStack stack) {
         if (!stack.isEmpty()) for (var observer : java.util.List.copyOf(pickupObservers)) observer.accept(stack.copy());
+        return meleePickupObserver != null && meleePickupObserver.test(drop, stack);
+    }
+    public void attackObservingDrops(LivingEntity target, Consumer<LivingDropsEvent> observer) {
+        var previous = meleeDropsObserver;
+        meleeDropsObserver = observer;
+        try { attack(target); }
+        finally { meleeDropsObserver = previous; }
+    }
+    public void recordMeleeDrops(LivingDropsEvent event) {
+        if (meleeDropsObserver != null) meleeDropsObserver.accept(event);
+    }
+    public Runnable observeMeleePickups(BiPredicate<ItemEntity, ItemStack> observer) {
+        meleePickupObserver = observer;
+        return () -> { if (meleePickupObserver == observer) meleePickupObserver = null; };
     }
     public CompanionPlayer(ServerLevel level, GameProfile profile) {
         super(level.getServer(), level, profile);

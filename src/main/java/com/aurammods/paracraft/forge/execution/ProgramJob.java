@@ -13,6 +13,7 @@ public final class ProgramJob extends GameJob {
     public ProgramJob(UUID id, CompanionPlayer actor, JsonObject program, JsonObject initialResults) {
         super(id, "program", actor); machine = new ProgramMachine(id, program, new ForgeOperations(actor,this::adoptDimension), initialResults);
     }
+    public boolean wakeOnSuccess() { return machine.wakeOnSuccess(); }
     @Override protected void advance() {
         machine.tick(16); phase = machine.currentOperation(); result = machine.view();
         switch (machine.state()) {

@@ -184,7 +184,8 @@ public final class GameplayGameTests {
         var job = submit(manager, owner, entry, "{\"steps\":[{\"op\":\"attack_entity\",\"target\":\"" + cow.getUUID() + "\",\"ticks\":80,\"saveAs\":\"combat\"}]}");
         helper.onEachTick(() -> {
             requireRunning(helper, job); if (job.state() != JobState.SUCCEEDED) return;
-            helper.assertTrue(!cow.isAlive() && actor.getMainHandItem().isEmpty() && job.result().getAsJsonObject("results").getAsJsonObject("combat").get("hits").getAsInt() == 2,
+            var combat = job.result().getAsJsonObject("results").getAsJsonObject("combat");
+            helper.assertTrue(!cow.isAlive() && combat.get("actorAttackDamage").getAsDouble() == 1 && combat.get("hits").getAsInt() == 2,
                     "Two native bare-hand hits defeat the known two-health target");
             cow.discard(); clean(manager, owner, entry); pass("native_unarmed_combat"); helper.succeed();
         });

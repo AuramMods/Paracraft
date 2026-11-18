@@ -10,6 +10,8 @@ Programs can also compose `search_recipes` and `craft_item` with collection, pla
 
 An optional `schema` is currently `1`. Supply a stable UUID in `id` to retry a request safely; if omitted, the manual command generates one and reports it. Reusing an accepted ID acknowledges its existing state/result and does not execute another copy, including after save/reconnect or a clean server restart. `taskId` associates the program with an intention; the server does not mark that intention complete automatically.
 
+A program can run without a task. Set `wakeOnSuccess: false` on a taskless program to record its success in history without requesting another model decision. A final `chat` step sends a reply after the preceding work succeeds. Failures and cancellations still wake the model. When `taskId` is set or `wakeOnSuccess` is omitted, success also wakes it.
+
 Submission modes:
 
 | Mode | Behavior |
@@ -62,7 +64,7 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `use_item` | Optional `hand`/`sneak`/absolute `lookAt`/`holdTicks`; native held-item use and optional timed release |
 | `drop_items` | `item`, integer quantity or `"all"`, optional equipment `slot` and player `recipient`; drop existing belongings with native hooks and partial results |
 | `follow` | `target` entity UUID, optional `distance`/`ticks`; moving-target following |
-| `attack_entity` | Living `target` UUID, optional `distance`/`ticks`; basic native melee |
+| `attack_entity` | Living `target` UUID, optional `distance`/`ticks`. Native melee followed by walking to the target's Forge death drops and collecting them through native pickup. The result contains the acquired stacks for `deliver_items`. |
 | `set_spawn` | `bed` block position; native spawn setting and brief sleep when permitted |
 | `discover_commands` | Optional `prefix`; native usage forms and completions for this avatar |
 | `execute_command` | `command`, optional `await: "teleport"` and outcome predicates; native dispatch and actual observed arrival |

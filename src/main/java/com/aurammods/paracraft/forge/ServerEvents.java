@@ -6,6 +6,7 @@ import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -89,11 +90,17 @@ public final class ServerEvents {
         }
     }
     @SubscribeEvent
+    public static void meleeDrops(LivingDropsEvent event) {
+        if (event.getSource().getEntity() instanceof CompanionPlayer actor) actor.recordMeleeDrops(event);
+    }
+    @SubscribeEvent
     public static void pickup(PlayerEvent.ItemPickupEvent event) {
         if (event.getEntity() instanceof CompanionPlayer actor) {
-            actor.recordPickup(event.getStack());
+            boolean expectedMeleeLoot = actor.recordPickup(event.getOriginalEntity(), event.getStack());
             var details = new com.google.gson.JsonObject(); details.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(event.getStack().getItem()).toString());
-            details.addProperty("count", event.getStack().getCount()); avatars(actor.server).control().event(actor.getUUID(), "pickup", details);
+            details.addProperty("count", event.getStack().getCount());
+            if (expectedMeleeLoot) details.addProperty("wake", false);
+            avatars(actor.server).control().event(actor.getUUID(), "pickup", details);
         }
     }
 }

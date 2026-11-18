@@ -6,6 +6,7 @@ import com.aurammods.paracraft.core.agent.AgentBinding;
 import com.aurammods.paracraft.core.agent.AgentClock;
 import com.aurammods.paracraft.core.agent.AgentState;
 import com.aurammods.paracraft.core.agent.HarnessLoop;
+import com.aurammods.paracraft.core.agent.InferenceProvider;
 import com.aurammods.paracraft.core.agent.SimulatedProvider;
 import com.aurammods.paracraft.forge.ServerEvents;
 import com.aurammods.paracraft.forge.avatar.AvatarEntry;
@@ -17,19 +18,116 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.StreamSupport;
 
 @GameTestHolder(Paracraft.ID)
 @PrefixGameTestTemplate(false)
 public final class HarnessGameTests {
+    @GameTest(template = "arena", timeoutTicks = 250)
+    public static void directCombatCollectsDropsAndRepliesWithoutAnotherDecision(GameTestHelper helper) {
+        var manager = ServerEvents.avatars(helper.getLevel().getServer());
+        var control = manager.control();
+        UUID owner = UUID.randomUUID();
+        var entry = manager.spawn(owner, helper.getLevel(), helper.absoluteVec(new Vec3(42.5, 2, 48.5)), name());
+        var actor = manager.actor(entry.id);
+        actor.getInventory().setItem(0, new ItemStack(Items.DIAMOND_SWORD));
+        var cow = EntityType.COW.create(helper.getLevel());
+        cow.setNoAi(true);
+        cow.setHealth(1);
+        cow.moveTo(helper.absoluteVec(new Vec3(44.5, 2, 48.5)));
+        helper.getLevel().addFreshEntity(cow);
+
+        Vec3 dropPosition = helper.absoluteVec(new Vec3(47.5, 2, 48.5));
+        var drop = new ItemEntity(helper.getLevel(), dropPosition.x, dropPosition.y, dropPosition.z, new ItemStack(Items.BEEF, 2));
+        drop.setDefaultPickUpDelay();
+        drop.setDeltaMovement(Vec3.ZERO);
+        Vec3 nearby = helper.absoluteVec(new Vec3(44.5, 2, 51.5));
+        var unrelated = new ItemEntity(helper.getLevel(), nearby.x, nearby.y, nearby.z, new ItemStack(Items.GOLD_INGOT));
+        unrelated.setDeltaMovement(Vec3.ZERO);
+        helper.getLevel().addFreshEntity(unrelated);
+        class Drops {
+            @SubscribeEvent public void onDeath(LivingDropsEvent event) {
+                if (event.getEntity() != cow) return;
+                event.getDrops().clear();
+                event.getDrops().add(drop);
+                MinecraftForge.EVENT_BUS.unregister(this);
+            }
+        }
+        MinecraftForge.EVENT_BUS.register(new Drops());
+
+        UUID programId = UUID.randomUUID();
+        var provider = new InferenceProvider() {
+            @Override public String label() { return "Scripted direct attack"; }
+            @Override public boolean simulated() { return true; }
+            @Override public CompletableFuture<Decision> infer(Request request) {
+                if (request.route() == Route.LIGHT)
+                    return CompletableFuture.completedFuture(new Decision(List.of(new Call("think_harder", new JsonObject()))));
+                var program = json("""
+                        {"schema":1,"id":"%s","mode":"replace","wakeOnSuccess":false,"steps":[
+                           {"op":"attack_entity","target":"%s","saveAs":"combat"},
+                           {"op":"chat","text":"I defeated the cow."}]}
+                        """.formatted(programId, cow.getUUID()));
+                return CompletableFuture.completedFuture(new Decision(List.of(new Call("program", program))));
+            }
+        };
+        var clock = new VirtualClock();
+        var memory = new AgentState();
+        var loop = new HarnessLoop(new AgentBinding(manager.worldId(), owner, entry.id), memory, provider, clock,
+                (id, tool, args, trigger) -> control.request(owner, entry.id, entry.authority.session(), id, tool, args, trigger), () -> {});
+        control.chat(owner, entry.name + ", kill that cow.");
+        int[] completedTicks = {0};
+        helper.onEachTick(() -> {
+            clock.advance(250);
+            loop.accept(control.snapshot(owner, entry.id));
+            loop.tick();
+            loop.tick();
+            helper.assertTrue(loop.lastError().isEmpty() && memory.tasks().isEmpty(), "The direct request does not need a task or recovery: " + loop.lastError());
+            var job = manager.jobs().request(entry.id, programId);
+            if (job == null) return;
+            helper.assertTrue(job.state() != JobState.FAILED, "Direct combat failed: " + job.view());
+            var events = StreamSupport.stream(entry.control.getAsJsonArray("events").spliterator(), false)
+                    .map(event -> event.getAsJsonObject()).toList();
+            var replies = events.stream().filter(event -> event.get("type").getAsString().equals("response")).toList();
+            if (job.state() != JobState.SUCCEEDED) {
+                helper.assertTrue(replies.isEmpty(), "The completion reply must wait for native work");
+                helper.assertTrue(loop.status().equals("Working"), "No task entry is needed to show that the avatar is working");
+                return;
+            }
+            if (++completedTicks[0] < 45) return;
+            var combat = job.result().getAsJsonObject("results").getAsJsonObject("combat");
+            helper.assertTrue(!cow.isAlive() && !drop.isAlive() && unrelated.isAlive()
+                            && actor.getInventory().countItem(Items.BEEF) == 2 && combat.get("acquired").getAsInt() == 2,
+                    "The avatar walks to and picks up the victim's actual loot while leaving unrelated drops");
+            helper.assertTrue(replies.size() == 1 && replies.get(0).get("message").getAsString().equals("I defeated the cow.")
+                            && loop.calls() == 2 && loop.planningCalls() == 1 && loop.status().equals("Idle"),
+                    "One routing decision and one action decision produce a single completion reply and return to idle");
+            helper.assertTrue(events.stream().anyMatch(event -> event.get("type").getAsString().equals("program")
+                            && event.has("wake") && !event.get("wake").getAsBoolean()),
+                    "Successful one-shot work is still journaled");
+            loop.close();
+            cow.discard();
+            unrelated.discard();
+            actor.getInventory().clearContent();
+            manager.destroy(owner, entry.id);
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "arena", timeoutTicks = 1000)
     public static void simulatedClientLoopCollectsRealDiamondsReportsProgressAndReturnsToIdle(GameTestHelper helper) {
         var manager = ServerEvents.avatars(helper.getLevel().getServer()); var control = manager.control();

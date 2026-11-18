@@ -1,6 +1,7 @@
 package com.aurammods.paracraft.forge.execution;
 
 import com.aurammods.paracraft.core.program.ProgramMachine;
+import com.aurammods.paracraft.forge.ServerEvents;
 import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
 import com.google.gson.JsonObject;
 import java.util.UUID;
@@ -14,8 +15,7 @@ public final class ImmediateJob extends GameJob {
     @Override protected void advance() {
         switch (type) {
             case "chat" -> {
-                actor.server.getPlayerList().broadcastSystemMessage(net.minecraft.network.chat.Component.literal(
-                        "[" + actor.getGameProfile().getName() + "] " + specification.get("text").getAsString()), false);
+                ServerEvents.avatars(actor.server).control().respond(actor, id, specification.get("text").getAsString());
                 succeed(new JsonObject());
             }
             case "report_result" -> succeed(context.results().deepCopy());
