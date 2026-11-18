@@ -18,7 +18,15 @@ final class DecisionProtocol {
         body.addProperty("instructions",policy);var snapshot=request.snapshot();var context=DecisionContext.initial(snapshot,request.trigger(),request.observations(),request.route());context.addProperty("route",request.route().name());
         var input=new JsonArray();var profile=new JsonObject();profile.add("companion_profile",DecisionContext.profile(snapshot));input.add(message("user",profile));
         var continuity=snapshot.has("agent")?snapshot.getAsJsonObject("agent").deepCopy():new JsonObject();for(var item:replay(continuity,request.route()))input.add(item);
-        var observations=request.observations();var supplied=new JsonObject();for(var entry:observations.entrySet())supplied.add(entry.getKey(),entry.getKey().equals("context")?entry.getValue().deepCopy():java.util.Set.of("decision_feedback","format_feedback","tool_failures").contains(entry.getKey())?DecisionContext.preview(entry.getValue(),2048):DecisionContext.observationSummary(entry.getValue()));
+        var observations=request.observations();var supplied=new JsonObject();
+        for (var entry : observations.entrySet()) {
+            var value = switch (entry.getKey()) {
+                case "context", "terrain" -> entry.getValue().deepCopy();
+                case "decision_feedback", "format_feedback", "tool_failures" -> DecisionContext.preview(entry.getValue(), 2048);
+                default -> DecisionContext.observationSummary(entry.getValue());
+            };
+            supplied.add(entry.getKey(), value);
+        }
         context.add("observations",supplied);var trigger=DecisionContext.preview(request.trigger(),4096).getAsJsonObject();if(request.trigger().has("message"))trigger.add("message",request.trigger().get("message"));context.add("original_trigger",trigger);context.addProperty("suggested_program_id",java.util.UUID.randomUUID().toString());
         input.add(message("user",context));body.add("input",input);
         JsonObject parameters=DecisionSchema.parameters(request.route());

@@ -122,6 +122,7 @@ public final class ServerControl {
             JsonObject result;
             switch (tool) {
                 case "configure_behavior" -> result = avatars.configureBehavior(actualOwner,avatar,args);
+                case "sample_terrain" -> result = observation(id, TerrainSample.capture(avatars.actor(avatar), args));
                 case "observe" -> {
                     if (!string(args, "kind").equals("inventory")) throw new IllegalArgumentException("Unsupported observation kind");
                     if (pending != null) throw new IllegalStateException("An inventory observation is already running");
@@ -194,7 +195,7 @@ public final class ServerControl {
                 searches.remove(pending.avatar); pending.future.complete(remember(entry, pending.id, pending.signature, reply)); continue;
             }
             if (pending.search.done()) {
-                JsonObject result = new JsonObject(); result.addProperty("id", pending.id.toString()); result.add("observation", pending.search.result());
+                JsonObject result = observation(pending.id, pending.search.result());
                 searches.remove(pending.avatar); pending.future.complete(remember(entry, pending.id, pending.signature, ok(result)));
             }
         }
@@ -226,6 +227,12 @@ public final class ServerControl {
         avatars.checkpoint(entry); return reply;
     }
     private static JsonObject ok(JsonObject value) { JsonObject reply = new JsonObject(); reply.addProperty("ok", true); reply.add("value", value); return reply; }
+    private static JsonObject observation(UUID id, JsonObject sample) {
+        var result = new JsonObject();
+        result.addProperty("id", id.toString());
+        result.add("observation", sample);
+        return result;
+    }
     private static JsonObject error(String code, String message) {
         JsonObject reply = new JsonObject(); reply.addProperty("ok", false); reply.addProperty("code", code); reply.addProperty("error", message); return reply;
     }

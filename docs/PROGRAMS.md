@@ -56,6 +56,7 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `rethrow` | Propagates the current caught failure to an outer handler |
 | `mine_blocks` | `block`, `blocks`, or `cuboid`; native tool selection, timed breaking, pickup ledger |
 | `place_blocks` | `placements` with `position` and `item`; physical placement and actual consumption |
+| `build_layers` | `origin`, block `palette`, and grouped `layers`. Builds a rectangular blueprint bottom-up through native placement. |
 | `farm` | Same target forms as mining, optional `plant`; mature crop harvest/pickup/replant |
 | `equip` | `item`, `slot`; native armor/offhand rules or main-hand selection |
 | `unequip` | `slot`; move worn/held items to main inventory, returning an exact `acquiredStacks` ledger |
@@ -104,6 +105,29 @@ The program below is a template: replace the recipient UUID before use. It perfo
   ]
 }
 ```
+
+## Layered building and sampling
+
+A single `build_layers` step can describe a shell or other repeated geometry. The origin is the lowest X, Y and Z coordinate. Each column advances X, each row advances Z, and layer offsets advance Y. Entries in a layer's `y` array can be integers or inclusive range strings.
+
+```json
+{
+  "op": "build_layers",
+  "origin": [40, 64, 20],
+  "palette": [
+    {"symbol": "x", "block": "minecraft:stone"},
+    {"symbol": "a", "block": "minecraft:air"}
+  ],
+  "layers": [
+    {"y": [0, 4], "rows": ["xxx", "xxx", "xxx"]},
+    {"y": ["1-3"], "rows": ["xxx", "xax", "xxx"]}
+  ]
+}
+```
+
+All rows have the same width and all layers have the same depth. Use alphanumeric palette symbols and block registry IDs. Air and the sample markers `other` and `unavailable` leave those cells untouched. Matching blocks already in place count toward completion. Native placement still requires a usable item, support and a reachable face. Survival uses held materials and Creative can use creative stock. Results report placements, matches, skipped cells and actual consumption. The blueprint describes block types, with orientation and state determined by native placement.
+
+Use the Planning tool `sample_terrain` with `center`, `size` of 8 or 16, and an optional `filter` of block IDs. Its read-only result uses the same `origin`, `palette` and `layers` structure. The even-sized cube starts at `center - size / 2` on each axis. It only reads loaded blocks within the current and neighboring chunks. `Z` denotes filtered or overflowing palette entries. `Y` marks unreadable cells. Coverage counts indicate which cases occurred. The full result reaches the next decision in `observations.terrain.observation`, with any current program continuing independently.
 
 ## Recovery
 

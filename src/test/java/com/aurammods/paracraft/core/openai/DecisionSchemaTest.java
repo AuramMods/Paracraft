@@ -34,6 +34,23 @@ class DecisionSchemaTest {
         drop.addProperty("quantity",1);drop.addProperty("slot","helmet");assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
     }
     private static final String ID = "5680d971-0dcf-425a-94a7-2778b8e98258";
+    @Test void layerBuildAndTerrainSampleUseTypedArguments() throws Exception {
+        var sample = json("{\"center\":[0,64,0],\"size\":16,\"filter\":[\"minecraft:stone\"]}");
+        assertEquals(sample, DecisionSchema.decode(batch("sample_terrain", sample), InferenceProvider.Route.PLANNING).calls().get(0).arguments());
+        sample.addProperty("size", 12);
+        assertThrows(IOException.class, () -> DecisionSchema.decode(batch("sample_terrain", sample), InferenceProvider.Route.PLANNING));
+        var program = json("""
+                {"schema":1,"id":"%s","mode":"replace","observationRefs":[],
+                 "steps":[{"op":"build_layers","origin":[0,64,0],
+                           "palette":[{"symbol":"x","block":"minecraft:stone"},{"symbol":"a","block":"minecraft:air"}],
+                           "layers":[{"y":[0,4],"rows":["xxx"]},{"y":["1-3"],"rows":["xax"]}]}]}
+                """.formatted(ID));
+        var decoded = DecisionSchema.decode(batch("program", program), InferenceProvider.Route.PLANNING).calls().get(0).arguments();
+        var structure = new com.aurammods.paracraft.core.program.LayerBlueprint(decoded.getAsJsonArray("steps").get(0).getAsJsonObject());
+        assertEquals(15, structure.size());
+        assertEquals("minecraft:air", structure.cell(10).block());
+        assertEquals(68, structure.cell(12).position().y());
+    }
     @Test void oneShotProgramsCanSuppressSuccessWakeWithoutLinkingATask() throws Exception {
         var args = json("""
                 {"schema":1,"id":"%s","mode":"replace","wakeOnSuccess":false,

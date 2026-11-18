@@ -99,8 +99,9 @@ public final class HarnessLoop implements AutoCloseable {
                     state.history("tool_error",details);continuePlanning();save.run();
                 } else {
                 String tool = pendingCall().tool();
-                if (tool.equals("observe")) {
-                    state.turn.getAsJsonObject("observations").add("inventory", reply.getAsJsonObject("value").deepCopy());
+                if (tool.equals("observe") || tool.equals("sample_terrain")) {
+                    String section = tool.equals("observe") ? "inventory" : "terrain";
+                    state.turn.getAsJsonObject("observations").add(section, reply.getAsJsonObject("value").deepCopy());
                     continuePlanning();
                 } else {
                     if (Set.of("program", "resume_program").contains(tool) && reply.has("value")) {mergeProgram(reply.getAsJsonObject("value"));state.executingProgram=reply.getAsJsonObject("value").has("id")?reply.getAsJsonObject("value").get("id").getAsString():"";}

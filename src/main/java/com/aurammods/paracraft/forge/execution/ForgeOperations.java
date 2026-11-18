@@ -15,7 +15,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
     public ForgeOperations(CompanionPlayer actor,Runnable acceptDimension) { this.actor = actor;this.acceptDimension=acceptDimension; }
     @Override public Set<String> operations() {
         return Set.of("travel", "search_containers", "collect_items", "deposit_items", "deliver_items", "drop_items", "unequip",
-                "search_creative_items", "take_creative_items",
+                "search_creative_items", "take_creative_items", "build_layers",
                 "chat", "report_result", "report_failure", "fail", "wait_ticks", "mine_blocks", "farm", "place_blocks", "equip", "follow", "attack_entity", "set_spawn", "execute_command", "discover_commands", "use_portal", "search_blocks", "open_inventory", "take_items", "craft_item", "search_recipes", "interact_block", "interact_entity", "use_item", "inspect_trades", "trade");
     }
     @Override public void validate(JsonObject specification) { OperationSyntax.validate(specification); }
@@ -69,6 +69,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
             case "wait_ticks" -> new WaitJob(id, actor, spec.get("ticks").getAsLong());
             case "mine_blocks", "farm" -> new BlockWorkJob(id, actor, op, spec);
             case "place_blocks" -> new PlaceBlocksJob(id, actor, spec.getAsJsonArray("placements"));
+            case "build_layers" -> new BuildLayersJob(id, actor, spec);
             case "equip" -> new EquipJob(id, actor, spec.get("item").getAsString(), spec.get("slot").getAsString());
             case "unequip" -> new UnequipJob(id,actor,spec.get("slot").getAsString());
             case "drop_items" -> new DropItemsJob(id,actor,spec);

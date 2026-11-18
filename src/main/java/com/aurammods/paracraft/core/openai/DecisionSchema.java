@@ -49,6 +49,8 @@ final class DecisionSchema {
                 case "think_harder" -> object();
                 case "chat" -> object("message", text());
                 case "observe" -> object("kind", values("inventory"), "item", text());
+                case "sample_terrain" -> object("center", position(true),
+                        "size", any(numberValue(8), numberValue(16)), "filter", optional(array(text())));
                 case "get_context" -> object("sections",contextSections(),"query",optional(type("string")),"offset",optional(integer(0,Integer.MAX_VALUE)),"limit",optional(integer(1,64)),"detail",optional(values("summary","full")));
                 case "task_upsert" -> object("id", text(), "goal", optional(text()), "status", optional(values("QUEUED", "ACTIVE", "INACTIVE", "WAITING", "COMPLETED", "FAILED")),
                         "priority", optional(integer(Integer.MIN_VALUE, Integer.MAX_VALUE)), "programId", optional(uuid()));
@@ -104,6 +106,11 @@ final class DecisionSchema {
             }
         }
         variants.add(operation("place_blocks", "placements", array(object("position", position(true), "item", text()))));
+        var symbol = type("string"); symbol.addProperty("pattern", "^[a-zA-Z0-9]$");
+        var layerRange = type("string"); layerRange.addProperty("pattern", "^[0-9]+-[0-9]+$");
+        variants.add(operation("build_layers", "origin", position(true),
+                "palette", array(object("symbol", symbol, "block", text())),
+                "layers", array(object("y", array(any(integer(0, Integer.MAX_VALUE), layerRange)), "rows", array(text())))));
         variants.add(operation("equip", "item", text(), "slot", values("mainhand", "offhand", "head", "chest", "legs", "feet")));
         variants.add(operation("unequip","slot",values("mainhand","offhand","head","chest","legs","feet")));
         variants.add(operation("interact_block","position",position(true),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"face",optional(values("down","up","north","south","west","east")),"hit",optional(fixedArray(range(type("number"),0,1),3)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));

@@ -14,10 +14,10 @@ The [OpenRouter provider](OPENROUTER.md) uses separately configured client-wide 
 
 | Route | Available tools |
 | --- | --- |
-| Light | `chat`, `think_harder`, or an empty decision |
-| Planning | `chat`, `observe`, `program`, `resume_program`, `pause_program`, `cancel_program`, `task_upsert`, `task_remove`, `remember`, `forget`, `personality`, `wait`, `trust`, `untrust`, `configure_behavior` |
+| Light | `chat`, `think_harder`, `get_context`, or an empty decision |
+| Planning | `chat`, `observe`, `sample_terrain`, `get_context`, `program`, `resume_program`, `pause_program`, `cancel_program`, `task_upsert`, `task_remove`, `remember`, `forget`, `personality`, `wait`, `trust`, `untrust`, `configure_behavior` |
 
-A continuation (`think_harder` or `observe`) must be the sole tool call in a reply. The whole reply is checked before even an otherwise permitted call is applied. Persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
+A continuation (`think_harder`, `observe`, `sample_terrain`, or `get_context`) must be the sole tool call in a reply. The whole reply is checked before even an otherwise permitted call is applied. Persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
 
 ## Scheduling and recovery
 

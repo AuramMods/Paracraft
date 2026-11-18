@@ -117,6 +117,7 @@ public final class OperationSyntax {
                     com.aurammods.paracraft.core.program.BlockTargets.position(placement.get("position"));
                 }
             }
+            case "build_layers" -> new com.aurammods.paracraft.core.program.LayerBlueprint(spec);
             case "equip" -> {string(spec,"item");equipmentSlot(spec);}
             case "unequip" -> equipmentSlot(spec);
             case "follow", "attack_entity" -> {

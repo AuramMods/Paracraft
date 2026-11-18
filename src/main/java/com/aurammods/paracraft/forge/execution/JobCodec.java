@@ -36,6 +36,7 @@ public final class JobCodec {
             case "program" -> new ProgramJob(id, actor, data.getAsJsonObject("machine").getAsJsonObject("program"));
             case "mine_blocks", "farm" -> new BlockWorkJob(id, actor, type, data.getAsJsonObject("specification"));
             case "place_blocks" -> new PlaceBlocksJob(id, actor, data.getAsJsonArray("placements"));
+            case "build_layers" -> new BuildLayersJob(id, actor, data.getAsJsonObject("specification"));
             case "equip" -> new EquipJob(id, actor, data.get("item").getAsString(), data.get("slot").getAsString());
             case "unequip" -> new UnequipJob(id,actor,data.get("slot").getAsString());
             case "drop_items" -> new DropItemsJob(id,actor,data.getAsJsonObject("specification"));
