@@ -27,12 +27,19 @@ public final class CompanionPlayer extends ServerPlayer {
     private boolean nativeTeleportSeen;
     private String disconnectReason="";
     private final java.util.Set<java.util.function.Consumer<Component>> messageObservers=new java.util.HashSet<>();
+    private Consumer<String> actionObserver = ignored -> {};
     private java.util.function.Consumer<net.minecraft.nbt.CompoundTag> saveObserver;
     public Runnable observeSave(java.util.function.Consumer<net.minecraft.nbt.CompoundTag> observer){saveObserver=observer;return ()->saveObserver=null;}
     @Override public net.minecraft.nbt.CompoundTag saveWithoutId(net.minecraft.nbt.CompoundTag tag){
         var saved=super.saveWithoutId(tag);if(saveObserver!=null)saveObserver.accept(saved.copy());return saved;
     }
     public boolean retired(){return retired;}
+    void observeActions(Consumer<String> observer) { actionObserver = observer; }
+    public void recordAction(String action, ServerLevel level) {
+        var dimension = level.dimension();
+        actionObserver.accept(dimension.equals(net.minecraft.world.level.Level.OVERWORLD)
+                ? action : action + " in " + dimension.location());
+    }
     public void retire(){retired=true;if(connection!=null && connection.connection instanceof LocalConnection local)local.closeLocal();}
     public String disconnectReason(){return disconnectReason;}
     public long teleportSerial(){return teleportSerial;}

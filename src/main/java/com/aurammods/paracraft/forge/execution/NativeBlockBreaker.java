@@ -45,6 +45,7 @@ final class NativeBlockBreaker implements AutoCloseable {
         if (!actor.isCreative() && !expected.canHarvestBlock(level, position, actor)) throw new IllegalStateException("Current tool can no longer harvest the target");
         boolean accepted = actor.gameMode.destroyBlock(position);
         if (level.getBlockState(position).equals(expected)) throw new IllegalStateException(accepted ? "Block destruction left the target unchanged" : "Server or item refused block destruction");
+        actor.recordAction(ActionRecords.block("mined", expected, position), level);
         completed = true; close(); return true;
     }
     float progress() { return progress; }

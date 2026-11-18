@@ -36,7 +36,9 @@ final class NativePlacement {
         net.minecraft.world.InteractionResult outcome;
         try { outcome = actor.gameMode.useItemOn(actor, level, held, InteractionHand.MAIN_HAND, hit); }
         finally { actor.setShiftKeyDown(sneaking); }
-        if (level.getBlockState(target).equals(original)) throw new IllegalStateException("Native placement did not change the destination: " + outcome);
+        var placed = level.getBlockState(target);
+        if (placed.equals(original)) throw new IllegalStateException("Native placement did not change the destination: " + outcome);
+        if (!placed.isAir()) actor.recordAction(ActionRecords.block("placed", placed, target), level);
         actor.swing(InteractionHand.MAIN_HAND);
         ItemStack after = actor.getMainHandItem();
         return after.is(before.getItem()) ? Math.max(0, before.getCount() - after.getCount()) : before.getCount();

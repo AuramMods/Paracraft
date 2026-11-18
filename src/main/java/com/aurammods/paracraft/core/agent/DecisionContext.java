@@ -5,7 +5,7 @@ import java.util.*;
 
 /** Read-only model views over the full client snapshot. Never reads files, accounts, or the server. */
 public final class DecisionContext {
-    public static final List<String> SECTIONS=List.of("inventory","equipment","nearby_entities","programs","tasks","memory","history","survival","inventory_observations","capabilities","events","observations","profile");
+    public static final List<String> SECTIONS=List.of("inventory","equipment","nearby_entities","programs","tasks","memory","history","action_history","survival","inventory_observations","capabilities","events","observations","profile");
     private static final Set<String> TERMINAL=Set.of("COMPLETED","FAILED","SUCCEEDED","CANCELLED");
     private DecisionContext(){}
     public static JsonObject profile(JsonObject snapshot){
@@ -25,13 +25,18 @@ public final class DecisionContext {
             descriptor.addProperty("available", value != null);
             int entries = 0;
             if (value != null) {
-                entries = value.isJsonArray() ? value.getAsJsonArray().size() : value.isJsonObject() ? value.getAsJsonObject().size() : 1;
+                entries = section.equals("action_history") ? actionHistorySize(snapshot, value.getAsString())
+                        : value.isJsonArray() ? value.getAsJsonArray().size() : value.isJsonObject() ? value.getAsJsonObject().size() : 1;
             }
             descriptor.addProperty("entries", entries);
             catalog.add(section, descriptor);
         }
         result.add("contextCatalog", catalog);
         return result;
+    }
+
+    private static int actionHistorySize(JsonObject snapshot, String text) {
+        return snapshot.has("actionHistoryEntries") ? snapshot.get("actionHistoryEntries").getAsInt() : (int) text.lines().count();
     }
 
     private static JsonObject continuity(JsonObject snapshot, JsonObject trigger, JsonObject agent, InferenceProvider.Route route) {
@@ -157,7 +162,7 @@ public final class DecisionContext {
         int limit = args.has("limit") ? args.get("limit").getAsInt() : 16;
         boolean full = string(args, "detail").equals("full");
         var matches = new ArrayList<JsonElement>();
-        if (source != null) for (var item : rows(source)) {
+        if (source != null) for (var item : section.equals("action_history") ? actionLines(source.getAsString()) : rows(source)) {
             if (search.isEmpty() || item.toString().toLowerCase(Locale.ROOT).contains(search)) matches.add(item);
         }
         var items = new JsonArray();
@@ -176,11 +181,20 @@ public final class DecisionContext {
         if (!query.isEmpty()) result.addProperty("query", query);
         result.addProperty("total", matches.size());
         result.addProperty("offset", offset);
-        result.add("items", items);
+        if (section.equals("action_history")) {
+            result.addProperty("text", String.join("\n", items.asList().stream().map(JsonElement::getAsString).toList()));
+        } else result.add("items", items);
         boolean hasMore = offset + (long) items.size() < matches.size();
         result.addProperty("hasMore", hasMore);
         if (hasMore) result.addProperty("nextOffset", offset + items.size());
         return result;
+    }
+
+    private static JsonArray actionLines(String text) {
+        var lines = text.lines().toList();
+        var newestFirst = new JsonArray();
+        for (int index = lines.size() - 1; index >= 0; index--) newestFirst.add(lines.get(index));
+        return newestFirst;
     }
 
     /** Persist selectors. Resolve their pages from the latest snapshot on the next decision. */
@@ -248,6 +262,7 @@ public final class DecisionContext {
     private static JsonElement source(String section,JsonObject snapshot,JsonObject agent,JsonObject observations){
         JsonElement value=switch(section){
             case "inventory","equipment","programs","survival","events"->snapshot.get(section);
+            case "action_history"->snapshot.get("actionHistory");
             case "nearby_entities"->snapshot.get("nearbyEntities");case "inventory_observations"->snapshot.get("inventoryObservations");case "capabilities"->snapshot.get("operations");
             case "tasks","memory","history"->agent.get(section);case "profile"->{var profile=profile(snapshot);if(agent.has("personality"))profile.add("personality",agent.get("personality").deepCopy());yield profile;}
             case "observations"->{var copy=observations.deepCopy();copy.remove("context");yield copy;}

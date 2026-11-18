@@ -50,6 +50,6 @@ public final class EquipJob extends GameJob {
         target.setByPlayer(stock);
         actor.getInventory().setChanged();
     }
-    private void finish(EquipmentSlot destination) { result.addProperty("slot", slot); result.addProperty("stack", actor.getItemBySlot(destination).save(new CompoundTag()).toString()); succeed(result); }
+    private void finish(EquipmentSlot destination) { var stack = actor.getItemBySlot(destination); result.addProperty("slot", slot); result.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()); result.addProperty("stack", stack.save(new CompoundTag()).toString()); succeed(result); }
     @Override protected JsonObject writeData() { JsonObject data = new JsonObject(); data.addProperty("item", item); data.addProperty("slot", slot); return data; }
 }

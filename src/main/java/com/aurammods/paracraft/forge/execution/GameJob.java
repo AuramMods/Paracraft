@@ -28,6 +28,11 @@ public abstract class GameJob {
     public JobState state() { return state; }
     public String phase() { return phase; }
     public JsonObject result() { return result.deepCopy(); }
+    final void tickRequested() {
+        boolean running = state == JobState.RUNNING;
+        tick();
+        if (running && state.terminal()) ActionRecords.finished(this);
+    }
     public final void tick() {
         if (state != JobState.RUNNING) return;
         if (invalidateControl()) return;

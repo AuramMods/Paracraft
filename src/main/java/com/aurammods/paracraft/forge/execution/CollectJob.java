@@ -78,6 +78,7 @@ public final class CollectJob extends GameJob {
         if (!remaining.isEmpty()) acquired.add(remaining);
     }
     private void updateResult() {
+        result.addProperty("item", selector.expression());
         result.addProperty("requested", requested); result.addProperty("acquired", count);
         result.addProperty("visitedSources", visited); result.addProperty("remainingSources", sources == null ? 0 : sources.size() - visited);
         result.add("search", search.result());

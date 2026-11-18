@@ -94,7 +94,7 @@ public final class DropItemsJob extends GameJob {
         if(all)requested=available;
         prepared=true;update();
     }
-    private void update(){result.addProperty("requested",requested);result.addProperty("removed",processed-generated);result.addProperty("dropped",dropped);if(generated>0)result.addProperty("generated",generated);result.add("droppedStacks",JobJson.stacks(droppedStacks));result.add("itemEntities",entities.deepCopy());}
+    private void update(){result.addProperty("item",specification.get("item").getAsString());result.addProperty("requested",requested);result.addProperty("removed",processed-generated);result.addProperty("dropped",dropped);if(generated>0)result.addProperty("generated",generated);result.add("droppedStacks",JobJson.stacks(droppedStacks));result.add("itemEntities",entities.deepCopy());}
     @Override protected JsonObject writeData(){
         var data=new JsonObject();data.add("specification",specification.deepCopy());data.addProperty("prepared",prepared);data.addProperty("cursor",cursor);
         data.addProperty("requested",requested);data.addProperty("processed",processed);data.addProperty("dropped",dropped);data.addProperty("generated",generated);data.add("droppedStacks",JobJson.stacks(droppedStacks));data.add("entities",entities.deepCopy());

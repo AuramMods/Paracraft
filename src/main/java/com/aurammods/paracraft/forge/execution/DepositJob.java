@@ -22,6 +22,8 @@ public final class DepositJob extends GameJob {
         if (!navigate(Vec3.atCenterOf(destination), 2.6)) return;
         if (!opened) { InventoryAccess.open(actor, destination); opened = true; }
         phase = "depositing";
+        result.add("destination", JobJson.position(destination));
+        result.addProperty("item", selector.expression());
         if (deposited >= quantity) { succeed(result); return; }
         var stock = CarriedItems.creativeStock(actor, selector);
         int count = Math.min(64, quantity - deposited);

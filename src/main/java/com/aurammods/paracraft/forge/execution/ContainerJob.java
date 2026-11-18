@@ -30,6 +30,7 @@ public final class ContainerJob extends GameJob {
         result.addProperty("observedAt",actor.level().getGameTime());result.addProperty("countCertain",InventoryAccess.countCertain(target));
         if(type.equals("open_inventory")){inspect(target);return;}
         phase="taking_items";var selector=new ItemSelector(specification.get("item").getAsString());
+        result.addProperty("item", selector.expression());
         if(requested<0)requested=specification.get("quantity").getAsInt();updateAcquired();
         if(acquired>=requested){succeed(result);return;}
         int moved=InventoryAccess.take(actor,position,selector,(int)Math.min(64,requested-acquired),stack->{remember(stack);acquired+=stack.getCount();updateAcquired();});

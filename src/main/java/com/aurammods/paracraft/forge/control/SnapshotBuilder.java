@@ -25,6 +25,8 @@ final class SnapshotBuilder {
         frame.addProperty("lifeRevision", control.has("lifeRevision") ? control.get("lifeRevision").getAsLong() : 0);
         if (entry.authority.session() != null) frame.addProperty("session", entry.authority.session().toString());
         frame.add("events", control.getAsJsonArray("events").deepCopy()); frame.add("compactedEvents", control.getAsJsonObject("compactedEvents").deepCopy());
+        frame.addProperty("actionHistory", entry.actionHistory.text());
+        frame.addProperty("actionHistoryEntries", entry.actionHistory.size());
         if (control.has("controllerStatus")) frame.add("controllerStatus", control.get("controllerStatus").deepCopy());
         if (control.has("survival")) frame.add("survival", control.get("survival").deepCopy());
         if (control.has("lifecycle")) frame.add("lifecycle", control.get("lifecycle").deepCopy());

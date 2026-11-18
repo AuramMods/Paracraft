@@ -80,7 +80,7 @@ public final class JobManager {
             UUID held = reflexHeld.remove(avatar); var owner = avatars.entry(avatar);
             if (current.id.equals(held) && current.state() == JobState.PAUSED && owner != null
                     && !owner.paused && owner.authority.session() != null) current.resume();
-            current.tick();
+            current.tickRequested();
             var queue = queues.get(avatar);
             if (current.state() == JobState.SUCCEEDED && queue != null && !queue.isEmpty() && owner != null && !owner.paused
                     && avatars.actor(avatar) != null && owner.authority.session() != null) {

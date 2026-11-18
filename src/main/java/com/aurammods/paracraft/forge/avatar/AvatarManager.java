@@ -177,6 +177,10 @@ public final class AvatarManager {
     private void attach(AvatarEntry entry, CompanionPlayer player, boolean respawn) {
         boolean registered=false;
         try {
+        player.observeActions(text -> {
+            entry.actionHistory.append(text);
+            dirty();
+        });
         AvatarRoster.register(player);registered=true;
         server.getPlayerList().broadcastAll(ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(List.of(player)));
         if (respawn) player.serverLevel().addRespawnedPlayer(player); else player.serverLevel().addNewPlayer(player);

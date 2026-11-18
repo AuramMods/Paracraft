@@ -60,6 +60,7 @@ public final class InteractionJob extends GameJob {
         }else if(specification.has("lookAt"))actor.lookAt(EntityAnchorArgument.Anchor.EYES,JobJson.vector(specification.get("lookAt")));
         if(actor.isUsingItem())throw new IllegalStateException("Avatar is already using an item");
         ItemStack before=actor.getItemInHand(hand).copy();result.add("handBefore",JobJson.stacks(List.of(before)));result.addProperty("hand",hand==InteractionHand.MAIN_HAND?"mainhand":"offhand");
+        if (!before.isEmpty()) result.addProperty("item", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(before.getItem()).toString());
         if(!before.isItemEnabled(actor.level().enabledFeatures()))throw new IllegalStateException("Held item is disabled by world features");
         boolean previousSneak=actor.isShiftKeyDown();InteractionResult outcome;
         phase="interacting";actor.resetLastActionTime();

@@ -28,6 +28,18 @@ Provider requests begin with fixed instructions and the companion profile. Recen
 
 Light and Planning can call `get_context` with one or more sections. Use `query` to filter records by item, entity, task or program ID, name, memory key, or text. Choose `detail: "full"` for exact records and use `nextOffset` to fetch another page. The latest selection per section stays available during that turn and refreshes from the client snapshot before inference. `observe` can perform a fresh world container search on Planning. Its server receipt is still available for action programs.
 
+## Action history
+
+Each avatar saves a rolling plain-text journal of observed gameplay effects. Placement and mining record the actual block ID and coordinates when the world changes. This captures individual blocks even when a later step in the same batch fails. Other requested jobs record short outcomes from their actual results. The oldest whole lines are evicted at approximately 10,000 tokens.
+
+```text
+placed minecraft:stone 145 64 -29
+mined minecraft:oak_log 145 65 -29
+deposited 12 minecraft:oak_log 151 64 -31
+```
+
+Coordinates use `X Y Z`. Entries in other dimensions end with `in <dimension>`. Both model routes receive a small recent excerpt, with the newest action last. Use `get_context` with `action_history` to search or page older lines, newest first. The rest of the saved journal stays out of routine inference.
+
 Fixed instructions and tool definitions give each route a stable prefix for repeated requests. Cache reuse depends on the provider, model, and matching rendered tokens. A switch between Light and Planning can change the prefix.
 
 ## Verification

@@ -15,6 +15,7 @@ public final class PlaceBlocksJob extends GameJob {
     @Override protected void advance() {
         if (cursor >= placements.size()) { succeed(result); return; }
         JsonObject placement = placements.get(cursor).getAsJsonObject(); var position = JobJson.position(placement.get("position"));
+        result.add("target", JobJson.position(position));
         if (actor.serverLevel().isOutsideBuildHeight(position) || !actor.serverLevel().getWorldBorder().isWithinBounds(position))
             throw new IllegalStateException("Placement target is outside world bounds");
         phase = "placing " + (cursor + 1) + "/" + placements.size();

@@ -26,7 +26,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
         job.resume();
         return new ProgramMachine.Operation() {
             @Override public ProgramMachine.Update tick() {
-                job.tick(); if(job instanceof CommandJob || job instanceof PortalJob)acceptDimension.run(); JsonObject view = job.view();
+                job.tickRequested(); if(job instanceof CommandJob || job instanceof PortalJob)acceptDimension.run(); JsonObject view = job.view();
                 return new ProgramMachine.Update(job.state(), job.result(), view.get("error").getAsString());
             }
             @Override public JsonObject checkpoint() { return job.checkpoint(); }
