@@ -4,6 +4,8 @@ These operations run as incremental server jobs inside structured programs. They
 
 Native [crafting](CRAFTING.md) is available through `craft_item` and `search_recipes`: internal 2×2 crafting, physical table use for 3×3 recipes, automatic ingredient assignment, native remainders/hooks, and resumable batch progress. The linked agent can choose these typed operations; manual program examples are in that guide.
 
+Explicit [villager trading](TRADING.md) is available through `inspect_trades` and `trade`: observe a native merchant's current offers and avatar-specific discounts, then purchase or sell using carried items. The server handles approach, menus, native payments/results, stock/XP/hooks, batch failures and resumable progress. Idle behavior never initiates trading.
+
 Agents can locate the nearest N blocks with [`search_blocks`](PORTALS.md#block-query-scope-and-freshness), using exact block IDs or tags, a result limit, and an optional radius. Results include ordered positions and distances from the starting position. The server scans loaded chunks around the avatar without moving it or generating missing chunks, and reports incomplete coverage explicitly.
 
 Agents can also [right-click blocks and entities or use held items](INTERACTIONS.md), with physical approach, native interaction hooks, hand/sneak selection, precise hit points and timed item use. These actions cover native buttons, levers, tools, feeding/milking, armor-stand interaction and more, subject to actual world behavior and protection rules.

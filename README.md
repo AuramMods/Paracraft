@@ -6,6 +6,8 @@ The Forge foundation includes a labeled simulator and client-side ChatGPT sign-i
 
 You can also use **[OpenRouter or a compatible API such as local Ollama](docs/OPENROUTER.md)** through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. Configure the base URL, optional key, and exact Light/Planning model IDs locally. For Ollama use `http://localhost:11434/v1`; the K menu shows API-reported tokens and available cost.
 
+Agents can explicitly [inspect villager offers and execute native trades](docs/TRADING.md) using their carried items. Trading is available to Planning programs and does not run automatically while idle.
+
 [Agent continuity](docs/CONTINUITY.md) carries a short next-step note, original requests and recent decisions/results into each fresh snapshot. K shows the note. Running server work avoids repeated model polling, and known task continuations go directly to Planning.
 
 Start with [installation/configuration](docs/INSTALL.md), [foundation validation evidence](docs/VALIDATION.md), and [background QA controls](docs/BACKGROUND.md).

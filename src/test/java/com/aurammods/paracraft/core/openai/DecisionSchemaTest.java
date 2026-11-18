@@ -115,6 +115,20 @@ class DecisionSchemaTest {
         assertEquals(9, steps.get(2).getAsJsonObject().getAsJsonArray("grid").size());
         assertEquals(3, steps.get(2).getAsJsonObject().getAsJsonArray("table").size());
     }
+    @Test void merchantInspectionAndTradesAreTypedPlanningOperations()throws Exception{
+        var args=json("""
+            {"schema":1,"id":"%s","taskId":null,"mode":"replace","observationRefs":[],"steps":[
+             {"op":"inspect_trades","target":"%s","saveAs":"offers"},
+             {"op":"trade","target":"%s","offer":0,"offerId":"%s","quantity":2,"saveAs":"loot"}]}
+            """.formatted(ID,ID,ID,"a".repeat(64)));
+        var decision=DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING);
+        assertEquals("inspect_trades",decision.calls().get(0).arguments().getAsJsonArray("steps").get(0).getAsJsonObject().get("op").getAsString());
+        assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.LIGHT));
+        var trade=args.getAsJsonArray("steps").get(1).getAsJsonObject();trade.addProperty("quantity",0);assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+        trade.addProperty("quantity",1);trade.addProperty("offer",-1);assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+        trade.addProperty("offer",0);trade.addProperty("target","not-a-villager-uuid");assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+        trade.addProperty("target",ID);trade.addProperty("offerId","guessed offer");assertThrows(IOException.class,()->DecisionSchema.decode(batch("program",args),InferenceProvider.Route.PLANNING));
+    }
     @Test void typedCraftingRejectsZeroQuantitiesAndWrongGridShapes() {
         var args = craftingProgram(); var craft = args.getAsJsonArray("steps").get(1).getAsJsonObject();
         craft.addProperty("quantity", 0);

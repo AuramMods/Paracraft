@@ -55,7 +55,7 @@ Pause/cancel aborts held use without invoking a release action that could fire a
 
 Results include the native `outcome`, `accepted`, selected hand, actual `handBefore`/`handAfter` stacks, held ticks/use state, and available block-before/after, hit/face, opened-menu or mounted-vehicle observations. `PASS`/`FAIL` fails the operation and can enter an ordinary program catch. Native acceptance acknowledges the interaction; it does not prove the larger requested goal completed.
 
-Opened server menus are observed and closed when the job ends. Generic clicking does not implement arbitrary graphical menu buttons, merchant trades or client-only mod interfaces. Use the existing inventory and crafting actions for those supported workflows. Modded callbacks following the native paths can work, but arbitrary mod compatibility is not inferred from vanilla tests. A native callback that kills/removes/transfers the avatar stops subsequent instructions through the existing job lifecycle; generic interaction does not grant automatic portal travel.
+Opened server menus are observed and closed when the job ends. Generic clicking does not implement arbitrary graphical menu buttons or client-only mod interfaces. Use the existing inventory/crafting actions for those supported workflows, and [`inspect_trades` / `trade`](TRADING.md) for actual merchant offers and purchases/sales. Modded callbacks following the native paths can work, but arbitrary mod compatibility is not inferred from vanilla tests. A native callback that kills/removes/transfers the avatar stops subsequent instructions through the existing job lifecycle; generic interaction does not grant automatic portal travel.
 
 ## Verification
 

@@ -26,6 +26,7 @@ public record AgentActivity(Phase phase, int tasks, boolean planning) {
             case "collect_items", "take_items" -> "Collecting items"; case "deliver_items", "deposit_items" -> "Moving items";
             case "mine_blocks" -> "Mining"; case "farm" -> "Farming"; case "attack_entity" -> "Fighting";
             case "interact_block", "interact_entity" -> "Interacting";case "use_item" -> "Using item";
+            case "inspect_trades" -> "Inspecting trades";case "trade" -> "Trading";
             case "idle_sleeping" -> "Sleeping";case "idle_restocking" -> "Restocking food";
             case "idle_wandering","idle_looking","idle_owner_glance","idle_resting","idle_bed_approach","idle_thinking" -> "Idling";
             default -> "Busy";

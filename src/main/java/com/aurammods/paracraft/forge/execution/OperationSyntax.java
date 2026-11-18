@@ -10,6 +10,14 @@ public final class OperationSyntax {
     public static void validate(JsonObject spec) {
         String op = string(spec, "op");
         switch (op) {
+            case "inspect_trades", "trade" -> {
+                UUID.fromString(string(spec,"target"));
+                if(op.equals("trade")){
+                    if(integer(spec,"offer")>Integer.MAX_VALUE)throw new IllegalArgumentException("offer index is too large");
+                    if(!string(spec,"offerId").matches("[0-9a-f]{64}"))throw new IllegalArgumentException("offerId must come from inspect_trades");
+                    if(spec.has("quantity") && (integer(spec,"quantity")<1 || integer(spec,"quantity")>Integer.MAX_VALUE))throw new IllegalArgumentException("Trade quantity must be a positive integer");
+                }
+            }
             case "interact_block", "interact_entity", "use_item" -> {
                 if(op.equals("interact_block"))com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("position"));
                 if(op.equals("interact_entity"))UUID.fromString(string(spec,"target"));

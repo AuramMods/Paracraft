@@ -69,6 +69,7 @@ final class SnapshotBuilder {
             JsonObject value = new JsonObject(); value.addProperty("uuid", entity.getUUID().toString());
             value.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString()); value.addProperty("name", entity.getName().getString());
             value.add("position", vector(entity.position())); if (entity instanceof LivingEntity living) value.addProperty("health", living.getHealth()); entities.add(value);
+            if(entity instanceof net.minecraft.world.item.trading.Merchant)value.addProperty("merchant",true);
             if(entity instanceof net.minecraft.world.entity.item.ItemEntity drop){value.add("stack",stack(drop.getItem()));value.addProperty("pickupDelayed",drop.hasPickUpDelay());}
         });
         frame.add("nearbyEntities", entities); frame.addProperty("nearbyEntityTotal", nearby.size()); frame.addProperty("nearbyEntitiesTruncated", nearby.size() > entities.size());

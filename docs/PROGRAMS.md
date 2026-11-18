@@ -57,6 +57,8 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `unequip` | `slot`; move worn/held items to main inventory, returning an exact `acquiredStacks` ledger |
 | `interact_block` | `position`, optional `hand`/`sneak`/`face`/local `hit`/`holdTicks`; physical native block/item right-click |
 | `interact_entity` | Entity UUID `target`, optional `hand`/`sneak`/local `hit`/`holdTicks`; native precise/ordinary entity interaction |
+| `inspect_trades` | Merchant UUID `target`; approach and inspect the native menu's prices, output/NBT, stock, and offer IDs without buying |
+| `trade` | Merchant `target`, inspected `offer` index/`offerId`, optional positive `quantity` of trades; real payments, native result pickup, partial progress and acquired stack ledger |
 | `use_item` | Optional `hand`/`sneak`/absolute `lookAt`/`holdTicks`; native held-item use and optional timed release |
 | `drop_items` | `item`, integer quantity or `"all"`, optional equipment `slot` and player `recipient`; drop existing belongings with native hooks and partial results |
 | `follow` | `target` entity UUID, optional `distance`/`ticks`; moving-target following |
