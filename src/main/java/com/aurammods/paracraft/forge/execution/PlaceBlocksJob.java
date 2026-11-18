@@ -19,8 +19,7 @@ public final class PlaceBlocksJob extends GameJob {
             throw new IllegalStateException("Placement target is outside world bounds");
         phase = "placing " + (cursor + 1) + "/" + placements.size();
         if (!navigate(Vec3.atCenterOf(position), 2.6)) return;
-        CarriedItems.select(actor, CarriedItems.find(actor, new ItemSelector(placement.get("item").getAsString())));
-        consumed += NativePlacement.place(actor, position); cursor++;
+        consumed += CarriedItems.place(actor, position, new ItemSelector(placement.get("item").getAsString())); cursor++;
         result.addProperty("placed", cursor); result.addProperty("consumed", consumed);
     }
     @Override protected JsonObject writeData() {

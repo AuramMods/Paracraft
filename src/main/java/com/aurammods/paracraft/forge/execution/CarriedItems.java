@@ -1,8 +1,10 @@
 package com.aurammods.paracraft.forge.execution;
 
+import com.aurammods.paracraft.forge.ServerEvents;
 import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
 import com.aurammods.paracraft.forge.inventory.ItemSelector;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -23,7 +25,26 @@ public final class CarriedItems {
     static int find(CompanionPlayer actor, ItemSelector selector) {
         if (selector.matches(actor.getMainHandItem())) return actor.getInventory().selected;
         for (int i = 0; i < actor.getInventory().items.size(); i++) if (selector.matches(actor.getInventory().getItem(i))) return i;
-        throw new IllegalStateException("No carried item matches " + selector.expression());
+        return -1;
+    }
+    static ItemStack creativeStock(CompanionPlayer actor, ItemSelector selector) {
+        return actor.isCreative() ? ServerEvents.avatars(actor.server).creativeItems().find(actor, selector) : ItemStack.EMPTY;
+    }
+    static IllegalStateException missing(ItemSelector selector) {
+        return new IllegalStateException("No available item matches " + selector.expression());
+    }
+    static int place(CompanionPlayer actor, BlockPos position, ItemSelector selector) {
+        int slot = find(actor, selector);
+        if (slot >= 0) {
+            select(actor, slot);
+            return NativePlacement.place(actor, position);
+        }
+        ItemStack stock = creativeStock(actor, selector);
+        if (stock.isEmpty()) throw missing(selector);
+        ItemStack previous = actor.getMainHandItem();
+        actor.setItemInHand(InteractionHand.MAIN_HAND, stock);
+        try { return NativePlacement.place(actor, position); }
+        finally { actor.setItemInHand(InteractionHand.MAIN_HAND, previous); }
     }
     public static void select(CompanionPlayer actor, int slot) {
         var inventory = actor.getInventory();
@@ -36,6 +57,7 @@ public final class CarriedItems {
     }
     /** Probe actual Forge harvest/break-speed behavior with each carried candidate, restoring both slots. */
     static void miningTool(CompanionPlayer actor, BlockPos position, BlockState state) {
+        if (actor.isCreative()) return;
         var inventory = actor.getInventory(); int hand = inventory.selected, best = -1; float speed = -1;
         ItemStack original = inventory.getItem(hand);
         if (state.canHarvestBlock(actor.serverLevel(), position, actor)) {

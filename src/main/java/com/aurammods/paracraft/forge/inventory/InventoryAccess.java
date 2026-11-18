@@ -167,6 +167,19 @@ public final class InventoryAccess {
         }
         return moved;
     }
+    public static int depositCreative(CompanionPlayer actor, BlockPos position, ItemStack stock, int maxCount) {
+        if (!actor.isCreative()) throw new IllegalStateException("Creative items require Creative game mode");
+        requireReach(actor, position);
+        Target target = resolve(actor.serverLevel(), position);
+        if (target == null) throw new IllegalStateException("Destination no longer exposes an inventory");
+        int count = Math.min(stock.getMaxStackSize(), maxCount);
+        ItemStack remaining = stock.copyWithCount(count);
+        for (View view : target.views()) {
+            remaining = ItemHandlerHelper.insertItemStacked(view.handler(), remaining, false);
+            if (remaining.isEmpty()) break;
+        }
+        return count - remaining.getCount();
+    }
     private static void requireReach(CompanionPlayer actor, BlockPos position) {
         if (actor.distanceToSqr(Vec3.atCenterOf(position)) > 12.25)
             throw new IllegalStateException("Inventory mutation is outside interaction reach");

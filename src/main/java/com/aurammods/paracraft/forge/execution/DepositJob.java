@@ -23,7 +23,10 @@ public final class DepositJob extends GameJob {
         if (!opened) { InventoryAccess.open(actor, destination); opened = true; }
         phase = "depositing";
         if (deposited >= quantity) { succeed(result); return; }
-        int moved = InventoryAccess.deposit(actor, destination, selector, Math.min(64, quantity - deposited));
+        var stock = CarriedItems.creativeStock(actor, selector);
+        int count = Math.min(64, quantity - deposited);
+        int moved = stock.isEmpty() ? InventoryAccess.deposit(actor, destination, selector, count)
+                : InventoryAccess.depositCreative(actor, destination, stock, count);
         deposited += moved; result.addProperty("deposited", deposited);
         if (moved == 0) fail("Destination refused remaining items or avatar has insufficient matching items");
     }

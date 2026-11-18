@@ -31,6 +31,8 @@ public final class PlayerNavigator implements AutoCloseable {
     private final Vec3 idleCenter;
     private final double idleRadius;
     private final boolean sprintAllowed;
+    private FlightNavigator flight;
+    private int flightReplans;
 
     public PlayerNavigator(CompanionPlayer actor) {
         this(actor, true, null, 0);
@@ -80,6 +82,20 @@ public final class PlayerNavigator implements AutoCloseable {
     }
 
     public boolean tick(Vec3 destination, double reach) {
+        if (idleCenter == null && actor.getAbilities().mayfly && !actor.isPassenger()) {
+            if (flight == null) {
+                if (breaker != null) { breaker.close(); breaker = null; }
+                if (recoveryBlock != null) finishRecovery();
+                path = null;
+                sprint(false);
+                flight = new FlightNavigator(actor, proxy);
+            }
+            mode = "flying";
+            boolean arrived = flight.tick(destination, reach);
+            flightReplans = flight.replans();
+            return arrived;
+        }
+        if (flight != null) { flight.stop(); flight = null; }
         if(recoveryBlock!=null){recoverTick();return false;}
         if (actor.position().distanceTo(destination) <= reach && (reach>=1.5 || actor.onGround() || actor.isInWater())) { close(); return true; }
         Vec3 goal=destination.subtract(actor.position());
@@ -183,10 +199,10 @@ public final class PlayerNavigator implements AutoCloseable {
         closeVelocity();NativePlacement.place(actor,recoveryBlock);finishRecovery();
     }
     private void finishRecovery(){if(mode.equals("bridging"))actor.setShiftKeyDown(priorSneaking);recoveryBlock=null;anchor=null;path=null;attempts=0;stalled=0;recoveryTicks=0;mode="walking";}
-    public com.google.gson.JsonObject view(){var value=new com.google.gson.JsonObject();value.addProperty("mode",mode);value.addProperty("replans",attempts);value.add("position",JobJson.vector(actor.position()));if(recoveryBlock!=null){value.add("recoveryBlock",JobJson.position(recoveryBlock));value.addProperty("recoveryBlockType",net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(actor.serverLevel().getBlockState(recoveryBlock).getBlock()).toString());}if(breaker!=null)value.addProperty("breakProgress",breaker.progress());return value;}
+    public com.google.gson.JsonObject view(){var value=new com.google.gson.JsonObject();value.addProperty("mode",mode);value.addProperty("replans",mode.equals("flying")?flightReplans:attempts);value.add("position",JobJson.vector(actor.position()));if(recoveryBlock!=null){value.add("recoveryBlock",JobJson.position(recoveryBlock));value.addProperty("recoveryBlockType",net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(actor.serverLevel().getBlockState(recoveryBlock).getBlock()).toString());}if(breaker!=null)value.addProperty("breakProgress",breaker.progress());return value;}
     private static java.util.List<BlockPos> listAround(BlockPos next) { return java.util.List.of(next, next.above()); }
     private void sprint(boolean value) { if (actor.isSprinting() != value) actor.setSprinting(value); }
     private boolean insideIdle(Vec3 point, double margin) { return idleCenter == null || point.distanceToSqr(idleCenter) <= (idleRadius-margin)*(idleRadius-margin); }
     private void closeVelocity() { sprint(false); actor.setDeltaMovement(0, actor.getDeltaMovement().y, 0); }
-    @Override public void close() { if(breaker!=null){breaker.close();breaker=null;}if(mode.equals("bridging"))actor.setShiftKeyDown(priorSneaking);recoveryBlock=null;path = null; closeVelocity(); proxy.discard(); }
+    @Override public void close() { if(flight!=null){flight.stop();flight=null;}if(breaker!=null){breaker.close();breaker=null;}if(mode.equals("bridging"))actor.setShiftKeyDown(priorSneaking);recoveryBlock=null;path = null; closeVelocity(); proxy.discard(); }
 }

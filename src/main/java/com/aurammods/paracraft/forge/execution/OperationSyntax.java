@@ -33,6 +33,19 @@ public final class OperationSyntax {
                 string(spec, "item");
                 if (spec.has("limit") && (integer(spec, "limit") < 1 || integer(spec, "limit") > 128)) throw new IllegalArgumentException("Recipe result limit must be between 1 and 128");
             }
+            case "search_creative_items" -> {
+                if (spec.has("query") && (!spec.get("query").isJsonPrimitive() || !spec.getAsJsonPrimitive("query").isString()))
+                    throw new IllegalArgumentException("Creative search query must be a string");
+                if (spec.has("offset") && integer(spec, "offset") > Integer.MAX_VALUE) throw new IllegalArgumentException("Offset is too large");
+                if (spec.has("limit") && (integer(spec, "limit") < 1 || integer(spec, "limit") > 64))
+                    throw new IllegalArgumentException("Creative result limit must be between 1 and 64");
+            }
+            case "take_creative_items" -> {
+                string(spec, "item");
+                if (spec.has("variant") && integer(spec, "variant") > Integer.MAX_VALUE) throw new IllegalArgumentException("Variant is too large");
+                if (spec.has("quantity") && (integer(spec, "quantity") < 1 || integer(spec, "quantity") > Integer.MAX_VALUE))
+                    throw new IllegalArgumentException("Creative item quantity must be a positive integer");
+            }
             case "craft_item" -> {
                 string(spec, "item"); if (integer(spec, "quantity") < 1) throw new IllegalArgumentException("Crafting quantity must be positive");
                 if (spec.has("table")) com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("table"));

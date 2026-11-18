@@ -41,7 +41,9 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 
 | Operation | Arguments and result |
 | --- | --- |
-| `travel` | `destination`; physical route to coordinates |
+| `travel` | `destination`. Ordinary travel, following and action approaches fly when the avatar has the native flight ability. |
+| `search_creative_items` | Optional `query`, `offset`, and `limit`. Search the visible creative-tab catalog for item IDs and variants. |
+| `take_creative_items` | `item` ID, optional `variant` and positive `quantity`. Put copies of the visible stack into the avatar's main inventory. |
 | `search_containers` | `item`; fixed nine-chunk inventory observation |
 | `collect_items` | `item`, optional `quantity` (integer or `"all"`), optional `containersFrom`; acquired count and exact stack ledger |
 | `deposit_items` | `destination`, `item`, integer `quantity`; actual deposited count |
@@ -64,7 +66,7 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `use_item` | Optional `hand`/`sneak`/absolute `lookAt`/`holdTicks`; native held-item use and optional timed release |
 | `drop_items` | `item`, integer quantity or `"all"`, optional equipment `slot` and player `recipient`; drop existing belongings with native hooks and partial results |
 | `follow` | `target` entity UUID, optional `distance`/`ticks`; moving-target following |
-| `attack_entity` | Living `target` UUID, optional `distance`/`ticks`. Native melee followed by walking to the target's Forge death drops and collecting them through native pickup. The result contains the acquired stacks for `deliver_items`. |
+| `attack_entity` | Living `target` UUID, optional `distance`/`ticks`. Native melee followed by moving to the target's Forge death drops and collecting them through native pickup. The result contains the acquired stacks for `deliver_items`. |
 | `set_spawn` | `bed` block position; native spawn setting and brief sleep when permitted |
 | `discover_commands` | Optional `prefix`; native usage forms and completions for this avatar |
 | `execute_command` | `command`, optional `await: "teleport"` and outcome predicates; native dispatch and actual observed arrival |
@@ -80,6 +82,8 @@ See [COMMANDS.md](COMMANDS.md) for command acknowledgment versus delayed complet
 See [PORTALS.md](PORTALS.md) for block query coverage and explicit Nether/End travel.
 See [NAVIGATION.md](NAVIGATION.md) for chunk tracking, physical movement, and local terrain recovery with carried supplies.
 See [CONTAINERS.md](CONTAINERS.md) for selected inventories, stack/view results, and capability compatibility.
+
+Creative stock follows the avatar's current game mode and the server's creative-tab and search entries, including Forge-added stack variants. Placement, equipping, deposits, and finite drops can source eligible items directly. Use `take_creative_items` when a later action needs items in inventory. A `drop_items` request with quantity `"all"` or a specific equipment slot applies to carried items.
 
 Items accept registry IDs or `#tags`. A supplied inventory `scope` must currently be `{ "kind": "neighbor_chunks", "radius": 1 }`. `containersFrom` refers to a prior search result, avoiding another scan; its dimension, selector, original coverage, and timestamps stay explicit. Collection and transfer operations still resolve the real inventory and its rules when executing.
 

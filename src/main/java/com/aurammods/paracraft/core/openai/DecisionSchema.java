@@ -83,6 +83,8 @@ final class DecisionSchema {
         var offerId=type("string");offerId.addProperty("pattern","^[0-9a-f]{64}$");
         variants.add(operation("trade", "target", uuid(), "offer", integer(0,Integer.MAX_VALUE), "offerId", offerId, "quantity", optional(integer(1,Integer.MAX_VALUE))));
         variants.add(operation("search_recipes", "item", text(), "limit", optional(integer(1, 128))));
+        variants.add(operation("search_creative_items", "query", optional(type("string")), "offset", optional(integer(0, Integer.MAX_VALUE)), "limit", optional(integer(1, 64))));
+        variants.add(operation("take_creative_items", "item", text(), "variant", optional(integer(0, Integer.MAX_VALUE)), "quantity", optional(integer(1, Integer.MAX_VALUE))));
         variants.add(operation("craft_item", "item", text(), "quantity", integer(1, Integer.MAX_VALUE), "table", type("null"),
                 "recipe", optional(text()), "grid", optional(fixedArray(integer(-1, 35), 4))));
         variants.add(operation("craft_item", "item", text(), "quantity", integer(1, Integer.MAX_VALUE), "table", position(true),

@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ public final class DropItemsJob extends GameJob {
     private record Source(int slot,ItemStack remaining) { }
     private boolean prepared;
     private int cursor;
-    private long requested,processed,dropped;
+    private long requested,processed,dropped,generated;
     public DropItemsJob(UUID id,CompanionPlayer actor,JsonObject specification){super(id,"drop_items",actor);this.specification=specification.deepCopy();if(!specification.get("quantity").getAsString().equals("all"))requested=specification.get("quantity").getAsInt();}
     @Override protected void advance(){
         update();
@@ -33,6 +34,10 @@ public final class DropItemsJob extends GameJob {
             if(recipient.serverLevel()!=actor.serverLevel())throw new IllegalStateException("Drop recipient is in another dimension");
             if(recipient==actor)throw new IllegalArgumentException("An avatar cannot hand items to itself");
             phase="traveling to recipient";if(!navigate(recipient.position(),2.0))return;
+        }
+        if (canUseCreativeStock() && processed < requested) {
+            ItemStack stock = CarriedItems.creativeStock(actor, new ItemSelector(specification.get("item").getAsString()));
+            if (!stock.isEmpty()) { dropCreative(recipient, stock); return; }
         }
         if(!prepared)prepare();
         if(processed>=requested){succeed(result);return;}
@@ -51,16 +56,34 @@ public final class DropItemsJob extends GameJob {
             int missing=(int)Math.min(backup.getCount(),Math.max(0,ownedBefore-count(backup)));
             EquipmentAccess.restore(actor,source,backup.copyWithCount(missing));throw new IllegalStateException("Native item drop was cancelled or the world refused its entity");
         }
+        wanted.remaining.shrink(amount);
+        recordDrop(recipient, entity, amount);
+        source.onTake(actor,backup);actor.getInventory().setChanged();actor.inventoryMenu.broadcastChanges();
+        if (processed >= requested) succeed(result);
+    }
+    private boolean canUseCreativeStock() {
+        return actor.isCreative() && !specification.has("slot") && !specification.get("quantity").getAsString().equals("all");
+    }
+    private void dropCreative(ServerPlayer recipient, ItemStack stock) {
+        phase = "dropping_items";
+        int amount = (int) Math.min(stock.getMaxStackSize(), requested - processed);
+        var entity = actor.drop(stock.copyWithCount(amount), false);
+        if (entity == null || entity.isRemoved() || !entity.isAddedToWorld())
+            throw new IllegalStateException("Native item drop was cancelled or the world refused its entity");
+        generated += amount;
+        recordDrop(recipient, entity, amount);
+        if (processed >= requested) succeed(result);
+    }
+    private void recordDrop(ServerPlayer recipient, ItemEntity entity, int amount) {
         if(recipient!=null){entity.setPos(recipient.getX(),recipient.getY()+0.1,recipient.getZ());entity.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);entity.setTarget(recipient.getUUID());}
-        wanted.remaining.shrink(amount);processed+=amount;dropped+=entity.getItem().getCount();droppedStacks.add(entity.getItem().copy());entities.add(entity.getUUID().toString());
-        source.onTake(actor,backup);actor.getInventory().setChanged();actor.inventoryMenu.broadcastChanges();update();
-        if(processed>=requested)succeed(result);
+        processed+=amount;dropped+=entity.getItem().getCount();droppedStacks.add(entity.getItem().copy());entities.add(entity.getUUID().toString());
+        update();
     }
     private long count(ItemStack item){long total=0;for(int i=0;i<actor.getInventory().getContainerSize();i++){var stack=actor.getInventory().getItem(i);if(stack.is(item.getItem()))total+=stack.getCount();}return total;}
     private void prepare(){
         var selector=new ItemSelector(specification.get("item").getAsString());
         boolean all=specification.get("quantity").isJsonPrimitive() && specification.get("quantity").getAsString().equals("all");
-        requested=all?Long.MAX_VALUE:specification.get("quantity").getAsInt();long available=0;
+        requested=all?Long.MAX_VALUE:specification.get("quantity").getAsInt();long available=processed;
         var slots=new ArrayList<Integer>();
         if(specification.has("slot"))slots.add(EquipmentAccess.slot(actor,specification.get("slot").getAsString()).index);
         else {for(int i=0;i<actor.getInventory().items.size();i++)slots.add(EquipmentAccess.menuIndex(i));slots.add(45);}
@@ -71,14 +94,15 @@ public final class DropItemsJob extends GameJob {
         if(all)requested=available;
         prepared=true;update();
     }
-    private void update(){result.addProperty("requested",requested);result.addProperty("removed",processed);result.addProperty("dropped",dropped);result.add("droppedStacks",JobJson.stacks(droppedStacks));result.add("itemEntities",entities.deepCopy());}
+    private void update(){result.addProperty("requested",requested);result.addProperty("removed",processed-generated);result.addProperty("dropped",dropped);if(generated>0)result.addProperty("generated",generated);result.add("droppedStacks",JobJson.stacks(droppedStacks));result.add("itemEntities",entities.deepCopy());}
     @Override protected JsonObject writeData(){
         var data=new JsonObject();data.add("specification",specification.deepCopy());data.addProperty("prepared",prepared);data.addProperty("cursor",cursor);
-        data.addProperty("requested",requested);data.addProperty("processed",processed);data.addProperty("dropped",dropped);data.add("droppedStacks",JobJson.stacks(droppedStacks));data.add("entities",entities.deepCopy());
+        data.addProperty("requested",requested);data.addProperty("processed",processed);data.addProperty("dropped",dropped);data.addProperty("generated",generated);data.add("droppedStacks",JobJson.stacks(droppedStacks));data.add("entities",entities.deepCopy());
         var entries=new JsonArray();for(var source:sources){var value=new JsonObject();value.addProperty("slot",source.slot);value.addProperty("stack",source.remaining.save(new CompoundTag()).toString());entries.add(value);}data.add("sources",entries);return data;
     }
     @Override protected void readData(JsonObject data){
         prepared=data.get("prepared").getAsBoolean();cursor=data.get("cursor").getAsInt();requested=data.get("requested").getAsLong();processed=data.get("processed").getAsLong();dropped=data.get("dropped").getAsLong();
+        if (data.has("generated")) generated = data.get("generated").getAsLong();
         droppedStacks.clear();droppedStacks.addAll(JobJson.stacks(data.getAsJsonArray("droppedStacks")));entities.addAll(data.getAsJsonArray("entities"));
         sources.clear();for(var entry:data.getAsJsonArray("sources")){var value=entry.getAsJsonObject();var stack=new JsonArray();stack.add(value.get("stack"));sources.add(new Source(value.get("slot").getAsInt(),JobJson.stacks(stack).get(0)));}
     }

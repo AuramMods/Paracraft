@@ -148,6 +148,10 @@ public final class CompanionPlayer extends ServerPlayer {
 
     @Override
     public void tick() {
+        if (getAbilities().flying && !getAbilities().mayfly) {
+            getAbilities().flying = false;
+            onUpdateAbilities();
+        }
         super.tick();
         // Connected players normally receive this tick from their network listener.
         // Our listener has no network loop, so execute it exactly once here instead.

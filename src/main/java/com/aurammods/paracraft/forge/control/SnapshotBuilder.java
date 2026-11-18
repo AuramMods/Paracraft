@@ -39,6 +39,10 @@ final class SnapshotBuilder {
         }
         while (observations.size() > 4) observations.remove(0); frame.add("inventoryObservations", observations);
         var actor = avatars.actor(entry.id); frame.addProperty("online", actor != null); if (actor == null) return frame;
+        frame.addProperty("gameMode", actor.gameMode.getGameModeForPlayer().getName());
+        frame.addProperty("creativeItems", actor.isCreative());
+        frame.addProperty("canFly", actor.getAbilities().mayfly);
+        frame.addProperty("flying", actor.getAbilities().flying);
         frame.addProperty("serverTick", actor.server.getTickCount()); frame.addProperty("observedAt", actor.level().getGameTime());
         frame.addProperty("dimension", actor.serverLevel().dimension().location().toString()); frame.add("position", vector(actor.position()));
         frame.addProperty("teleportSerial",actor.teleportSerial());

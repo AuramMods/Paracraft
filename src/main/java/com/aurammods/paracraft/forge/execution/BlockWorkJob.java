@@ -70,8 +70,11 @@ public final class BlockWorkJob extends GameJob {
             }
             case "planting" -> {
                 if (!navigate(Vec3.atCenterOf(target), 2.6)) return;
-                CarriedItems.select(actor, CarriedItems.find(actor, new ItemSelector(specification.get("plant").getAsString())));
-                ItemStack seed = actor.getMainHandItem().copy(); int consumed = NativePlacement.place(actor, target); consumeAcquired(seed, consumed);
+                var selector = new ItemSelector(specification.get("plant").getAsString());
+                int slot = CarriedItems.find(actor, selector);
+                ItemStack seed = slot >= 0 ? actor.getInventory().getItem(slot).copy() : ItemStack.EMPTY;
+                int consumed = CarriedItems.place(actor, target, selector);
+                consumeAcquired(seed, consumed);
                 if (!BuiltInRegistries.BLOCK.getKey(actor.serverLevel().getBlockState(target).getBlock()).toString().equals(crop))
                     throw new IllegalStateException("Planting created a different crop/block");
                 replanted++; next();

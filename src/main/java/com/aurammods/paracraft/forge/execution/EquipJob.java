@@ -12,11 +12,13 @@ public final class EquipJob extends GameJob {
     private final String item, slot;
     public EquipJob(UUID id, CompanionPlayer actor, String item, String slot) { super(id, "equip", actor); this.item = item; this.slot = slot; }
     @Override protected void advance() {
-        ItemSelector selector = new ItemSelector(item); EquipmentSlot destination = EquipmentSlot.byName(slot); int index;
-        try { index = CarriedItems.find(actor, selector); }
-        catch (IllegalStateException absent) {
-            if (!selector.matches(actor.getItemBySlot(destination))) throw absent;
-            result.addProperty("alreadyEquipped", true); finish(destination); return;
+        ItemSelector selector = new ItemSelector(item); EquipmentSlot destination = EquipmentSlot.byName(slot);
+        int index = CarriedItems.find(actor, selector);
+        if (index < 0) {
+            if (selector.matches(actor.getItemBySlot(destination))) result.addProperty("alreadyEquipped", true);
+            else equipFromCreative(selector);
+            finish(destination);
+            return;
         }
         if (destination == EquipmentSlot.MAINHAND) CarriedItems.select(actor, index);
         else {
@@ -32,6 +34,21 @@ public final class EquipJob extends GameJob {
             target.setByPlayer(equipped); actor.getInventory().setChanged();
         }
         finish(destination);
+    }
+    private void equipFromCreative(ItemSelector selector) {
+        ItemStack stock = CarriedItems.creativeStock(actor, selector);
+        if (stock.isEmpty()) throw CarriedItems.missing(selector);
+        var target = EquipmentAccess.slot(actor, slot);
+        ItemStack previous = target.getItem();
+        if (!target.mayPlace(stock) || !target.mayPickup(actor))
+            throw new IllegalStateException("Native equipment slot refuses this exchange");
+        if (!previous.isEmpty()) {
+            int free = actor.getInventory().getFreeSlot();
+            if (free < 0) throw new IllegalStateException("No inventory space for replaced equipment");
+            actor.getInventory().setItem(free, previous);
+        }
+        target.setByPlayer(stock);
+        actor.getInventory().setChanged();
     }
     private void finish(EquipmentSlot destination) { result.addProperty("slot", slot); result.addProperty("stack", actor.getItemBySlot(destination).save(new CompoundTag()).toString()); succeed(result); }
     @Override protected JsonObject writeData() { JsonObject data = new JsonObject(); data.addProperty("item", item); data.addProperty("slot", slot); return data; }

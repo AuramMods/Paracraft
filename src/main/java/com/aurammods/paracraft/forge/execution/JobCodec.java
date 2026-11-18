@@ -20,6 +20,7 @@ public final class JobCodec {
             case "interact_block", "interact_entity", "use_item" -> new InteractionJob(id,actor,data.getAsJsonObject("specification"));
             case "craft_item" -> new CraftJob(id, actor, data.getAsJsonObject("specification"));
             case "search_recipes" -> new RecipeSearchJob(id, actor, data.getAsJsonObject("specification"));
+            case "search_creative_items", "take_creative_items" -> new CreativeItemJob(id, actor, type, data.getAsJsonObject("specification"));
             case "open_inventory", "take_items" -> new ContainerJob(id,actor,type,data.getAsJsonObject("specification"));
             case "search_blocks" -> new BlockSearchJob(id,actor,data.getAsJsonObject("specification"));
             case "use_portal" -> new PortalJob(id,actor,data.getAsJsonObject("specification"));

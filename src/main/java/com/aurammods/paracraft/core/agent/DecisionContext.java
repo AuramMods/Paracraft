@@ -71,7 +71,8 @@ public final class DecisionContext {
 
     private static JsonObject snapshotSummary(JsonObject snapshot, JsonObject trigger, JsonObject agent, InferenceProvider.Route route) {
         var frame = copy(snapshot, "alive", "online", "health", "maxHealth", "food", "oxygen", "maxOxygen",
-                "dimension", "position", "canBreathe", "canRefillAir", "serverTick", "observedAt");
+                "dimension", "position", "canBreathe", "canRefillAir", "gameMode", "creativeItems", "canFly", "flying",
+                "serverTick", "observedAt");
         var programs = array(snapshot, "programs");
         var selected = relevantPrograms(snapshot, agent, programs);
         var summaries = new JsonArray();

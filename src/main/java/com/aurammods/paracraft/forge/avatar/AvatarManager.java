@@ -1,6 +1,7 @@
 package com.aurammods.paracraft.forge.avatar;
 
 import com.aurammods.paracraft.Paracraft;
+import com.aurammods.paracraft.forge.inventory.CreativeItems;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -25,6 +26,7 @@ public final class AvatarManager {
     public com.aurammods.paracraft.forge.control.AvatarStatuses statuses() { return statuses; }
     private final MinecraftServer server;
     private final AvatarSavedData saved;
+    private final CreativeItems creativeItems = new CreativeItems();
     private final com.aurammods.paracraft.forge.control.ServerControl control;
     private final com.aurammods.paracraft.forge.control.ControlEndpoint endpoint;
     private final Map<UUID, CompanionPlayer> active = new HashMap<>();
@@ -45,6 +47,7 @@ public final class AvatarManager {
     public AvatarEntry entry(UUID id) { return saved.get(id); }
     public int activeCount() { return active.size(); }
     public UUID worldId() { return saved.worldId(); }
+    public CreativeItems creativeItems() { return creativeItems; }
     public void dirty() { saved.setDirty(); }
     public com.aurammods.paracraft.forge.control.ServerControl control() { return control; }
     public com.aurammods.paracraft.forge.control.ControlEndpoint endpoint() { return endpoint; }

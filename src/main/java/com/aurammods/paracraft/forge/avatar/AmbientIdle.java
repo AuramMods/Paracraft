@@ -74,6 +74,7 @@ final class AmbientIdle implements AutoCloseable {
             else {phase("sleeping");return;}
         }
         ownsSleep=false;
+        if(actor.getAbilities().flying){stopRoute();look();phase("resting");return;}
         if(navigator!=null){move();return;}
         look();
         if(scan!=null){scan.tick();if(!scan.done())return;var complete=scan;scan=null;
