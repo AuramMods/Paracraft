@@ -1,6 +1,6 @@
 # Daily usage in the K menu
 
-With [OpenRouter](OPENROUTER.md) selected, the same screens instead show its API-reported input/output tokens and `usage.cost`, with partial totals when fields are missing. Luna estimates are not applied. Manage usage opens OpenRouter Activity; replacing/removing the saved API key starts a separate ledger. The remainder of this guide describes ChatGPT plan usage and its Luna cost equivalent.
+With [OpenRouter or a compatible API endpoint](OPENROUTER.md) selected, the same screens instead show API-reported input/output tokens and `usage.cost`, with partial totals when fields are missing. Luna estimates are not applied. Manage usage opens OpenRouter Activity for OpenRouter; provider billing/pricing links are unavailable for custom endpoints. Changing the base URL or replacing/removing the saved API key starts a separate ledger. The remainder of this guide describes ChatGPT plan usage and its Luna cost equivalent.
 
 Open **K** to see today's reported input tokens, output tokens, and estimated Luna API cost. **Usage details** shows total tokens, cached input, cache writes, completed requests, the reporting date/timezone, and pricing assumptions. **Manage usage** opens [ChatGPT usage settings](https://chatgpt.com/settings/usage) only when clicked. The pricing button opens the official rate card.
 

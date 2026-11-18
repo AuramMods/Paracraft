@@ -2,6 +2,12 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 18: Configurable API base URL and local endpoint support
+
+- The in-game OpenRouter settings now include a persisted API base URL alongside the optional key and exact Light/Planning model IDs. OpenRouter remains the default for existing records; custom HTTP(S) endpoints such as Ollama at `http://localhost:11434/v1` use the same typed Chat Completions decisions. Saving makes no discovery/connectivity request; actual inference reports provider errors without fallback. No Authorization header is sent when the key is absent.
+- Blank keys retain a saved secret only for the same normalized endpoint. Changing the URL clears the old key unless explicitly supplied again, invalidates earlier decisions, and separates the usage ledger. Custom endpoint labels/account readiness support unauthenticated local servers; usage reports API tokens/cost without Luna estimates or OpenRouter billing links. URL/model/key settings remain local to the client.
+- Validation: build, all 125 unit tests, and all 139 native GameTests pass headlessly. Four additional loopback HTTP/private-record scenarios cover production transport URL prefixes, unauthenticated tool responses and debug output, restored settings, endpoint changes during inference, credential/usage isolation, legacy profiles, URL normalization/errors, actual HTTP failures, and missing local cost. No graphical client, browser, paid inference, or actual Ollama model was launched; in-game layout and model compatibility remain manual checks. See [API endpoint and Ollama setup](OPENROUTER.md).
+
 ## November 18: Visible thinking and stationary idle behavior during inference
 
 - Thinking/Planning now takes precedence over ambient and job activity labels, preserving unfinished-task counts and server pause/disconnection priority. Planning also covers the Light escalation cooldown. Aggregate status changes are sent on the next client tick through the existing owner heartbeat, with one outstanding poll and coalesced updates. An additive Planning flag preserves older Thinking payloads.

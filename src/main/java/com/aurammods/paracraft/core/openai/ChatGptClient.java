@@ -23,10 +23,14 @@ public final class ChatGptClient implements AutoCloseable {
     }
     public record Account(String id,String email,String clientId,boolean signedIn,boolean planEnabled) {public String label(){return (email.isBlank()?"ChatGPT account":email)+" · "+clientId.substring(Math.max(0,clientId.length()-8));}}
     public record Model(String slug,String name,String details){}
-    public record OpenRouterSettings(boolean keySaved,String lightModel,String lightEffort,String planningModel,String planningEffort){
+    public static final String OPENROUTER_BASE_URL="https://openrouter.ai/api/v1";
+    public record OpenRouterSettings(boolean keySaved,String lightModel,String lightEffort,String planningModel,String planningEffort,String baseUrl){
         public InferenceProvider.ModelRoute route(InferenceProvider.Route route){return route==InferenceProvider.Route.LIGHT?new InferenceProvider.ModelRoute(lightModel,lightEffort):new InferenceProvider.ModelRoute(planningModel,planningEffort);}
+        public boolean isOpenRouter(){return URI.create(baseUrl).getHost().equalsIgnoreCase("openrouter.ai");}
+        public boolean ready(){return !lightModel.isBlank() && (!isOpenRouter() || keySaved);}
+        public String providerLabel(){return isOpenRouter()?"OpenRouter":"API · "+URI.create(baseUrl).getAuthority();}
     }
-    record RouterCredential(String id,String key){@Override public String toString(){return "Private OpenRouter credential";}}
+    record RouterCredential(String id,String key,String baseUrl){@Override public String toString(){return "Private API credential";}}
     final OpenAiHttp http=new OpenAiHttp();final Endpoints endpoints;
     final ScheduledExecutorService io=Executors.newScheduledThreadPool(4,r->{var t=new Thread(r,"Paracraft ChatGPT client");t.setDaemon(true);return t;});
     final ExecutorService inference=Executors.newCachedThreadPool(r->{var t=new Thread(r,"Paracraft model stream");t.setDaemon(true);return t;});
@@ -36,20 +40,20 @@ public final class ChatGptClient implements AutoCloseable {
     private volatile String usage="No recorded live usage";
     private record UsageSnapshot(String account,JsonObject value) { }
     private volatile UsageSnapshot usageSnapshot=new UsageSnapshot("",new JsonObject());
-    private volatile OpenRouterSettings openRouter=new OpenRouterSettings(false,"","auto","","auto");
+    private volatile OpenRouterSettings openRouter=new OpenRouterSettings(false,"","auto","","auto",OPENROUTER_BASE_URL);
     private volatile UsageSnapshot routerUsage=new UsageSnapshot("",new JsonObject());
     private CompletableFuture<Void> usageRefresh;
     private final java.time.Clock usageClock;
     public ChatGptClient(Path directory)throws Exception{this(directory,Endpoints.production());}
     ChatGptClient(Path directory,Endpoints endpoints)throws Exception{this(directory,endpoints,java.time.Clock.systemDefaultZone());}
-    ChatGptClient(Path directory,Endpoints endpoints,java.time.Clock usageClock)throws Exception{store=new AccountStore(directory);this.endpoints=endpoints;this.usageClock=usageClock;reload();notice=mode().equals("openrouter")?"Saved OpenRouter settings loaded":selected()!=null && selected().signedIn()?"Saved session loaded; refreshes when needed":"Link ChatGPT or configure OpenRouter to enable live inference";}
+    ChatGptClient(Path directory,Endpoints endpoints,java.time.Clock usageClock)throws Exception{store=new AccountStore(directory);this.endpoints=endpoints;this.usageClock=usageClock;reload();notice=mode().equals("openrouter")?"Saved API endpoint settings loaded":selected()!=null && selected().signedIn()?"Saved session loaded; refreshes when needed":"Link ChatGPT or configure an API endpoint to enable live inference";}
     public static Path defaultDirectory(){String override=System.getProperty("paracraft.auth.directory");return override==null?Path.of(System.getProperty("user.home"),".paracraft","chatgpt"):Path.of(override);}
     private void reload()throws Exception{
         store.transact(state->{var list=new ArrayList<Account>();for(var entry:state.getAsJsonObject("accounts").entrySet()){var a=entry.getValue().getAsJsonObject();list.add(new Account(entry.getKey(),OpenAiHttp.string(a,"email",""),a.get("client_id").getAsString(),a.has("access_token"),planEnabled(a)));}accounts=List.copyOf(list);selected=OpenAiHttp.string(state,"selected","");mode=OpenAiHttp.string(state,"mode","simulation");var current=state.getAsJsonObject("accounts").getAsJsonObject(selected);cacheUsage(selected,current);cacheRouter(state.getAsJsonObject("openrouter"));return null;});
     }
     public List<Account> accounts(){return accounts;}public List<Model> models(){return models;}public Account selected(){return accounts.stream().filter(a->a.id.equals(selected)).findFirst().orElse(null);}
     public String mode(){return requestsStopped?"simulation":mode;}public String notice(){return notice;}public long revision(){return revision.get();}public boolean signingIn(){return login!=null;}
-    public String label(){if(mode().equals("openrouter"))return openRouter.keySaved()?"OpenRouter · "+openRouter.lightModel()+" / "+openRouter.planningModel():"OpenRouter · API key required";var a=selected();return mode().equals("chatgpt")?a==null || !a.signedIn()?"ChatGPT · sign-in required":!a.planEnabled()?"ChatGPT · plan permission required":"ChatGPT · "+a.label():"SIMULATED · no AI usage";}
+    public String label(){if(mode().equals("openrouter"))return openRouter.providerLabel()+(openRouter.ready()?" · "+openRouter.lightModel()+" / "+openRouter.planningModel():" · configuration required");var a=selected();return mode().equals("chatgpt")?a==null || !a.signedIn()?"ChatGPT · sign-in required":!a.planEnabled()?"ChatGPT · plan permission required":"ChatGPT · "+a.label():"SIMULATED · no AI usage";}
     public Path directory(){return store.directory;}
     public String usage(){return mode().equals("openrouter")?usageLabel(routerUsage.value):usage;}
     /** Pure cached reads for rendering; midnight rollover needs no file or network operation. */
@@ -64,27 +68,41 @@ public final class ChatGptClient implements AutoCloseable {
         usageSnapshot=new UsageSnapshot(id,value.deepCopy());usage=usageLabel(value);
     }
     private void cacheRouter(JsonObject profile){
-        openRouter=new OpenRouterSettings(profile!=null && !OpenAiHttp.string(profile,"api_key","").isBlank(),profile==null?"":OpenAiHttp.string(profile,"light_model",""),profile==null?"auto":OpenAiHttp.string(profile,"light_effort","auto"),profile==null?"":OpenAiHttp.string(profile,"planning_model",""),profile==null?"auto":OpenAiHttp.string(profile,"planning_effort","auto"));cacheRouterUsage(profile);
+        openRouter=new OpenRouterSettings(profile!=null && !OpenAiHttp.string(profile,"api_key","").isBlank(),profile==null?"":OpenAiHttp.string(profile,"light_model",""),profile==null?"auto":OpenAiHttp.string(profile,"light_effort","auto"),profile==null?"":OpenAiHttp.string(profile,"planning_model",""),profile==null?"auto":OpenAiHttp.string(profile,"planning_effort","auto"),apiBaseUrl(profile));cacheRouterUsage(profile);
     }
     private void cacheRouterUsage(JsonObject profile){
-        var value=profile!=null && profile.has("usage")?profile.getAsJsonObject("usage"):new JsonObject();value.addProperty("provider","openrouter");UsageLedger.initialize(value,usageClock.instant(),usageClock.getZone());if(profile!=null)profile.add("usage",value);routerUsage=new UsageSnapshot(profile==null?"":OpenAiHttp.string(profile,"id",""),value.deepCopy());
+        var value=profile!=null && profile.has("usage")?profile.getAsJsonObject("usage"):new JsonObject();value.addProperty("provider","openrouter");value.addProperty("custom_endpoint",!URI.create(apiBaseUrl(profile)).getHost().equalsIgnoreCase("openrouter.ai"));UsageLedger.initialize(value,usageClock.instant(),usageClock.getZone());if(profile!=null)profile.add("usage",value);routerUsage=new UsageSnapshot(profile==null?"":OpenAiHttp.string(profile,"id",""),value.deepCopy());
     }
     public OpenRouterSettings openRouter(){return openRouter;}
-    /** Blank key retains the saved secret; exact model IDs are sent without catalog checks. */
+    private static String apiBaseUrl(JsonObject profile){return normalizeApiBaseUrl(profile==null?OPENROUTER_BASE_URL:OpenAiHttp.string(profile,"base_url",OPENROUTER_BASE_URL));}
+    static String normalizeApiBaseUrl(String value){
+        try{
+            String text=value.strip();if(text.isEmpty())text=OPENROUTER_BASE_URL;URI uri=URI.create(text);
+            if(!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost()==null || uri.getUserInfo()!=null || uri.getRawQuery()!=null || uri.getRawFragment()!=null)throw new IllegalArgumentException();
+            text=uri.getScheme().toLowerCase(Locale.ROOT)+text.substring(uri.getScheme().length());
+            while(text.endsWith("/"))text=text.substring(0,text.length()-1);
+            if(text.endsWith("/chat/completions"))text=text.substring(0,text.length()-"/chat/completions".length());return text;
+        }catch(IllegalArgumentException invalid){throw new IllegalArgumentException("Base URL must be an HTTP(S) API URL without credentials, query, or fragment");}
+    }
+    /** Blank key retains the saved secret only for the same endpoint; exact models need no catalog checks. */
     public CompletableFuture<Void> configureOpenRouter(String key,String light,String lightEffort,String planning,String planningEffort){
+        return configureOpenRouter(key,light,lightEffort,planning,planningEffort,openRouter.baseUrl());
+    }
+    public CompletableFuture<Void> configureOpenRouter(String key,String light,String lightEffort,String planning,String planningEffort,String baseUrl){
+        String base=normalizeApiBaseUrl(baseUrl);
         String apiKey=key.strip(),lightModel=light.strip(),planningModel=planning.isBlank()?lightModel:planning.strip(),le=lightEffort.isBlank()?"auto":lightEffort.strip(),pe=planningEffort.isBlank()?"auto":planningEffort.strip();
         new InferenceProvider.ModelRoute(lightModel,le);new InferenceProvider.ModelRoute(planningModel,pe);
         if(apiKey.chars().anyMatch(c->c<=32 || c==127))throw new IllegalArgumentException("API key must not contain whitespace or control characters");
         cancelLogin();
-        return async(()->{store.transact(state->{var existing=state.getAsJsonObject("openrouter");var profile=existing==null?new JsonObject():existing.deepCopy();String previous=OpenAiHttp.string(profile,"api_key","");String next=apiKey.isEmpty()?previous:apiKey;if(next.isBlank())throw new IOException("Enter an OpenRouter API key first");
-                if(!next.equals(previous) || !profile.has("id")){profile.addProperty("id",UUID.randomUUID().toString());profile.remove("usage");}profile.addProperty("api_key",next);profile.addProperty("light_model",lightModel);profile.addProperty("light_effort",le);profile.addProperty("planning_model",planningModel);profile.addProperty("planning_effort",pe);state.add("openrouter",profile);state.addProperty("mode","openrouter");return null;});reload();requestsStopped=false;revision.incrementAndGet();notice="OpenRouter selected; exact model IDs will be used on the next decision";return null;
+        return async(()->{store.transact(state->{var existing=state.getAsJsonObject("openrouter");var profile=existing==null?new JsonObject():existing.deepCopy();String previous=OpenAiHttp.string(profile,"api_key","");boolean sameBase=base.equals(apiBaseUrl(profile));String next=apiKey.isEmpty()?(sameBase?previous:""):apiKey;if(next.isBlank() && URI.create(base).getHost().equalsIgnoreCase("openrouter.ai"))throw new IOException("Enter an OpenRouter API key first");
+                if(!sameBase || !next.equals(previous) || !profile.has("id")){profile.addProperty("id",UUID.randomUUID().toString());profile.remove("usage");}profile.addProperty("api_key",next);profile.addProperty("base_url",base);profile.addProperty("light_model",lightModel);profile.addProperty("light_effort",le);profile.addProperty("planning_model",planningModel);profile.addProperty("planning_effort",pe);state.add("openrouter",profile);state.addProperty("mode","openrouter");return null;});reload();requestsStopped=false;revision.incrementAndGet();notice="API endpoint selected; exact model IDs will be used on the next decision";return null;
             });
     }
     public CompletableFuture<Void> forgetOpenRouter(){
-        boolean active=mode().equals("openrouter");if(active)requestsStopped=true;revision.incrementAndGet();return async(()->{store.transact(state->{var profile=state.getAsJsonObject("openrouter");if(profile!=null){profile.remove("api_key");profile.addProperty("id",UUID.randomUUID().toString());profile.remove("usage");}if("openrouter".equals(OpenAiHttp.string(state,"mode","")))state.addProperty("mode","simulation");return null;});reload();if(active)requestsStopped=false;revision.incrementAndGet();notice="OpenRouter key removed from this computer";return null;});
+        boolean active=mode().equals("openrouter");if(active)requestsStopped=true;revision.incrementAndGet();return async(()->{store.transact(state->{var profile=state.getAsJsonObject("openrouter");if(profile!=null){profile.remove("api_key");profile.addProperty("id",UUID.randomUUID().toString());profile.remove("usage");}if("openrouter".equals(OpenAiHttp.string(state,"mode","")))state.addProperty("mode","simulation");return null;});reload();if(active)requestsStopped=false;revision.incrementAndGet();notice="API key removed from this computer; API provider disconnected";return null;});
     }
     RouterCredential routerCredential()throws Exception{
-        if(!mode().equals("openrouter"))throw new CancellationException("OpenRouter is not selected");return store.transact(state->{if(!"openrouter".equals(OpenAiHttp.string(state,"mode","")))throw new CancellationException("Selected provider changed");var profile=state.getAsJsonObject("openrouter");if(profile==null || OpenAiHttp.string(profile,"api_key","").isBlank())throw new IOException("Configure OpenRouter in Paracraft Accounts first");return new RouterCredential(profile.get("id").getAsString(),profile.get("api_key").getAsString());});
+        if(!mode().equals("openrouter"))throw new CancellationException("API provider is not selected");return store.transact(state->{if(!"openrouter".equals(OpenAiHttp.string(state,"mode","")))throw new CancellationException("Selected provider changed");var profile=state.getAsJsonObject("openrouter");if(profile==null || !profile.has("id"))throw new IOException("Configure the API endpoint in Paracraft Accounts first");return new RouterCredential(profile.get("id").getAsString(),OpenAiHttp.string(profile,"api_key",""),apiBaseUrl(profile));});
     }
     void recordRouterUsage(String id,JsonObject reported,String outcome)throws Exception{
         store.transact(state->{var profile=state.getAsJsonObject("openrouter");if(profile==null || !id.equals(OpenAiHttp.string(profile,"id","")))return null;var value=profile.has("usage")?profile.getAsJsonObject("usage"):new JsonObject();UsageLedger.recordOpenRouter(value,reported,outcome,usageClock.instant(),usageClock.getZone());profile.add("usage",value);if(routerUsage.account.equals(id))cacheRouterUsage(profile);return null;});

@@ -44,12 +44,12 @@ final class DecisionProtocol {
     }
     static InferenceProvider.Decision openRouterDecision(JsonObject completed,InferenceProvider.Route route)throws IOException{
         try{
-            var choices=completed.getAsJsonArray("choices");if(choices==null || choices.size()!=1)throw new IOException("OpenRouter must return exactly one completion");var choice=choices.get(0).getAsJsonObject();
-            String finish=OpenAiHttp.string(choice,"finish_reason","");if(!finish.equals("tool_calls") && !finish.equals("stop"))throw new IOException("OpenRouter response was incomplete or refused (finish: "+finish.replaceAll("[^a-zA-Z_]","")+"); no actions were applied");
-            var message=choice.getAsJsonObject("message");var calls=message.getAsJsonArray("tool_calls");if(calls==null || calls.size()!=1)throw new IOException("OpenRouter must return one companion decision function; no actions were applied");
-            var call=calls.get(0).getAsJsonObject();var function=call.getAsJsonObject("function");if(!OpenAiHttp.string(call,"type","").equals("function") || !OpenAiHttp.string(function,"name","").equals("paracraft_decide"))throw new IOException("OpenRouter returned an unknown function");
+            var choices=completed.getAsJsonArray("choices");if(choices==null || choices.size()!=1)throw new IOException("API must return exactly one completion");var choice=choices.get(0).getAsJsonObject();
+            String finish=OpenAiHttp.string(choice,"finish_reason","");if(!finish.equals("tool_calls") && !finish.equals("stop"))throw new IOException("API response was incomplete or refused (finish: "+finish.replaceAll("[^a-zA-Z_]","")+"); no actions were applied");
+            var message=choice.getAsJsonObject("message");var calls=message.getAsJsonArray("tool_calls");if(calls==null || calls.size()!=1)throw new IOException("API must return one companion decision function; no actions were applied");
+            var call=calls.get(0).getAsJsonObject();var function=call.getAsJsonObject("function");if(!OpenAiHttp.string(call,"type","").equals("function") || !OpenAiHttp.string(function,"name","").equals("paracraft_decide"))throw new IOException("API returned an unknown function");
             return DecisionSchema.decode(JsonParser.parseString(function.get("arguments").getAsString()).getAsJsonObject(),route);
-        }catch(RuntimeException malformed){throw new IOException("OpenRouter returned malformed companion tool arguments; no actions were applied");}
+        }catch(RuntimeException malformed){throw new IOException("API returned malformed companion tool arguments; no actions were applied");}
     }
     static InferenceProvider.Decision decision(JsonObject completed,InferenceProvider.Route route)throws IOException{
         InferenceProvider.Decision decision=null;

@@ -4,7 +4,7 @@ Server-owned Minecraft companions with a client-owned decision harness. Initial 
 
 The Forge foundation includes a labeled simulator and client-side ChatGPT sign-in/live provider. **[Link your account](docs/AUTH.md)** after joining with `/paracraft link chatgpt` or **K → Accounts**. Unlinked players receive clickable join and avatar-creation reminders. The session is cached privately on your computer; `./gradlew chatgptLogin` is optional developer tooling. Real Luna inference and headless diamond retrieval have passed; native client visual checks remain pending.
 
-You can also use an **[OpenRouter API key and exact model IDs](docs/OPENROUTER.md)** through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. Configure Light and Planning models/efforts locally; the K menu shows OpenRouter-reported tokens and cost for this provider.
+You can also use **[OpenRouter or a compatible API such as local Ollama](docs/OPENROUTER.md)** through **K → Accounts → OpenRouter** or `/paracraft link openrouter`. Configure the base URL, optional key, and exact Light/Planning model IDs locally. For Ollama use `http://localhost:11434/v1`; the K menu shows API-reported tokens and available cost.
 
 [Agent continuity](docs/CONTINUITY.md) carries a short next-step note, original requests and recent decisions/results into each fresh snapshot. K shows the note. Running server work avoids repeated model polling, and known task continuations go directly to Planning.
 

@@ -18,19 +18,19 @@ public final class UsageLedger {
 
     public record Today(LocalDate date, String zone, Instant trackedSince, boolean olderUsage,
                         long input, long output, long total, long cached, long writes, long completed,
-                        long unreported, long estimatedCalls, long unpricedCalls, BigDecimal usd, boolean openRouter) {
+                        long unreported, long estimatedCalls, long unpricedCalls, BigDecimal usd, boolean openRouter, boolean customEndpoint) {
         public String tokensLabel() { return "Today · Input " + count(input) + " · Output " + count(output); }
-        public String costLabel() { return (openRouter?"OpenRouter reported ":"Luna API est. ") + dollars(usd) + " USD" + (unreported + unpricedCalls > 0 || olderUsage && trackedSince.atZone(ZoneId.of(zone)).toLocalDate().equals(date) ? "*" : ""); }
+        public String costLabel() { return (openRouter?(customEndpoint?"API reported ":"OpenRouter reported "):"Luna API est. ") + dollars(usd) + " USD" + (unreported + unpricedCalls > 0 || olderUsage && trackedSince.atZone(ZoneId.of(zone)).toLocalDate().equals(date) ? "*" : ""); }
         public List<String> details() {
             var lines = new java.util.ArrayList<String>();
-            lines.add("Paracraft · "+(openRouter?"saved OpenRouter key":"selected account")+" · " + date + " (" + zone + ")");
+            lines.add("Paracraft · "+(openRouter?(customEndpoint?"configured API endpoint":"saved OpenRouter key"):"selected account")+" · " + date + " (" + zone + ")");
             lines.add("Input " + count(input) + " · Output " + count(output) + " · Total " + count(total));
             lines.add("Cached input " + count(cached) + " · Cache writes " + count(writes) + " · Completed " + count(completed));
             if(openRouter){
-                lines.add("OpenRouter-reported Paracraft usage for the saved API key. Costs use response usage.cost, never Luna token estimates. Reasoning tokens are included in output.");
-                lines.add("Changing models keeps this key's daily totals; replacing or removing the key starts a separate ledger.");
+                lines.add((customEndpoint?"API-reported Paracraft usage for this endpoint.":"OpenRouter-reported Paracraft usage for the saved API key.")+" Costs use response usage.cost, never Luna token estimates. Reasoning tokens are included in output.");
+                lines.add("Changing models keeps daily totals; changing the endpoint or replacing/removing its key starts a separate ledger.");
                 if(unreported+unpricedCalls>0)lines.add("Partial totals: "+count(unreported)+" requests without full token usage; "+count(unpricedCalls)+" responses without reported cost.");
-                lines.add("OpenRouter Activity shows account-wide usage. Separately billed upstream BYOK charges are outside these totals; no ChatGPT plan quota applies.");return List.copyOf(lines);
+                lines.add(customEndpoint?"Use your provider's controls for billing/limits. Local servers may omit cost; missing cost is unknown, not a billed estimate. No ChatGPT plan quota applies.":"OpenRouter Activity shows account-wide usage. Separately billed upstream BYOK charges are outside these totals; no ChatGPT plan quota applies.");return List.copyOf(lines);
             }
             lines.add("All reported Paracraft tokens priced as Luna API equivalents, not ChatGPT plan charges. Reasoning is included in output tokens.");
             lines.add("USD/1M: input 0.10 · cached 0.01 · writes 0.125 · output 0.50 (" + PRICE_DATE + ").");
@@ -51,7 +51,7 @@ public final class UsageLedger {
         return new Today(date, zone.getId(), since, usage.has("daily_older_usage") && usage.get("daily_older_usage").getAsBoolean(),
                 number(day,"input_tokens"), number(day,"output_tokens"), number(day,"total_tokens"), number(day,"cached_input_tokens"), number(day,"cache_write_tokens"),
                 number(day,"completed"), number(day,"unreported"), number(day,"estimated_calls"), number(day,"unpriced_calls"),
-                day.has("usd_estimate") ? day.get("usd_estimate").getAsBigDecimal() : BigDecimal.ZERO,"openrouter".equals(OpenAiHttp.string(usage,"provider","")));
+                day.has("usd_estimate") ? day.get("usd_estimate").getAsBigDecimal() : BigDecimal.ZERO,"openrouter".equals(OpenAiHttp.string(usage,"provider","")),usage.has("custom_endpoint") && usage.get("custom_endpoint").getAsBoolean());
     }
     static void initialize(JsonObject usage, Instant now, ZoneId zone) {
         if (usage.has("days")) return;

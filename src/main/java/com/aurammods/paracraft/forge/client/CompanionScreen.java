@@ -82,7 +82,7 @@ public final class CompanionScreen extends Screen {
         var today=account==null?null:account.todayUsage();
         graphics.drawString(font,font.plainSubstrByWidth(today==null?"Usage unavailable":today.tokensLabel(),Math.max(10,width-32)),16,44,0xdddddd);
         graphics.drawString(font,font.plainSubstrByWidth(today==null?ForgeClientRuntime.accountError():today.costLabel(),Math.max(10,width-32)),16,56,0xb5e8b5);
-        graphics.drawString(font,account!=null && account.mode().equals("openrouter")?"OpenRouter API usage":"Codex left: unavailable",16,70,0xaaaaaa);
+        graphics.drawString(font,account!=null && account.mode().equals("openrouter")?(account.openRouter().isOpenRouter()?"OpenRouter API usage":"Custom API usage"):"Codex left: unavailable",16,70,0xaaaaaa);
         var view = selected(); graphics.drawCenteredString(font, view == null ? "No companion selected" : view.name(), width / 2, 94, 0xffffff);
         List<String> lines = new ArrayList<>();
         lines.add(runtime() == null ? "Join a Paracraft world to manage companions." : runtime().status());

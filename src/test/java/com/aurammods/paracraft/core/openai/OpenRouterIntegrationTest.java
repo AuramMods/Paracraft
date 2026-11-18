@@ -87,6 +87,77 @@ class OpenRouterIntegrationTest {
             var error=assertThrows(IllegalArgumentException.class,()->client.configureOpenRouter("bad\r\nsecret","exact/model","auto","","").join());assertFalse(error.getMessage().contains("secret"));
         }
     }
+    @Test void customBaseUrlUsesProductionTransportWithoutAuthenticationAndSurvivesReload()throws Exception{
+        try(var fixture=new Fixture();var client=new ChatGptClient(directory)){
+            String base=fixture.base()+"/proxy/v1";
+            client.configureOpenRouter("","local-model:latest","auto","local-planner:latest","auto",base+"/").get(5,TimeUnit.SECONDS);
+            assertTrue(fixture.requests.isEmpty(),"Saving makes no model, discovery, or connectivity requests");
+            assertFalse(client.openRouter().keySaved());assertTrue(client.openRouter().ready());assertFalse(client.openRouter().isOpenRouter());assertTrue(client.label().contains("API · 127.0.0.1:"));
+            var provider=new OpenRouterProvider(client);var outputs=new CopyOnWriteArrayList<JsonObject>();
+            for(var route:InferenceProvider.Route.values()){
+                var decision=provider.infer(request(provider,route,outputs::add)).get(5,TimeUnit.SECONDS);
+                assertEquals("Hello!",decision.calls().get(0).arguments().get("message").getAsString());
+                assertEquals("/proxy/v1/chat/completions",fixture.path);assertNull(fixture.authorization);assertNull(fixture.routerTitle);
+                var body=fixture.requests.get(fixture.requests.size()-1);assertEquals(route==InferenceProvider.Route.LIGHT?"local-model:latest":"local-planner:latest",body.get("model").getAsString());assertFalse(body.has("reasoning"));
+                assertEquals("paracraft_decide",body.getAsJsonObject("tool_choice").getAsJsonObject("function").get("name").getAsString());
+            }
+            assertTrue(outputs.toString().contains("Visible hello"));assertFalse(outputs.toString().contains("[redacted key]"),"An absent key must not corrupt every character of output");
+            assertTrue(client.todayUsage().costLabel().startsWith("API reported"));assertTrue(client.todayUsage().customEndpoint());assertTrue(client.todayUsage().details().stream().noneMatch(line->line.contains("OpenRouter Activity")));
+            try(var restored=new ChatGptClient(directory)){
+                assertEquals(base,restored.openRouter().baseUrl());assertTrue(restored.openRouter().ready());assertEquals(220,restored.todayUsage().total());
+                new OpenRouterProvider(restored).infer(request(new OpenRouterProvider(restored),InferenceProvider.Route.LIGHT,ignored->{})).get(5,TimeUnit.SECONDS);
+                assertEquals("/proxy/v1/chat/completions",fixture.path);assertNull(fixture.authorization);
+            }
+            fixture.status=404;fixture.response=json("{\"error\":{\"message\":\"Local model is not installed\"}}");
+            var failure=assertThrows(ExecutionException.class,()->provider.infer(request(provider,InferenceProvider.Route.LIGHT,ignored->{})).get(5,TimeUnit.SECONDS));
+            assertTrue(ChatGptClient.message(failure).contains("API HTTP 404"));assertEquals(4,fixture.requests.size(),"Actual failures get one request without fallback");
+        }
+    }
+    @Test void endpointChangesNeverReuseAnotherEndpointsKeyOrUsageAndInvalidateLateDecisions()throws Exception{
+        try(var first=new Fixture();var second=new Fixture();var client=new ChatGptClient(directory)){
+            configure(client);String originalId=client.routerCredential().id();
+            client.recordRouterUsage(originalId,json("{\"prompt_tokens\":10,\"completion_tokens\":1,\"cost\":0.01}"),"completed");
+            client.configureOpenRouter("","local-model","auto","","",first.base()+"/v1").get(5,TimeUnit.SECONDS);
+            assertEquals("",client.routerCredential().key());assertNotEquals(originalId,client.routerCredential().id());assertEquals(0,client.todayUsage().total());
+            var provider=new OpenRouterProvider(client);provider.infer(request(provider,InferenceProvider.Route.LIGHT,ignored->{})).get(5,TimeUnit.SECONDS);assertNull(first.authorization);
+            client.configureOpenRouter("private-local-key","local-model","auto","","",first.base()+"/v1").get(5,TimeUnit.SECONDS);
+            String firstId=client.routerCredential().id();client.configureOpenRouter("","other-local-model","auto","","",first.base()+"/v1/").get(5,TimeUnit.SECONDS);
+            assertEquals("private-local-key",client.routerCredential().key());assertEquals(firstId,client.routerCredential().id());
+            first.hold=true;var output=new CopyOnWriteArrayList<JsonObject>();var pending=provider.infer(request(provider,InferenceProvider.Route.LIGHT,output::add));
+            long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);while(first.requests.size()<2 && System.nanoTime()<until)Thread.sleep(5);assertEquals(2,first.requests.size());
+            client.configureOpenRouter("","local-model","auto","","",second.base()+"/v1").get(5,TimeUnit.SECONDS);first.release.countDown();
+            assertThrows(CancellationException.class,()->pending.get(5,TimeUnit.SECONDS));assertTrue(output.isEmpty());assertEquals(0,client.todayUsage().total());assertNotEquals(firstId,client.routerCredential().id());
+            provider.infer(request(provider,InferenceProvider.Route.LIGHT,ignored->{})).get(5,TimeUnit.SECONDS);assertNull(second.authorization);assertEquals(1,second.requests.size());
+            client.recordRouterUsage(firstId,json("{\"prompt_tokens\":900,\"completion_tokens\":100,\"cost\":99}"),"completed");assertEquals(110,client.todayUsage().total());
+            assertThrows(ExecutionException.class,()->client.configureOpenRouter("","exact/model","auto","","",ChatGptClient.OPENROUTER_BASE_URL).get(5,TimeUnit.SECONDS));
+            assertEquals(second.base()+"/v1",client.openRouter().baseUrl(),"A failed save preserves the working configuration");
+        }
+    }
+    @Test void legacyProfilesDefaultToOpenRouterAndBaseUrlsNormalizeWithoutEchoingInvalidText()throws Exception{
+        configureLegacyProfile();
+        try(var client=new ChatGptClient(directory)){
+            assertEquals(ChatGptClient.OPENROUTER_BASE_URL,client.openRouter().baseUrl());assertEquals(KEY,client.routerCredential().key());
+            assertEquals("http://localhost:11434/v1",ChatGptClient.normalizeApiBaseUrl(" http://localhost:11434/v1/chat/completions/ "));
+            assertEquals("http://[::1]:11434/v1",ChatGptClient.normalizeApiBaseUrl("http://[::1]:11434/v1/"));
+            assertEquals("http://localhost:11434/v1",ChatGptClient.normalizeApiBaseUrl("HTTP://localhost:11434/v1/"));
+            assertEquals(ChatGptClient.OPENROUTER_BASE_URL,ChatGptClient.normalizeApiBaseUrl(""));
+            for(String bad:List.of("/v1","file:///private-secret","http://user:private-secret@localhost/v1","http://localhost/v1?key=private-secret","http://localhost/v1#private-secret","not a private-secret URL")){
+                var failure=assertThrows(IllegalArgumentException.class,()->client.configureOpenRouter("","local-model","auto","","",bad));assertFalse(failure.getMessage().contains("private-secret"));
+            }
+            assertEquals(KEY,client.routerCredential().key());
+        }
+    }
+    @Test void localUsageWithoutCostStaysUnpricedInsteadOfApplyingLunaRates()throws Exception{
+        try(var fixture=new Fixture();var client=new ChatGptClient(directory)){
+            client.configureOpenRouter("","local-model","auto","","",fixture.base()+"/v1").get(5,TimeUnit.SECONDS);
+            fixture.response.getAsJsonObject("usage").remove("cost");var provider=new OpenRouterProvider(client);
+            provider.infer(request(provider,InferenceProvider.Route.LIGHT,ignored->{})).get(5,TimeUnit.SECONDS);
+            assertEquals(110,client.todayUsage().total());assertEquals(1,client.todayUsage().unpricedCalls());assertEquals(0,client.todayUsage().estimatedCalls());assertTrue(client.todayUsage().costLabel().endsWith("*"));
+        }
+    }
+    private void configureLegacyProfile()throws Exception{
+        var store=new AccountStore(directory);store.transact(state->{state.addProperty("mode","openrouter");var profile=json("{\"id\":\"legacy\",\"light_model\":\"exact/model\",\"planning_model\":\"exact/model\"}");profile.addProperty("api_key",KEY);state.add("openrouter",profile);return null;});
+    }
     private static JsonObject completion(String arguments){
         var value=json("{\"id\":\"fixture-generation\",\"choices\":[{\"finish_reason\":\"tool_calls\",\"message\":{\"role\":\"assistant\",\"content\":\"Visible hello\",\"reasoning\":\"private chain\",\"tool_calls\":[{\"type\":\"function\",\"function\":{\"name\":\"paracraft_decide\",\"arguments\":\"\"}}]}}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":10,\"total_tokens\":110,\"prompt_tokens_details\":{\"cached_tokens\":20},\"cost\":0.0123}}");value.getAsJsonArray("choices").get(0).getAsJsonObject().getAsJsonObject("message").getAsJsonArray("tool_calls").get(0).getAsJsonObject().getAsJsonObject("function").addProperty("arguments",arguments);return value;
     }
@@ -94,8 +165,9 @@ class OpenRouterIntegrationTest {
         final HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         final ExecutorService executor=Executors.newCachedThreadPool(r->{var thread=new Thread(r,"OpenRouter HTTP fixture");thread.setDaemon(true);return thread;});
         final List<JsonObject> requests=new CopyOnWriteArrayList<>();final CountDownLatch started=new CountDownLatch(1),release=new CountDownLatch(1);
-        volatile boolean hold;volatile int status=200;volatile String authorization;volatile JsonObject response=completion(CHAT);
-        Fixture()throws IOException{server.setExecutor(executor);server.createContext("/chat/completions",exchange->{try{authorization=exchange.getRequestHeaders().getFirst("Authorization");requests.add(json(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8)));started.countDown();if(hold)try{release.await(10,TimeUnit.SECONDS);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}byte[] bytes=response.toString().getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(status,bytes.length);try(var output=exchange.getResponseBody()){output.write(bytes);}}finally{exchange.close();}});server.start();}
+        volatile boolean hold;volatile int status=200;volatile String authorization,routerTitle,path;volatile JsonObject response=completion(CHAT);
+        Fixture()throws IOException{server.setExecutor(executor);server.createContext("/",exchange->{try{authorization=exchange.getRequestHeaders().getFirst("Authorization");routerTitle=exchange.getRequestHeaders().getFirst("X-OpenRouter-Title");path=exchange.getRequestURI().getPath();requests.add(json(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8)));started.countDown();if(hold)try{release.await(10,TimeUnit.SECONDS);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}byte[] bytes=response.toString().getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(status,bytes.length);try(var output=exchange.getResponseBody()){output.write(bytes);}}finally{exchange.close();}});server.start();}
+        String base(){return "http://127.0.0.1:"+server.getAddress().getPort();}
         URI uri(){return URI.create("http://127.0.0.1:"+server.getAddress().getPort()+"/chat/completions");}
         @Override public void close(){release.countDown();server.stop(0);executor.shutdownNow();}
     }

@@ -11,11 +11,11 @@ import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** Client-owned OpenRouter Chat Completions transport; no implicit provider or model fallback. */
+/** Client-owned OpenAI-compatible Chat Completions transport; no provider or model fallback. */
 public final class OpenRouterProvider implements InferenceProvider {
     private final ChatGptClient account;
     private final URI endpoint;
-    public OpenRouterProvider(ChatGptClient account){this(account,URI.create("https://openrouter.ai/api/v1/chat/completions"));}
+    public OpenRouterProvider(ChatGptClient account){this(account,null);}
     OpenRouterProvider(ChatGptClient account,URI endpoint){this.account=account;this.endpoint=endpoint;}
     @Override public String label(){return account.label();}
     @Override public boolean simulated(){return false;}
@@ -26,13 +26,16 @@ public final class OpenRouterProvider implements InferenceProvider {
             String secret="";
             try{
                 current(future,revision);var credential=account.routerCredential();secret=credential.key();var specification=DecisionProtocol.openRouterRequest(request);current(future,revision);
-                var http=HttpRequest.newBuilder(endpoint).timeout(Duration.ofMinutes(5)).header("Authorization","Bearer "+secret).header("Content-Type","application/json").header("Accept","application/json").header("X-OpenRouter-Title","Paracraft").POST(HttpRequest.BodyPublishers.ofString(specification.toString())).build();
+                boolean router=URI.create(credential.baseUrl()).getHost().equalsIgnoreCase("openrouter.ai");
+                var builder=HttpRequest.newBuilder(endpoint==null?URI.create(credential.baseUrl()+"/chat/completions"):endpoint).timeout(Duration.ofMinutes(5)).header("Content-Type","application/json").header("Accept","application/json");
+                if(!secret.isEmpty())builder.header("Authorization","Bearer "+secret);if(router)builder.header("X-OpenRouter-Title","Paracraft");
+                var http=builder.POST(HttpRequest.BodyPublishers.ofString(specification.toString())).build();
                 var response=account.http.client.send(http,HttpResponse.BodyHandlers.ofInputStream());body.set(response.body());current(future,revision);
-                byte[] bytes;try(var input=response.body()){bytes=input.readNBytes(OpenAiHttp.MAX_BODY+1);}if(bytes.length>OpenAiHttp.MAX_BODY)throw new IOException("OpenRouter response exceeded the client bound");
-                JsonObject completed;try{completed=JsonParser.parseString(new String(bytes,StandardCharsets.UTF_8)).getAsJsonObject();}catch(RuntimeException malformed){throw new IOException("OpenRouter returned HTTP "+response.statusCode()+" with a non-JSON response");}
+                byte[] bytes;try(var input=response.body()){bytes=input.readNBytes(OpenAiHttp.MAX_BODY+1);}if(bytes.length>OpenAiHttp.MAX_BODY)throw new IOException("API response exceeded the client bound");
+                JsonObject completed;try{completed=JsonParser.parseString(new String(bytes,StandardCharsets.UTF_8)).getAsJsonObject();}catch(RuntimeException malformed){throw new IOException("API returned HTTP "+response.statusCode()+" with a non-JSON response");}
                 boolean failed=response.statusCode()<200 || response.statusCode()>=300 || completed.has("error") && !completed.get("error").isJsonNull();
                 account.recordRouterUsage(credential.id(),completed.has("usage") && completed.get("usage").isJsonObject()?completed.getAsJsonObject("usage"):null,failed?"http_"+response.statusCode():"completed");
-                current(future,revision);if(failed)throw new IOException(error(response.statusCode(),completed,secret));
+                current(future,revision);if(failed)throw new IOException(error(response.statusCode(),completed,secret,router));
                 report(request,completed,secret);var decision=DecisionProtocol.openRouterDecision(completed,request.route());current(future,revision);future.complete(decision);
             }catch(Throwable failure){if(failure instanceof InterruptedException)Thread.currentThread().interrupt();
                 if(failure instanceof CancellationException)future.completeExceptionally(failure);
@@ -42,8 +45,8 @@ public final class OpenRouterProvider implements InferenceProvider {
         future.whenComplete((value,error)->{if(future.isCancelled()){worker.cancel(true);var input=body.getAndSet(null);if(input!=null)try{input.close();}catch(IOException ignored){}}});return future;
     }
     private void current(CompletableFuture<?> future,long revision){if(future.isCancelled() || revision!=account.revision() || !account.mode().equals("openrouter"))throw new CancellationException("Provider settings changed or inference cancelled");}
-    private static String error(int status,JsonObject response,String key){
-        var detail=response.has("error") && response.get("error").isJsonObject()?response.getAsJsonObject("error"):new JsonObject();String message=status==401?"API key was rejected":OpenAiHttp.string(detail,"message","Request failed");return "OpenRouter HTTP "+status+": "+redact(message,key);
+    private static String error(int status,JsonObject response,String key,boolean router){
+        var detail=response.has("error") && response.get("error").isJsonObject()?response.getAsJsonObject("error"):new JsonObject();String message=status==401?"API key was rejected":OpenAiHttp.string(detail,"message","Request failed");return (router?"OpenRouter":"API")+" HTTP "+status+": "+redact(message,key);
     }
     private static String redact(String value,String key){String clean=key.isEmpty()?value:value.replace(key,"[redacted key]");clean=clean.replaceAll("(?i)Bearer\\s+[^\\s]+","Bearer [redacted]").replaceAll("sk-[A-Za-z0-9_-]+","[redacted key]");return clean.length()>600?clean.substring(0,600):clean;}
     private static void report(Request request,JsonObject completed,String key){
@@ -55,6 +58,6 @@ public final class OpenRouterProvider implements InferenceProvider {
     private static JsonElement safeOutput(JsonElement value,String key){
         if(value.isJsonObject()){var result=new JsonObject();value.getAsJsonObject().entrySet().forEach(entry->result.add(entry.getKey(),safeOutput(entry.getValue(),key)));return result;}
         if(value.isJsonArray()){var result=new JsonArray();value.getAsJsonArray().forEach(entry->result.add(safeOutput(entry,key)));return result;}
-        return value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()?new JsonPrimitive(value.getAsString().replace(key,"[redacted key]")):value.deepCopy();
+        return !key.isEmpty() && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()?new JsonPrimitive(value.getAsString().replace(key,"[redacted key]")):value.deepCopy();
     }
 }

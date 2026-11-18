@@ -60,7 +60,7 @@ public final class ForgeClientRuntime {
                 }))));
     }
     private static boolean needsLink() {
-        var client = accounts();if(client!=null && client.mode().equals("openrouter"))return !client.openRouter().keySaved();var selected = client == null ? null : client.selected();
+        var client = accounts();if(client!=null && client.mode().equals("openrouter"))return !client.openRouter().ready();var selected = client == null ? null : client.selected();
         return selected == null || !selected.signedIn() || !selected.planEnabled();
     }
     private static Component accountLink(String provider) {
