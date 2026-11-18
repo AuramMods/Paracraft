@@ -44,7 +44,7 @@ Transport bounds are 16 MiB per logical JSON/compressed message, 32 MiB buffered
 
 ## Liveness and scheduling
 
-The coordinator polls every two monotonic seconds independently of provider inference. A slow provider does not block heartbeats. Each avatar's inference starts still obey the five-second minimum and one-pipeline rule; idle snapshots consume no inference.
+The coordinator polls every two monotonic seconds independently of provider inference, and sends activity changes on the next client tick. It keeps at most one poll outstanding, coalescing activity changes until the response. A slow provider does not block heartbeats. Reports retain phase `THINKING` for both inference routes, with an additive `planning` boolean (absent means false for older clients). Thinking/Planning holds server-owned ambient navigation immediately on receipt; explicit operations and survival navigation are unaffected. Each avatar's inference starts still obey the five-second minimum and one-pipeline rule; idle snapshots consume no inference.
 
 The server expires a controller after 200 server ticks without a poll, pauses its jobs, revokes leases, and leaves survival bodies present while their owner remains connected. Reacquiring an expired controller does not silently unpause it. The owner can resume explicitly. A local provider/tool/storage fault sends an owner pause; a link fault releases the controller. The heartbeat timeout is the independent fallback if the client/helper stops responding.
 

@@ -250,7 +250,9 @@ public final class HarnessLoop implements AutoCloseable {
     }
     public String status() {
         return !lastError.isEmpty() ? "Paused: " + lastError : paused ? "Paused" : !active ? "Disconnected / server paused"
-                : inference != null ? "Thinking: " + route() : !state.wakeEvent.isEmpty() ? !state.hasWork() && !mechanicalWorkRunning() && state.wakeAtMillis==Long.MAX_VALUE && Set.of("any","chat").contains(state.wakeEvent)?"Idle":"Waiting: " + state.wakeEvent
+                : inference != null ? "Thinking: " + route()
+                : state.turn != null && !state.turn.has("calls") && route() == InferenceProvider.Route.PLANNING ? "Planning"
+                : !state.wakeEvent.isEmpty() ? !state.hasWork() && !mechanicalWorkRunning() && state.wakeAtMillis==Long.MAX_VALUE && Set.of("any","chat").contains(state.wakeEvent)?"Idle":"Waiting: " + state.wakeEvent
                 : state.turn != null || !state.inbox.isEmpty() || state.hasWork() ? "Working" : "Idle";
     }
     public long calls() { return calls; }

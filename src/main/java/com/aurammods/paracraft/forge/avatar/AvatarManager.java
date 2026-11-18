@@ -65,6 +65,7 @@ public final class AvatarManager {
         SurvivalController reflex = survival.get(avatar); return reflex != null && reflex.busy();
     }
     public void pauseIdle(UUID avatar){var runtime=survival.get(avatar);if(runtime!=null)runtime.pauseRoutines();}
+    public void holdIdleForThinking(UUID avatar){var runtime=survival.get(avatar);if(runtime!=null)runtime.holdIdleForThinking();}
     public String survivalMode(UUID avatar){var runtime=survival.get(avatar);return runtime==null?"idle":runtime.mode();}
     public com.google.gson.JsonObject configureBehavior(UUID owner, UUID avatar, com.google.gson.JsonObject patch) {
         AvatarEntry entry = owned(owner, avatar);

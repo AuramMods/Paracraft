@@ -31,6 +31,7 @@ public final class ClientCoordinator implements AutoCloseable {
     private UUID world, polling;
     private long pollStarted, nextPoll, sequence, acceptedSequence = -1, acceptedRevision = -1;
     private boolean closed, suspended;
+    private com.google.gson.JsonArray reportedActivities;
     private String status = "Connecting — SIMULATED provider; account disconnected";
     private final class Companion {
         final AgentBinding binding; final AgentState memory; final HarnessLoop loop; final boolean fresh;
@@ -77,21 +78,23 @@ public final class ClientCoordinator implements AutoCloseable {
                     pending.remove(id); request.future.completeExceptionally(new IllegalStateException("Server tool acknowledgment timed out"));
                 }
             }
-            if (polling == null && now - nextPoll >= 0) {
-                polling = UUID.randomUUID(); pollStarted = now; nextPoll = now + 2_000_000_000L;
-                JsonObject request = envelope("poll", polling); request.addProperty("sequence", ++sequence);
-                var activities = new com.google.gson.JsonArray();
-                for (Companion c : companions.values()) {
-                    var activity = AgentActivity.from(c.memory, c.loop.status()).json(); activity.addProperty("avatar", c.binding.avatar().toString()); activities.add(activity);
-                }
-                request.add("activities", activities); send.accept(request);
-            }
             for (Companion companion : List.copyOf(companions.values())) {
                 try { companion.loop.tick(); }
                 catch (RuntimeException failure) { failures.put(companion.binding.avatar(), failure.toString()); }
                 if ((!companion.loop.lastError().isEmpty() || failures.containsKey(companion.binding.avatar())) && !companion.faultReported) {
                     companion.faultReported = true; pause(companion.binding.avatar(), true);
                 }
+            }
+            var activities = new com.google.gson.JsonArray();
+            for (Companion c : companions.values()) {
+                var activity = AgentActivity.from(c.memory, c.loop.status()).json(); activity.addProperty("avatar", c.binding.avatar().toString()); activities.add(activity);
+            }
+            // Report inference transitions on the next client tick instead of waiting for a heartbeat.
+            // A pending poll coalesces changes; its response releases the next report.
+            if (polling == null && (now - nextPoll >= 0 || !activities.equals(reportedActivities))) {
+                polling = UUID.randomUUID(); pollStarted = now; nextPoll = now + 2_000_000_000L;
+                JsonObject request = envelope("poll", polling); request.addProperty("sequence", ++sequence);
+                reportedActivities = activities.deepCopy(); request.add("activities", activities); send.accept(request);
             }
         } catch (RuntimeException failure) { failLink(failure.toString()); }
     }

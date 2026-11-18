@@ -2,6 +2,12 @@
 
 The initial Forge foundation and client-owned ChatGPT integration are implemented. [VALIDATION.md](VALIDATION.md) records the original foundation evidence; [AUTH.md](AUTH.md) explains linking and its verification limits. Owner-authenticated Luna inference and headless diamond retrieval now pass. Native client visuals, actual connected-client sign-in controls, and broader modpacks remain to verify.
 
+## November 18: Visible thinking and stationary idle behavior during inference
+
+- Thinking/Planning now takes precedence over ambient and job activity labels, preserving unfinished-task counts and server pause/disconnection priority. Planning also covers the Light escalation cooldown. Aggregate status changes are sent on the next client tick through the existing owner heartbeat, with one outstanding poll and coalesced updates. An additive Planning flag preserves older Thinking payloads.
+- Receiving Thinking/Planning immediately closes only server-owned idle paths and pauses automatic initial bed seeking. Ambient wandering and food/bed approaches stay held while passive looks continue. The saved center, enabled setting, and existing ambient sleep are retained. Explicit programs, configured waypoint patrols, eating carried food, and survival escape/defense continue normally; ambient behavior resumes when inference ends.
+- Validation: build, all 121 unit tests, and all 139 native GameTests pass. New coverage exercises held inference futures, immediate/coalesced reports, the escalation cooldown, status precedence/legacy payloads, actual wander stopping/head turns/resumption, initial bed approach suspension, instructed travel/patrol, and native damage with fleeing/retaliation. No graphical client, browser, or live inference was launched. Nameplate rendering remains a manual client check; see [behavior](BEHAVIOR.md), [status](DEBUG.md), and [QA](QA.md).
+
 ## Durable agent continuity and fewer inference cycles
 
 - Replaced tool-name-only decision history with bounded structured decisions, arguments, actual replies and local acknowledgments. Planning emits a concise saved handoff note, visible as Next step in K; new tasks retain the actual requester/message. Both providers replay recent assistant decisions and execution results before the current continuity/snapshot context, with world text outside system instructions and current state taking precedence. Old saved memory/calls-only responses remain readable.

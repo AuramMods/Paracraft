@@ -173,6 +173,7 @@ final class SurvivalController implements AutoCloseable {
         }
     }
     void pauseRoutines() { pausePatrol(); pauseBed(); ambient.suspend(); }
+    void holdIdleForThinking() { pauseBed(); ambient.holdForThinking(); }
     String mode(){return state.has("mode")?state.get("mode").getAsString():"idle";}
     private boolean startEating() {
         int slot = -1, nutrition = 0;
@@ -221,7 +222,7 @@ final class SurvivalController implements AutoCloseable {
             }
         }
         if (bedJob == null || bedJob.state().terminal()) return;
-        if (entry.paused || avatars.jobs().hasUnfinished(entry.id)) { pauseBed(); return; }
+        if (entry.paused || avatars.jobs().hasUnfinished(entry.id) || avatars.endpoint().activity(entry.id).thinking()) { pauseBed(); return; }
         ambient.suspend();pausePatrol();state.addProperty("mode", "establishing_spawn"); bedJob.resume(); bedJob.tick(); initialBed.add("job", bedJob.checkpoint());
         if (bedJob.state().terminal()) {
             initialBed.addProperty("state", bedJob.state().name().toLowerCase(java.util.Locale.ROOT));

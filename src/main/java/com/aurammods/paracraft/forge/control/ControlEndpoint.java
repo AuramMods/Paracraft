@@ -54,7 +54,8 @@ public final class ControlEndpoint {
                     var activity = element.getAsJsonObject(); UUID avatar = UUID.fromString(activity.get("avatar").getAsString());
                     // A raw owner command can destroy a body before its client sees the next snapshot.
                     if (avatars.entry(avatar) == null) continue;
-                    avatars.owned(owner, avatar); activities.put(avatar, AgentActivity.parse(activity));
+                    avatars.owned(owner, avatar); var reported = AgentActivity.parse(activity); activities.put(avatar, reported);
+                    if (reported.thinking()) avatars.holdIdleForThinking(avatar);
                 }
                 lease.lastTick = server.getTickCount(); response.addProperty("kind", "snapshot");
                 response.add("sequence", message.get("sequence").deepCopy()); response.addProperty("ok", true); snapshots(owner, response); send.accept(response); return;

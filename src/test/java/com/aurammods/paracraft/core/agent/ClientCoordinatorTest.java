@@ -53,10 +53,34 @@ class ClientCoordinatorTest {
         try (ClientCoordinator client = new ClientCoordinator(BINDING.owner(), new AgentStore(temp), clock, remote::send, binding -> provider)) {
             remote.client = client; pump(client);
             for (int i = 0; i < 5; i++) { clock.advance(2000); pump(client); }
-            assertEquals(6, remote.outbound.stream().filter(m -> m.get("kind").getAsString().equals("poll")).count());
+            assertEquals(7, remote.outbound.stream().filter(m -> m.get("kind").getAsString().equals("poll")).count());
             assertEquals(1, client.views().get(0).decisions()); assertFalse(thinking.isDone());
         }
         assertTrue(thinking.isCancelled());
+    }
+    @Test void inferenceTransitionsReportImmediatelyAndCoalesceBehindAnOutstandingPoll() {
+        Clock clock = new Clock(); Remote remote = new Remote(); remote.snapshot.getAsJsonArray("events").add(chat(1, "please help"));
+        var light = new CompletableFuture<InferenceProvider.Decision>(); var planning = new CompletableFuture<InferenceProvider.Decision>();
+        var provider = new Provider(clock); provider.answer = request -> request.route() == InferenceProvider.Route.LIGHT ? light : planning;
+        try (var client = new ClientCoordinator(BINDING.owner(), new AgentStore(temp), clock, remote::send, binding -> provider)) {
+            remote.client = client; client.tick(); remote.autoPoll = false; client.tick();
+            var lightPoll = remote.outbound.get(remote.outbound.size() - 1);
+            var activity = lightPoll.getAsJsonArray("activities").get(0).getAsJsonObject();
+            assertEquals("THINKING", activity.get("phase").getAsString()); assertFalse(activity.get("planning").getAsBoolean());
+            light.complete(decision("think_harder", new JsonObject())); pump(client);
+            assertEquals("Planning", client.views().get(0).status(), "The escalation cooldown also holds ambient movement");
+            assertEquals(2, remote.outbound.size(), "No duplicate polls while a response is outstanding");
+            client.receive(remote.baseline(lightPoll)); client.tick();
+            var planningPoll = remote.outbound.get(2);
+            assertTrue(planningPoll.getAsJsonArray("activities").get(0).getAsJsonObject().get("planning").getAsBoolean());
+            assertEquals(0, clock.nanoTime(), "Thinking and queued Planning report without waiting for the heartbeat");
+            clock.advance(5000); client.tick(); assertEquals("Thinking: PLANNING", client.views().get(0).status());
+            client.receive(remote.baseline(planningPoll)); remote.autoPoll = true;
+            planning.complete(decision("wait", json("{\"event\":\"chat\"}"))); pump(client);
+            assertEquals(4, remote.outbound.size());
+            assertEquals("IDLE", remote.outbound.get(3).getAsJsonArray("activities").get(0).getAsJsonObject().get("phase").getAsString());
+            assertEquals(5_000_000_000L, clock.nanoTime(), "Completion reports without any further heartbeat delay");
+        }
     }
     @Test void anOwnerResumeThroughRawServerControlsClearsTheLocalPause() {
         Clock clock = new Clock(); Remote remote = new Remote();

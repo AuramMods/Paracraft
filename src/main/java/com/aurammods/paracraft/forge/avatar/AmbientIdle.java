@@ -65,6 +65,9 @@ final class AmbientIdle implements AutoCloseable {
         if(entry.paused || !survival.getAsJsonObject("behavior").get("ambientIdle").getAsBoolean()
                 || survival.getAsJsonObject("behavior").getAsJsonObject("idle").get("enabled").getAsBoolean()
                 || avatars.jobs().hasUnfinished(entry.id) || actor.isSpectator()) {suspend();return;}
+        if(avatars.endpoint().activity(entry.id).thinking()){
+            holdForThinking();if(!actor.isSleeping())look();phase("thinking");return;
+        }
         if(actor.isSleeping()){
             if(!ownsSleep)return;
             if(actor.serverLevel().isDay() || needsFood()){suspend();nextScan=now()+100;}
@@ -145,10 +148,19 @@ final class AmbientIdle implements AutoCloseable {
         }else phase("looking");
         float facing=Mth.approachDegrees(actor.getYRot(),yaw,8);actor.setYRot(facing);actor.setYHeadRot(facing);actor.setXRot(Mth.approachDegrees(actor.getXRot(),pitch,5));
     }
-    void suspend(){
+    private void stopRoute(){
         if(navigator!=null){navigator.close();navigator=null;}
+        interaction=null;scan=null;state.remove("destination");state.remove("target");
+    }
+    void holdForThinking(){
+        stopRoute();
+        // Preserve a bed already in use and never stop navigation owned by work or a reflex.
+        if(survival.has("mode") && state.has("state") && survival.get("mode").getAsString().equals("idle_"+state.get("state").getAsString()))phase("thinking");
+    }
+    void suspend(){
+        stopRoute();
         if(ownsSleep && actor.isSleeping())actor.stopSleepInBed(true,true);
-        ownsSleep=false;interaction=null;scan=null;state.remove("destination");state.remove("target");
+        ownsSleep=false;
         if(survival.has("mode") && state.has("state") && survival.get("mode").getAsString().equals("idle_"+state.get("state").getAsString())){
             survival.addProperty("mode","idle");state.addProperty("state","paused");
         }
