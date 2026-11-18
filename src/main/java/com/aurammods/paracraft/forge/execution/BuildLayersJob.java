@@ -8,11 +8,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,8 +20,7 @@ final class BuildLayersJob extends GameJob {
     private final LayerBlueprint blueprint;
     private final Map<String, Block> blocks = new HashMap<>();
     private int cursor, placed, existing, skipped, consumed;
-    private Iterator<Vec3> approaches;
-    private Vec3 approach;
+    private final BlockApproach approach = new BlockApproach();
 
     BuildLayersJob(UUID id, CompanionPlayer actor, JsonObject specification) {
         super(id, "build_layers", actor);
@@ -54,16 +51,14 @@ final class BuildLayersJob extends GameJob {
                 throw new IllegalStateException("Blueprint target is outside world bounds");
             if (level.hasChunkAt(pos) && level.getBlockState(pos).is(block)) {
                 stopMoving();
-                resetApproach();
+                approach.reset();
                 existing++;
                 cursor++;
                 continue;
             }
             update();
-            if (!approach(pos)) return;
-            if (level.getBlockState(pos).is(block)) {
-                existing++;
-            } else {
+            try {
+                if (!NativePlacement.approach(this, approach, pos)) return;
                 if (block.asItem() == net.minecraft.world.item.Items.AIR)
                     throw new IllegalStateException("Block " + cell.block() + " has no directly placeable item");
                 var item = BuiltInRegistries.ITEM.getKey(block.asItem()).toString();
@@ -72,45 +67,15 @@ final class BuildLayersJob extends GameJob {
                 if (!level.getBlockState(pos).is(block))
                     throw new IllegalStateException("Native placement produced a different block than " + cell.block());
                 placed++;
+            } catch (BlockApproach.Unreachable noRoute) {
+                NativePlacement.skipUnreachable(this, pos);
             }
-            resetApproach();
             cursor++;
             break;
         }
         update();
-        if (cursor >= blueprint.size()) succeed(result);
+        if (cursor >= blueprint.size()) NativePlacement.finish(this);
     }
-
-    private boolean approach(BlockPos target) {
-        if (approaches == null) {
-            if (actor.serverLevel().hasChunkAt(target) && NativePlacement.canApproachHere(actor, target)) {
-                stopMoving();
-                return true;
-            }
-            if (!navigate(Vec3.atCenterOf(target), 2.6)) return false;
-            if (NativePlacement.canApproachHere(actor, target)) return true;
-            if (!actor.serverLevel().getBlockState(target).canBeReplaced())
-                throw new IllegalStateException("Placement destination is occupied");
-            approaches = NativePlacement.approaches(actor, target).iterator();
-        }
-        if (approach == null) {
-            if (!approaches.hasNext()) throw new IllegalStateException("No visible reachable block face supports placement");
-            approach = approaches.next();
-        }
-        try {
-            if (!navigate(approach, 0.3)) return false;
-        } catch (IllegalStateException unreachable) {
-            stopMoving();
-            if (!approaches.hasNext()) throw unreachable;
-            approach = null;
-            return false;
-        }
-        if (NativePlacement.canApproachHere(actor, target)) return true;
-        approach = null;
-        return false;
-    }
-
-    private void resetApproach() { approaches = null; approach = null; }
 
     private void update() {
         result.addProperty("cells", blueprint.size());

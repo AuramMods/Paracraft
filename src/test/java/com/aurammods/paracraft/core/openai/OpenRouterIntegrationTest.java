@@ -57,6 +57,26 @@ class OpenRouterIntegrationTest {
             fixture.status=401;assertThrows(ExecutionException.class,()->provider.infer(request(provider,InferenceProvider.Route.LIGHT,ignored->{})).get(5,TimeUnit.SECONDS));assertEquals(2,fixture.requests.size());assertTrue(client.openRouter().keySaved());
         }
     }
+    @Test void upstreamRejectionReportsTheRedactedProviderReasonWhenAvailable() throws Exception {
+        try (var fixture = new Fixture(); var client = new ChatGptClient(directory)) {
+            configure(client);
+            var provider = new OpenRouterProvider(client, fixture.uri());
+            fixture.status = 400;
+            fixture.response = json("""
+                    {"error":{"message":"Provider returned error","metadata":{"provider_name":"Fixture"}}}
+                    """);
+            fixture.response.getAsJsonObject("error").getAsJsonObject("metadata").addProperty("raw", """
+                    {"error":{"message":"Unsupported request field, credential %s"}}
+                    """.formatted(KEY));
+            var failure = assertThrows(ExecutionException.class,
+                    () -> provider.infer(request(provider, InferenceProvider.Route.PLANNING, ignored -> {})).get(5, TimeUnit.SECONDS));
+            var message = ChatGptClient.message(failure);
+            assertTrue(message.contains("HTTP 400") && message.contains("Fixture") && message.contains("Unsupported request field"), message);
+            assertFalse(message.contains(KEY));
+            assertEquals(1, fixture.requests.size());
+        }
+    }
+
     @Test void rejectsIncompleteMalformedDuplicateUnknownAndForbiddenToolBatches()throws Exception{
         try(var fixture=new Fixture();var client=new ChatGptClient(directory)){
             configure(client);var provider=new OpenRouterProvider(client,fixture.uri());var valid=completion(CHAT);var length=valid.deepCopy();length.getAsJsonArray("choices").get(0).getAsJsonObject().addProperty("finish_reason","length");var duplicate=valid.deepCopy();var calls=duplicate.getAsJsonArray("choices").get(0).getAsJsonObject().getAsJsonObject("message").getAsJsonArray("tool_calls");calls.add(calls.get(0).deepCopy());var unknown=valid.deepCopy();unknown.getAsJsonArray("choices").get(0).getAsJsonObject().getAsJsonObject("message").getAsJsonArray("tool_calls").get(0).getAsJsonObject().getAsJsonObject("function").addProperty("name","arbitrary_execution");

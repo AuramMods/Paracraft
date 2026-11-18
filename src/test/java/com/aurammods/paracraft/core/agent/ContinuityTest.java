@@ -8,6 +8,44 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ContinuityTest {
+    @Test void independentContextReadsShareOneContinuationAndProgramsGetStableIds() {
+        var clock = new Clock();
+        var provider = new Provider(clock);
+        var sink = new Sink();
+        var snapshot = frame(event(1, "program"));
+        snapshot.getAsJsonArray("programs").add(job("FAILED"));
+        snapshot.add("inventory", JsonParser.parseString("[{\"item\":\"minecraft:cobblestone\",\"count\":8}]"));
+        provider.answer = request -> {
+            if (provider.requests.size() == 1) {
+                return CompletableFuture.completedFuture(new InferenceProvider.Decision(List.of(
+                        new InferenceProvider.Call("get_context", json("""
+                                {"sections":["programs"],"query":"%s","detail":"full"}
+                                """.formatted(PROGRAM))),
+                        new InferenceProvider.Call("get_context", json("""
+                                {"sections":["inventory"]}
+                                """)))));
+            }
+            var sections = request.observations().getAsJsonObject("context").getAsJsonObject("sections");
+            assertEquals(PROGRAM, sections.getAsJsonObject("programs").get("query").getAsString());
+            assertEquals(1, sections.getAsJsonObject("programs").get("total").getAsInt());
+            assertEquals(1, sections.getAsJsonObject("inventory").get("total").getAsInt());
+            return CompletableFuture.completedFuture(decision("program", json("""
+                    {"steps":[{"op":"wait_ticks","ticks":1}]}
+                    """)));
+        };
+        try (var loop = new HarnessLoop(BINDING, new AgentState(), provider, clock, sink, () -> {})) {
+            loop.accept(snapshot);
+            pump(loop);
+            assertTrue(sink.sent.isEmpty());
+            clock.advance(5000);
+            pump(loop);
+            assertEquals(2, provider.requests.size());
+            assertEquals(1, sink.sent.size());
+            var sent = sink.sent.get(0);
+            assertEquals(sent.id().toString(), sent.args().get("id").getAsString());
+        }
+    }
+
     @Test void anEmptyNewInstructionIsRetainedEvenWhileOlderMechanicalWorkRuns(){
         var clock=new Clock();var state=new AgentState();state.executingProgram=PROGRAM;state.mutate("task_upsert",json("{\"id\":\"old-work\",\"goal\":\"Collect diamonds\",\"status\":\"ACTIVE\",\"programId\":\""+PROGRAM+"\"}"));var provider=new Provider(clock);provider.answer=r->CompletableFuture.completedFuture(r.route()==InferenceProvider.Route.LIGHT?decision("think_harder",new JsonObject()):new InferenceProvider.Decision(List.of()));var snapshot=frame(chat(1,"Come here instead"));snapshot.getAsJsonArray("programs").add(job("RUNNING"));
         try(var loop=new HarnessLoop(BINDING,state,provider,clock,new Sink(),()->{})){loop.accept(snapshot);pump(loop);clock.advance(5000);pump(loop);assertEquals(2,state.tasks().size());assertTrue(state.tasks().toString().contains("Come here instead"));assertTrue(state.turn.getAsJsonObject("observations").has("decision_feedback"));assertEquals(PROGRAM,state.executingProgram);}

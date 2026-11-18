@@ -66,7 +66,7 @@ final class DecisionSchema {
                         "ambientIdle", optional(type("boolean")),
                         "idle", optional(object("enabled", optional(type("boolean")), "dimension", optional(text()),
                                 "waypoints", optional(array(position(false))), "waitTicks", optional(integer(0, Long.MAX_VALUE)))));
-                case "program" -> object("schema", numberValue(1), "id", uuid(), "taskId", optional(text()),
+                case "program" -> object("schema", numberValue(1), "id", optional(uuid()), "taskId", optional(text()),
                         "wakeOnSuccess", optional(type("boolean")),
                         "mode", values("interrupt", "append", "replace"),
                         "observationRefs", array(object("name", text(), "receipt", uuid())), "steps", array(ref("step")));

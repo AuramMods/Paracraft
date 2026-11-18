@@ -123,6 +123,8 @@ public final class PlayerNavigator implements AutoCloseable {
             Vec3 node = path.getNextEntityPos(proxy);
             BlockPos nodePos = path.getNextNodePos();
             double horizontalReach=actor.getBbWidth()>0.75F?actor.getBbWidth()/2:0.75F-actor.getBbWidth()/2;
+            if (path.getNextNodeIndex() == path.getNodeCount() - 1 && reach < 0.7)
+                horizontalReach = Math.min(horizontalReach, reach * 0.65);
             boolean preciseHeight = ladder || actor.isInWater() || PlayerPathEvaluator.water(level, nodePos)
                     || PlayerPathEvaluator.climbable(level, nodePos) || PlayerPathEvaluator.climbable(level, nodePos.below());
             // Walking nodes tolerate partial-height support. A ladder or swim node needs the actual depth.

@@ -48,7 +48,7 @@ public final class ForgeOperations implements ProgramMachine.Factory {
             case "use_portal" -> new PortalJob(id,actor,spec);
             case "execute_command" -> new CommandJob(id,actor,spec);
             case "discover_commands" -> new CommandDiscoveryJob(id,actor,spec.has("prefix")?spec.get("prefix").getAsString():"");
-            case "travel" -> new TravelJob(id, actor, JobJson.vector(spec.get("destination")));
+            case "travel" -> new TravelJob(id, actor, TravelJob.programDestination(JobJson.vector(spec.get("destination"))));
             case "set_spawn" -> new BedSpawnJob(id, actor, JobJson.position(spec.get("bed")));
             case "search_containers" -> { checkScope(spec); yield new SearchJob(id, actor, new ItemSelector(spec.get("item").getAsString())); }
             case "collect_items" -> {

@@ -28,7 +28,7 @@ class DecisionCompatibilityTest {
         var strict=DecisionSchema.parameters(InferenceProvider.Route.LIGHT);var relaxed=DecisionSchema.parameters(InferenceProvider.Route.LIGHT,false);assertTrue(strict.getAsJsonArray("required").toString().contains("note"));assertFalse(relaxed.getAsJsonArray("required").toString().contains("note"));assertTrue(relaxed.getAsJsonArray("required").toString().contains("calls"));
         for(String invalid:java.util.List.of(
                 "{\"calls\":[{\"tool\":\"chat\",\"arguments\":{\"message\":\"Hello\",\"hidden_action\":\"destroy\"}}]}",
-                "{\"calls\":[{\"tool\":\"program\",\"arguments\":{\"mode\":\"append\",\"steps\":[]}}]}",
+                "{\"calls\":[{\"tool\":\"program\",\"arguments\":{\"id\":\"invalid\",\"mode\":\"append\",\"steps\":[]}}]}",
                 "{\"calls\":[{\"tool\":\"program\",\"arguments\":{\"id\":\""+ID+"\",\"mode\":\"append\",\"steps\":[{\"op\":\"craft_item\",\"item\":\"minecraft:chest\",\"quantity\":\"1\"}]}}]}"))
             assertThrows(IOException.class,()->DecisionSchema.decode(json(invalid),InferenceProvider.Route.PLANNING));
         var unknown=assertThrows(InferenceProvider.DecisionFormatException.class,()->DecisionSchema.decode(json("{\"calls\":[{\"tool\":\"search_blocks\",\"arguments\":{\"block\":\"minecraft:chest\"}}]}"),InferenceProvider.Route.PLANNING));assertTrue(unknown.getMessage().contains("program.steps"));

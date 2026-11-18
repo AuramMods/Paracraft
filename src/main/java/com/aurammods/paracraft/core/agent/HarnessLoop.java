@@ -141,7 +141,7 @@ public final class HarnessLoop implements AutoCloseable {
                 }
                 var call = pendingCall();
                 switch (call.tool()) {
-                    case "get_context" -> {DecisionContext.select(state.turn,call.arguments());var read=identity();read.add("arguments",call.arguments());state.history("context_read",read);continueDecision();}
+                    case "get_context" -> readContextBatch();
                     case "think_harder" -> {if(trigger().get("type").getAsString().equals("chat"))state.workRequest=trigger().deepCopy();continuePlanning();}
                     case "task_upsert", "task_remove", "remember", "forget", "personality" -> {state.mutate(call.tool(), call.arguments());var applied=identity();applied.addProperty("tool",call.tool());applied.add("arguments",call.arguments());applied.addProperty("applied",true);state.history("local_result",applied);advanceCall();}
                     case "wait" -> {
@@ -153,7 +153,11 @@ public final class HarnessLoop implements AutoCloseable {
                         advanceCall();
                     }
                     default -> {
-                        effect = sink.call(requestId(), call.tool(), call.arguments(), trigger().get("id").getAsLong());
+                        var id = requestId();
+                        var args = call.arguments();
+                        if (call.tool().equals("program") && (!args.has("id") || args.get("id").isJsonNull()))
+                            args.addProperty("id", id.toString());
+                        effect = sink.call(id, call.tool(), args, trigger().get("id").getAsLong());
                         return;
                     }
                 }
@@ -241,6 +245,17 @@ public final class HarnessLoop implements AutoCloseable {
     private void advanceCall() { state.turn.addProperty("cursor", state.turn.get("cursor").getAsInt() + 1); }
     private void continuePlanning() {
         state.turn.addProperty("route", InferenceProvider.Route.PLANNING.name());
+        continueDecision();
+    }
+    private void readContextBatch() {
+        while (state.turn.get("cursor").getAsInt() < state.turn.getAsJsonArray("calls").size()) {
+            var args = pendingCall().arguments();
+            DecisionContext.select(state.turn, args);
+            var read = identity();
+            read.add("arguments", args);
+            state.history("context_read", read);
+            advanceCall();
+        }
         continueDecision();
     }
     private void continueDecision(){

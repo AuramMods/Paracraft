@@ -17,13 +17,13 @@ The [OpenRouter provider](OPENROUTER.md) uses separately configured client-wide 
 | Light | `chat`, `think_harder`, `get_context`, or an empty decision |
 | Planning | `chat`, `observe`, `sample_terrain`, `get_context`, `program`, `resume_program`, `pause_program`, `cancel_program`, `task_upsert`, `task_remove`, `remember`, `forget`, `personality`, `wait`, `trust`, `untrust`, `configure_behavior` |
 
-A continuation (`think_harder`, `observe`, `sample_terrain`, or `get_context`) must be the sole tool call in a reply. The whole reply is checked before even an otherwise permitted call is applied. Persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
+A reply can batch multiple `get_context` calls when it needs different filters. That read-only batch shares one continuation. `think_harder`, `observe`, and `sample_terrain` each require a reply with a single call. The whole reply is checked before even an otherwise permitted call is applied. Persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
 
 ## Scheduling and recovery
 
 `HarnessLoop` receives the latest snapshot through `accept` and advances through `tick`. It keeps one inference/effect pipeline per avatar. Every inference start, including escalation and observation continuations, observes the five-second minimum. A slow response holds that pipeline; snapshots arriving meanwhile replace physical state instead of queueing inference requests.
 
-Fresh chat starts on Light; known task/program/timer continuations start on Planning. Acknowledged running/advancing queued programs suppress routine model polling while native work proceeds. New events/status changes still wake the loop. Chat takes priority over coalesced background notifications; spawn/self-response events are history-only. Explicit program waits compare actual state changes without repeatedly waking on an unchanged pause. See [CONTINUITY.md](CONTINUITY.md).
+Fresh chat starts on Light; known task/program/timer continuations start on Planning. Acknowledged running/advancing queued programs suppress routine model polling while native work proceeds. New events/status changes still wake the loop. Chat takes priority over coalesced background notifications; spawn/self-response events are history-only. Explicit program waits compare actual state changes without repeatedly waking on an unchanged pause. On a program wake, Planning receives a bounded outcome with search match coordinates or the failed target and partial progress. Full results remain available through `get_context`. See [CONTINUITY.md](CONTINUITY.md).
 
 Planning can send a single program with no task entry and include its completion reply as the final server-side step. With `wakeOnSuccess: false`, its success goes into history and the avatar can return to idle without another inference turn. Programs that need additional decisions can keep the standard success wake and can link a durable task.
 

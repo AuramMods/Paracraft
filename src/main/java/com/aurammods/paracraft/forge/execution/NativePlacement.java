@@ -1,6 +1,7 @@
 package com.aurammods.paracraft.forge.execution;
 
 import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
+import com.google.gson.JsonArray;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -13,13 +14,12 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
 final class NativePlacement {
     private NativePlacement() { }
+    private static final Direction[] SIDES = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.UP};
     static int place(CompanionPlayer actor, BlockPos target) {
         var level = actor.serverLevel(); var original = level.getBlockState(target); ItemStack held = actor.getMainHandItem(), before = held.copy();
         if (!(held.getItem() instanceof BlockItem) && !(held.getItem() instanceof net.minecraftforge.common.IPlantable))
@@ -44,37 +44,57 @@ final class NativePlacement {
         return after.is(before.getItem()) ? Math.max(0, before.getCount() - after.getCount()) : before.getCount();
     }
 
-    static boolean canApproachHere(CompanionPlayer actor, BlockPos target) {
-        return !actor.getBoundingBox().intersects(new AABB(target))
-                && supportFace(actor, target, actor.getEyePosition(), support -> actor.canReach(support, 0)) != null;
+    static boolean approach(GameJob job, BlockApproach approach, BlockPos target) {
+        var actor = job.actor();
+        return approach.tick(job, target, () -> {
+            if (!actor.serverLevel().getBlockState(target).canBeReplaced()) {
+                job.stopMoving();
+                approach.reset();
+                throw new BlockApproach.Unreachable("Placement destination is occupied");
+            }
+            return !actor.getBoundingBox().intersects(new AABB(target))
+                    && supportFace(actor, target, actor.getEyePosition(), support -> actor.canReach(support, 0)) != null;
+        }, () -> approaches(actor, target), "No reachable face supports placement");
     }
 
     /** Try actual sight lines from nearby safe feet positions. The navigator still has to reach them. */
-    static List<Vec3> approaches(CompanionPlayer actor, BlockPos target) {
+    private static List<BlockApproach.Stance> approaches(CompanionPlayer actor, BlockPos target) {
         var level = actor.serverLevel();
-        var candidates = new ArrayList<Vec3>();
-        var targetBox = new AABB(target);
-        boolean flight = actor.getAbilities().mayfly && !actor.isPassenger();
-        double reach = Math.max(0, actor.getBlockReach() - 0.25);
-        for (int y = -2; y <= 2; y++) for (int z = -2; z <= 2; z++) for (int x = -2; x <= 2; x++) {
-            BlockPos feet = target.offset(x, y, z);
-            if (level.isOutsideBuildHeight(feet) || !level.hasChunkAt(feet) || !level.getWorldBorder().isWithinBounds(feet)) continue;
-            Vec3 point = Vec3.atBottomCenterOf(feet);
-            var box = actor.getBoundingBox().move(point.subtract(actor.position()));
-            if (targetBox.intersects(box) || !level.noCollision(actor, box)) continue;
-            if (!flight && !level.getBlockCollisions(actor, box.move(0, -0.15, 0)).iterator().hasNext()) continue;
-            Vec3 eye = point.add(0, actor.getEyeHeight(), 0);
-            if (supportFace(actor, target, eye, support -> eye.distanceToSqr(Vec3.atCenterOf(support)) <= reach * reach) != null)
-                candidates.add(point);
+        boolean supported = false;
+        for (Direction side : SIDES) {
+            var support = target.relative(side);
+            if (level.hasChunkAt(support) && !level.getBlockState(support).canBeReplaced()) {
+                supported = true;
+                break;
+            }
         }
-        candidates.sort(Comparator.comparingDouble(actor.position()::distanceToSqr));
-        return candidates;
+        if (!supported) return List.of();
+        double reach = actor.getBlockReach();
+        return BlockApproach.candidates(actor, target, true,
+                eye -> supportFace(actor, target, eye, support -> eye.distanceToSqr(Vec3.atCenterOf(support)) <= reach * reach) != null);
+    }
+
+    static void skipUnreachable(GameJob job, BlockPos target) {
+        var progress = job.result;
+        if (!progress.has("unreachablePositions")) progress.add("unreachablePositions", new JsonArray());
+        var positions = progress.getAsJsonArray("unreachablePositions");
+        positions.add(JobJson.position(target));
+        progress.addProperty("unreachableCount", positions.size());
+    }
+
+    static void finish(GameJob job) {
+        var progress = job.result;
+        if (progress.has("unreachableCount"))
+            job.fail("Skipped " + progress.get("unreachableCount").getAsInt() + " unreachable placement positions");
+        else job.succeed(progress);
     }
 
     private static BlockHitResult supportFace(CompanionPlayer actor, BlockPos target, Vec3 eye, Predicate<BlockPos> withinReach) {
         var level = actor.serverLevel();
-        for (Direction side : new Direction[] {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.UP}) {
-            BlockPos support = target.relative(side); var state = level.getBlockState(support);
+        for (Direction side : SIDES) {
+            BlockPos support = target.relative(side);
+            if (!level.hasChunkAt(support)) continue;
+            var state = level.getBlockState(support);
             if (state.isAir() || state.canBeReplaced() || !withinReach.test(support)) continue;
             var shape = state.getShape(level, support, net.minecraft.world.phys.shapes.CollisionContext.of(actor)); if (shape.isEmpty()) continue;
             var bounds = shape.bounds().move(support); Vec3 middle = bounds.getCenter(); Direction face = side.getOpposite();

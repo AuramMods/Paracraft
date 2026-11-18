@@ -44,6 +44,33 @@ class SelectiveContextTest {
         assertTrue(DecisionProtocol.request(request).toString().contains("EXPLICIT_NBT_DETAIL"));assertTrue(DecisionProtocol.openRouterRequest(request).toString().contains("EXPLICIT_NBT_DETAIL"));
         assertFalse(DecisionProtocol.openRouterRequest(request).toString().contains("PRIVATE_MEMORY_DETAIL"));
     }
+    @Test void programWakeShowsExactSearchMatchesAndFailurePositionInSmallPlanningContext() throws Exception {
+        var trigger = json("""
+                {"type":"program","program":{"id":"one","state":"FAILED","result":{
+                  "results":{"tree":{"found":2,"blocks":[{"block":"minecraft:oak_log","position":[-1,69,91],"distance":3}]}},
+                  "error":{"message":"No reachable view of block to mine","path":"1",
+                    "operation":{"op":"mine_blocks"},"partial":{"broken":2,"target":[-1,69,91],"navigation":{"position":[-0.5,65,90.5]}}}
+                }}}
+                """);
+        var request = new InferenceProvider.Request(InferenceProvider.Route.PLANNING,
+                new InferenceProvider.ModelRoute("fixture", "auto"), full(), trigger, new JsonObject());
+        var base = current(DecisionProtocol.request(request));
+        var outcome = base.getAsJsonObject("programOutcome");
+        var partial = outcome.getAsJsonObject("failure").getAsJsonObject("partial");
+        assertEquals("[-1,69,91]", partial.get("target").toString());
+        assertEquals("[-0.5,65,90.5]", partial.get("position").toString());
+        assertEquals(2, partial.get("broken").getAsInt());
+        var match = outcome.getAsJsonObject("results").getAsJsonObject("tree").getAsJsonArray("blocks").get(0).getAsJsonObject();
+        assertEquals(partial.get("target"), match.get("position"));
+        assertFalse(match.has("distance"));
+        assertFalse(base.getAsJsonObject("original_trigger").has("program"));
+        assertEquals(8, base.getAsJsonObject("snapshot").getAsJsonArray("inventory").size());
+        assertFalse(base.toString().contains("EXPLICIT_NBT_DETAIL"));
+        trigger.getAsJsonObject("program").addProperty("state", "SUCCEEDED");
+        var recovered = DecisionContext.initial(full(), trigger, new JsonObject(), InferenceProvider.Route.PLANNING);
+        assertFalse(recovered.getAsJsonObject("programOutcome").has("failure"), "A caught error does not turn success into a failure");
+    }
+
     @Test void typedReadToolsCannotEscalateAuthorityOrAccessArbitrarySections()throws Exception{
         var args=json("{\"sections\":[\"inventory\",\"programs\"],\"query\":null,\"offset\":null,\"limit\":null,\"detail\":null}");var call=json("{\"tool\":\"get_context\",\"arguments\":{}}");call.add("arguments",args);var calls=new JsonArray();calls.add(call);var batch=new JsonObject();batch.add("calls",calls);
         var decoded=DecisionSchema.decode(batch,InferenceProvider.Route.LIGHT);assertEquals("get_context",decoded.calls().get(0).tool());assertFalse(decoded.calls().get(0).arguments().has("query"));

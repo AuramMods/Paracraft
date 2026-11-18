@@ -12,8 +12,8 @@ public final class ToolPolicy {
         Set<String> allowed = allowed(route);
         for (var call : decision.calls()) if (!allowed.contains(call.tool())) throw new IllegalArgumentException("Tool " + call.tool() + " is unavailable on " + route);
         for(var call:decision.calls())if(call.tool().equals("get_context"))DecisionContext.validate(call.arguments());
-        long continuations = decision.calls().stream().filter(c -> c.tool().equals("think_harder") || c.tool().equals("observe")
-                || c.tool().equals("sample_terrain") || c.tool().equals("get_context")).count();
-        if (continuations > 0 && decision.calls().size() != 1) throw new IllegalArgumentException("A continuation must be the sole tool call");
+        if (decision.calls().size() < 2 || decision.calls().stream().allMatch(call -> call.tool().equals("get_context"))) return;
+        if (decision.calls().stream().anyMatch(call -> Set.of("think_harder", "observe", "sample_terrain", "get_context").contains(call.tool())))
+            throw new IllegalArgumentException("Use only get_context calls together for read-only context, or send other continuations alone");
     }
 }

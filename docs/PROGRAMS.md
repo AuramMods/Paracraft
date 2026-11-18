@@ -8,7 +8,7 @@ Use `/paracraft program <companion> <json>` as the owner. `JobManager.submitProg
 
 Programs can also compose `search_recipes` and `craft_item` with collection, placement, delivery, and deposit. [CRAFTING.md](CRAFTING.md) documents internal 2×2/table 3×3 syntax, quantity semantics, and native ingredient/remainder behavior.
 
-An optional `schema` is currently `1`. Supply a stable UUID in `id` to retry a request safely; if omitted, the manual command generates one and reports it. Reusing an accepted ID acknowledges its existing state/result and does not execute another copy, including after save/reconnect or a clean server restart. `taskId` associates the program with an intention; the server does not mark that intention complete automatically.
+An optional `schema` is currently `1`. Supply a stable UUID in `id` to retry a request safely. When omitted, the manual command generates and reports an ID, and the harness uses the persisted tool-call request ID. Reusing an accepted ID acknowledges its existing state/result and does not execute another copy, including after save/reconnect or a clean server restart. `taskId` associates the program with an intention; the server does not mark that intention complete automatically.
 
 A program can run without a task. Set `wakeOnSuccess: false` on a taskless program to record its success in history without requesting another model decision. A final `chat` step sends a reply after the preceding work succeeds. Failures and cancellations still wake the model. When `taskId` is set or `wakeOnSuccess` is omitted, success also wakes it.
 
@@ -41,7 +41,7 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 
 | Operation | Arguments and result |
 | --- | --- |
-| `travel` | `destination`. Ordinary travel, following and action approaches fly when the avatar has the native flight ability. |
+| `travel` | `destination`. All-integer coordinates target the center of a block horizontally at the requested feet Y. Fractional coordinates are exact. Ordinary travel, following and action approaches fly when the avatar has the native flight ability. |
 | `search_creative_items` | Optional `query`, `offset`, and `limit`. Search the visible creative-tab catalog for item IDs and variants. |
 | `take_creative_items` | `item` ID, optional `variant` and positive `quantity`. Put copies of the visible stack into the avatar's main inventory. |
 | `search_containers` | `item`; fixed nine-chunk inventory observation |
@@ -54,8 +54,8 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `report_failure` | Returns the current caught failure, including partial results |
 | `fail` | Optional `message`; explicit ordinary failure, useful for QA/recovery paths |
 | `rethrow` | Propagates the current caught failure to an outer handler |
-| `mine_blocks` | `block`, `blocks`, or `cuboid`; native tool selection, timed breaking, pickup ledger |
-| `place_blocks` | `placements` with `position` and `item`; physical placement and actual consumption |
+| `mine_blocks` | `block`, `blocks`, or `cuboid`; native reach and tool selection, timed breaking, pickup ledger |
+| `place_blocks` | `placements` with `position` and `item`; physical placement from an accessible face, matching blocks skipped, actual consumption |
 | `build_layers` | `origin`, block `palette`, and grouped `layers`. Builds a rectangular blueprint bottom-up through native placement. |
 | `farm` | Same target forms as mining, optional `plant`; mature crop harvest/pickup/replant |
 | `equip` | `item`, `slot`; native armor/offhand rules or main-hand selection |
@@ -75,6 +75,8 @@ Arguments live beside `op` on the step object. `saveAs` stores its result under 
 | `use_portal` | Selected `position`, optional expected `dimension`/`timeoutTicks`; physical approach and native portal transition |
 | `open_inventory` | `position`, optional inspected-slot `limit`; native interaction and bounded slot/view observation |
 | `take_items` | `position`, `item`, exact integer `quantity`; fixed-source extraction and acquired-stack ledger |
+
+For mining and placement, the server tries to work from the current position and searches nearby stances when it needs a clear ray. A placement batch continues after occupied cells or exhausted approach routes. If any cells were missed, the batch then returns a failure with the completed counts, `unreachableCount`, and every coordinate in `unreachablePositions`. A program can handle that partial result with `try` and `catch`. Native protection and missing materials still stop the batch.
 
 See [GAMEPLAY.md](GAMEPLAY.md) for the block target forms, detailed examples, result semantics, protection/persistence checks, and current adapter limits.
 See [INTERACTIONS.md](INTERACTIONS.md) for right-click gestures, native hooks, held use and interruption behavior.

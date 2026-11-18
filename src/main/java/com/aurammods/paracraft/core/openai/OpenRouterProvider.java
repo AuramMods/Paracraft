@@ -52,8 +52,33 @@ public final class OpenRouterProvider implements InferenceProvider {
     }
     private void current(CompletableFuture<?> future,long revision){if(future.isCancelled() || revision!=account.revision() || !account.mode().equals("openrouter"))throw new CancellationException("Provider settings changed or inference cancelled");}
     private static String error(int status,JsonObject response,String key,boolean router){
-        var detail=response.has("error") && response.get("error").isJsonObject()?response.getAsJsonObject("error"):new JsonObject();String message=status==401?"API key was rejected":OpenAiHttp.string(detail,"message","Request failed");return (router?"OpenRouter":"API")+" HTTP "+status+": "+redact(message,key);
+        var detail = object(response.get("error"));
+        String message = status == 401 ? "API key was rejected" : OpenAiHttp.string(detail, "message", "Request failed");
+        if (router && status != 401 && message.equalsIgnoreCase("Provider returned error")) {
+            var metadata = object(detail.get("metadata"));
+            String provider = OpenAiHttp.string(metadata, "provider_name", "");
+            String reason = upstreamMessage(metadata.get("raw"));
+            if (!provider.isBlank()) message += " (" + provider + ")";
+            if (!reason.isBlank()) message += ": " + reason;
+        }
+        return (router ? "OpenRouter" : "API") + " HTTP " + status + ": " + redact(message, key);
     }
+    private static String upstreamMessage(JsonElement raw) {
+        if (raw == null || raw.isJsonNull()) return "";
+        if (raw.isJsonPrimitive() && raw.getAsJsonPrimitive().isString()) {
+            String text = raw.getAsString().strip();
+            if (text.startsWith("{") && text.length() <= 8192) {
+                try { raw = JsonParser.parseString(text); }
+                catch (JsonParseException invalid) { return ""; }
+            } else {
+                return text.length() <= 500 && text.lines().count() <= 1 && !text.startsWith("<") ? text : "";
+            }
+        }
+        var value = object(raw);
+        var nested = object(value.get("error"));
+        return OpenAiHttp.string(nested, "message", OpenAiHttp.string(value, "message", ""));
+    }
+    private static JsonObject object(JsonElement value) { return value != null && value.isJsonObject() ? value.getAsJsonObject() : new JsonObject(); }
     private static String redact(String value,String key){String clean=key.isEmpty()?value:value.replace(key,"[redacted key]");clean=clean.replaceAll("(?i)Bearer\\s+[^\\s]+","Bearer [redacted]").replaceAll("sk-[A-Za-z0-9_-]+","[redacted key]");return clean.length()>600?clean.substring(0,600):clean;}
     private static void report(Request request,JsonObject completed,String key){
         try{for(var choice:completed.getAsJsonArray("choices")){var message=choice.getAsJsonObject().getAsJsonObject("message");

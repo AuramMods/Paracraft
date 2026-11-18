@@ -22,10 +22,13 @@ public final class BlockWorkJob extends GameJob {
     private final JsonObject specification;
     private final BlockTargets targets;
     private final boolean farm;
+    private final BlockApproach approach = new BlockApproach();
     private final List<ItemStack> acquired = new ArrayList<>();
     private long cursor, broken, skipped, replanted;
     private String stage = "approach", crop = "";
     private int quietTicks;
+    private UUID pickupTarget;
+    private BlockPos pickupBlock;
     private NativeBlockBreaker breaker;
     private Runnable unobserve;
     public BlockWorkJob(UUID id, CompanionPlayer actor, String type, JsonObject specification) {
@@ -41,16 +44,22 @@ public final class BlockWorkJob extends GameJob {
         phase = stage + " target " + (cursor + 1) + "/" + targets.size(); result.add("target", JobJson.position(target));
         switch (stage) {
             case "approach" -> {
-                if (!navigate(Vec3.atCenterOf(target), 2.6)) return;
-                if (actor.serverLevel().isOutsideBuildHeight(target) || !actor.serverLevel().getWorldBorder().isWithinBounds(target))
-                    throw new IllegalStateException("Mining target is outside world bounds");
-                if (!actor.serverLevel().hasChunkAt(target)) throw new IllegalStateException("Target chunk is not loaded");
+                var level = actor.serverLevel();
+                if (!approach.tick(this, target, () -> level.getBlockState(target).isAir()
+                                || actor.canReach(target, 0) && NativeBlockBreaker.hit(actor, target, actor.getEyePosition()) != null,
+                        () -> BlockApproach.candidates(actor, target, false, eye -> NativeBlockBreaker.hit(actor, target, eye) != null),
+                        "No reachable view of block to mine")) return;
+                if (!level.hasChunkAt(target)) throw new IllegalStateException("Target chunk is not loaded");
                 var state = actor.serverLevel().getBlockState(target);
                 if (state.isAir() || farm && (!(state.getBlock() instanceof CropBlock block) || !block.isMaxAge(state))) {
                     skipped++; next(); return;
                 }
                 crop = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-                CarriedItems.miningTool(actor, target, state); breaker = new NativeBlockBreaker(actor, target); stage = "breaking";
+                var hit = NativeBlockBreaker.hit(actor, target, actor.getEyePosition());
+                if (hit == null) return;
+                CarriedItems.miningTool(actor, target, state);
+                breaker = new NativeBlockBreaker(actor, target, hit);
+                stage = "breaking";
             }
             case "breaking" -> {
                 if (breaker == null) { stage = "approach"; return; }
@@ -59,17 +68,31 @@ public final class BlockWorkJob extends GameJob {
             }
             case "collecting" -> {
                 var items = actor.serverLevel().getEntitiesOfClass(ItemEntity.class, new AABB(target).inflate(2), item -> item.isAlive() && permitted(item));
-                if (items.isEmpty()) { if (++quietTicks >= 2) { if (farm && specification.has("plant")) stage = "planting"; else next(); } break; }
+                if (items.isEmpty()) {
+                    stopMoving();
+                    approach.reset();
+                    if (++quietTicks >= 2) { if (farm && specification.has("plant")) stage = "planting"; else next(); }
+                    break;
+                }
                 quietTicks = 0;
                 ItemEntity item = items.stream().min(Comparator.comparingDouble(actor::distanceToSqr)).orElseThrow();
-                if (!actor.getBoundingBox().inflate(1, 0.5, 1).intersects(item.getBoundingBox())) { navigate(item.position(), 0.8); return; }
-                stopMoving();
+                if (!item.getUUID().equals(pickupTarget) || !item.blockPosition().equals(pickupBlock)) {
+                    pickupTarget = item.getUUID();
+                    pickupBlock = item.blockPosition();
+                    stopMoving();
+                    approach.reset();
+                }
+                if (!actor.getBoundingBox().inflate(1, 0.5, 1).intersects(item.getBoundingBox())
+                        && !item.onGround() && !item.isInWater() && item.getAge() < 30) return;
+                if (!approach.tick(this, pickupBlock, () -> actor.getBoundingBox().inflate(1, 0.5, 1).intersects(item.getBoundingBox()),
+                        () -> BlockApproach.pickupCandidates(actor, pickupBlock, item.getBoundingBox()),
+                        "No reachable position for mining drops")) return;
                 if (item.hasPickUpDelay()) { phase = "waiting for native pickup delay"; return; }
                 int before = item.getItem().getCount(); item.playerTouch(actor);
                 if (item.isAlive() && item.getItem().getCount() == before) throw new IllegalStateException("Native pickup was refused or inventory is full");
             }
             case "planting" -> {
-                if (!navigate(Vec3.atCenterOf(target), 2.6)) return;
+                if (!NativePlacement.approach(this, approach, target)) return;
                 var selector = new ItemSelector(specification.get("plant").getAsString());
                 int slot = CarriedItems.find(actor, selector);
                 ItemStack seed = slot >= 0 ? actor.getInventory().getItem(slot).copy() : ItemStack.EMPTY;

@@ -18,6 +18,8 @@ public final class DecisionContext {
         var result = new JsonObject();
         result.add("continuity", continuity(snapshot, trigger, agent, route));
         result.add("snapshot", snapshotSummary(snapshot, trigger, agent, route));
+        if (route == InferenceProvider.Route.PLANNING && trigger.has("program"))
+            result.add("programOutcome", programOutcome(object(trigger, "program")));
         var catalog = new JsonObject();
         for (String section : SECTIONS) {
             var value = source(section, snapshot, agent, observations);
@@ -37,6 +39,58 @@ public final class DecisionContext {
 
     private static int actionHistorySize(JsonObject snapshot, String text) {
         return snapshot.has("actionHistoryEntries") ? snapshot.get("actionHistoryEntries").getAsInt() : (int) text.lines().count();
+    }
+
+    private static JsonObject programOutcome(JsonObject program) {
+        var outcome = copy(program, "id", "state", "phase", "dimension");
+        var result = object(program, "result");
+        boolean failed = Set.of("FAILED", "CANCELLED").contains(string(program, "state"));
+        var error = failed ? object(result, "error") : new JsonObject();
+        if (error.size() > 0) {
+            var failure = copy(error, "message", "path");
+            var operation = object(error, "operation");
+            if (operation.has("op")) failure.add("operation", operation.get("op").deepCopy());
+            var partial = object(error, "partial");
+            var progress = observationSummary(partial).getAsJsonObject();
+            if (partial.has("target")) progress.add("target", partial.get("target").deepCopy());
+            if (partial.has("unreachablePositions")) {
+                var positions = partial.getAsJsonArray("unreachablePositions");
+                var preview = new JsonArray();
+                for (int i = 0; i < Math.min(8, positions.size()); i++) preview.add(positions.get(i).deepCopy());
+                progress.add("unreachablePositions", preview);
+            }
+            var navigation = object(partial, "navigation");
+            if (navigation.has("position")) progress.add("position", navigation.get("position").deepCopy());
+            failure.add("partial", progress);
+            outcome.add("failure", failure);
+        } else if (failed && !string(program, "error").isEmpty()) {
+            outcome.add("failure", preview(program.get("error"), 256));
+        }
+        var results = new JsonObject();
+        var named = object(result, "results");
+        for (var entry : named.entrySet()) {
+            if (results.size() >= 8) break;
+            if (!entry.getValue().isJsonObject()) continue;
+            var value = entry.getValue().getAsJsonObject();
+            var summary = observationSummary(value).getAsJsonObject();
+            copyMatches(value, summary, "blocks", "block", "position");
+            copyMatches(value, summary, "containers", "x", "y", "z", "count", "countCertain");
+            results.add(entry.getKey(), summary);
+        }
+        if (results.size() > 0) outcome.add("results", results);
+        if (named.size() > results.size()) outcome.addProperty("omittedResults", named.size() - results.size());
+        return preview(outcome, 4608).getAsJsonObject();
+    }
+
+    private static void copyMatches(JsonObject source, JsonObject summary, String name, String... fields) {
+        if (!source.has(name) || !source.get(name).isJsonArray()) return;
+        var matches = source.getAsJsonArray(name);
+        var rows = new JsonArray();
+        for (int i = 0; i < Math.min(8, matches.size()); i++) {
+            if (matches.get(i).isJsonObject()) rows.add(copy(matches.get(i).getAsJsonObject(), fields));
+        }
+        summary.add(name, rows);
+        if (matches.size() > rows.size()) summary.addProperty(name + "Omitted", matches.size() - rows.size());
     }
 
     private static JsonObject continuity(JsonObject snapshot, JsonObject trigger, JsonObject agent, InferenceProvider.Route route) {
@@ -101,11 +155,13 @@ public final class DecisionContext {
             String name = id.substring(id.indexOf(':') + 1).replace('_', ' ');
             if (!name.isEmpty() && (text.contains(name) || text.contains(id))) matchingItems.add(item);
         }
-        if (snapshot.has("inventory") && (!matchingItems.isEmpty() || text.matches("(?s).*(inventory|carrying|holding|wearing|equipped|craft|trade|drop|give|collect).*"))) {
+        boolean reconciling = route == InferenceProvider.Route.PLANNING && trigger.has("program");
+        if (snapshot.has("inventory") && (reconciling || !matchingItems.isEmpty() || text.matches("(?s).*(inventory|carrying|holding|wearing|equipped|craft|trade|drop|give|collect).*"))) {
             var ordered = new ArrayList<>(matchingItems);
             for (var item : inventory) if (!matchingItems.contains(item)) ordered.add(item);
-            frame.add("inventory", summaries(ordered, "inventory", 16));
-            frame.addProperty("inventoryTruncated", inventory.size() > 16);
+            int limit = reconciling ? 8 : 16;
+            frame.add("inventory", summaries(ordered, "inventory", limit));
+            frame.addProperty("inventoryTruncated", inventory.size() > limit);
         }
         if (snapshot.has("nearbyEntities") && text.matches("(?s).*(follow|come|deliver|give|attack|fight|kill|villager|trade|nearby|around).*")) {
             var entities = array(snapshot, "nearbyEntities");
