@@ -5,7 +5,7 @@
 Select Java 17 with `JAVA_HOME` and run `./gradlew build` from this repository. The reobfuscated artifact is:
 
 ```text
-build/libs/paracraft-forge-1.20.1-1.1.0.jar
+build/libs/paracraft-forge-1.20.1-1.2.0.jar
 ```
 
 Put that JAR in the `mods` directory of the Forge 1.20.1 server and every connecting client. The declared dependency is Forge 47.4.28 or later in the 47.x series. This pass targets Forge 1.20.1; Fabric, NeoForge, other Minecraft versions, specialized storage integrations, and advanced construction/crafting are later work. Python and the QA scripts are developer tooling; players install the mod without a companion app.
