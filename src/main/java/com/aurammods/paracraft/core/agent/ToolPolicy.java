@@ -10,10 +10,16 @@ public final class ToolPolicy {
     public static Set<String> allowed(InferenceProvider.Route route) { return route == InferenceProvider.Route.LIGHT ? LIGHT : PLANNING; }
     public static void validate(InferenceProvider.Route route, InferenceProvider.Decision decision) {
         Set<String> allowed = allowed(route);
-        for (var call : decision.calls()) if (!allowed.contains(call.tool())) throw new IllegalArgumentException("Tool " + call.tool() + " is unavailable on " + route);
-        for(var call:decision.calls())if(call.tool().equals("get_context"))DecisionContext.validate(call.arguments());
-        if (decision.calls().size() < 2 || decision.calls().stream().allMatch(call -> call.tool().equals("get_context"))) return;
-        if (decision.calls().stream().anyMatch(call -> Set.of("think_harder", "observe", "sample_terrain", "get_context").contains(call.tool())))
-            throw new IllegalArgumentException("Use only get_context calls together for read-only context, or send other continuations alone");
+        var calls = decision.calls();
+        for (var call : calls) if (!allowed.contains(call.tool())) throw new IllegalArgumentException("Tool " + call.tool() + " is unavailable on " + route);
+        for (var call : calls) if (call.tool().equals("get_context")) DecisionContext.validate(call.arguments());
+        if (calls.size() < 2 || calls.stream().allMatch(call -> call.tool().equals("get_context"))) return;
+        if (route == InferenceProvider.Route.LIGHT && calls.size() == 2
+                && calls.get(0).tool().equals("chat") && calls.get(1).tool().equals("think_harder")) {
+            AgentState.required(calls.get(0).arguments(), "message");
+            return;
+        }
+        if (calls.stream().anyMatch(call -> Set.of("think_harder", "observe", "sample_terrain", "get_context").contains(call.tool())))
+            throw new IllegalArgumentException("Batch get_context reads together, or use chat followed by think_harder on Light. Other continuations must be alone");
     }
 }

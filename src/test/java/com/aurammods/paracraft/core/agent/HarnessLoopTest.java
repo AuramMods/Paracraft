@@ -9,6 +9,69 @@ import static com.aurammods.paracraft.core.agent.HarnessFixture.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HarnessLoopTest {
+    @Test void instructionReplyIsSentBeforePlanningAndSurvivesAReconnect() {
+        var clock = new Clock();
+        var state = new AgentState();
+        var light = new Provider(clock);
+        var sink = new Sink();
+        String instruction = "Mine the tree near me, then make a wooden pickaxe with it.";
+        String acknowledgment = "I’ll chop down the tree near you and use its wood to make a wooden pickaxe.";
+        var snapshot = frame(chat(1, instruction));
+        light.answer = request -> CompletableFuture.completedFuture(acknowledge(acknowledgment));
+        sink.reply = ignored -> new Uncancellable<>();
+        try (var loop = new HarnessLoop(BINDING, state, light, clock, sink, () -> {})) {
+            loop.accept(snapshot);
+            pump(loop);
+            assertEquals(0, clock.nanoTime(), "The reply is sent as soon as Light returns");
+            assertEquals(acknowledgment, sink.sent.get(0).args().get("message").getAsString());
+            clock.advance(5000);
+            pump(loop);
+            assertEquals(1, light.requests.size(), "Planning waits for the chat receipt even after the inference interval");
+        }
+
+        var restored = AgentState.load(state.save());
+        var planning = new Provider(clock);
+        planning.answer = request -> {
+            assertEquals(InferenceProvider.Route.PLANNING, request.route());
+            assertEquals(instruction, request.trigger().get("message").getAsString());
+            assertEquals(acknowledgment, request.observations().get("instruction_acknowledgment").getAsString());
+            return CompletableFuture.completedFuture(decision("wait", json("{\"event\":\"chat\"}")));
+        };
+        sink.reply = ignored -> CompletableFuture.completedFuture(ok(new JsonObject()));
+        try (var loop = new HarnessLoop(BINDING, restored, planning, clock, sink, () -> {})) {
+            snapshot.addProperty("session", "lease-restored");
+            loop.accept(snapshot);
+            pump(loop);
+            assertEquals(2, sink.sent.size());
+            assertEquals(sink.sent.get(0), sink.sent.get(1), "A reconnect retries the existing chat receipt with the same ID");
+            assertEquals(1, planning.requests.size());
+        }
+    }
+
+    @Test void missingInstructionReplyGetsLightCorrectionBeforeEscalation() {
+        var clock = new Clock();
+        var provider = new Provider(clock);
+        var sink = new Sink();
+        provider.answer = request -> {
+            assertEquals(InferenceProvider.Route.LIGHT, request.route());
+            if (provider.requests.size() == 1)
+                return CompletableFuture.completedFuture(decision("think_harder", new JsonObject()));
+            var feedback = request.observations().getAsJsonObject("format_feedback");
+            assertTrue(feedback.get("format_error").getAsString().contains("short chat reply"));
+            return CompletableFuture.completedFuture(acknowledge("I’ll gather the diamonds and bring them to you."));
+        };
+        try (var loop = new HarnessLoop(BINDING, new AgentState(), provider, clock, sink, () -> {})) {
+            loop.accept(frame(chat(1, "Bring me the diamonds")));
+            pump(loop);
+            assertTrue(sink.sent.isEmpty());
+            clock.advance(5000);
+            pump(loop);
+            assertEquals(2, provider.requests.size());
+            assertEquals(0, loop.planningCalls());
+            assertEquals("chat", sink.sent.get(0).tool());
+        }
+    }
+
     @Test void contextReadsStayLocalRefreshAtTheNextDecisionAndExpireAtTheEndOfTheTurn(){
         var clock=new Clock();var state=new AgentState();var provider=new Provider(clock);var sink=new Sink();var snapshot=frame(chat(1,"How many diamonds do you carry?"));
         snapshot.add("inventory",json("{\"items\":[{\"item\":\"minecraft:diamond\",\"count\":3,\"snbt\":\"PRIVATE_STACK_DETAIL\"}]}").getAsJsonArray("items"));
@@ -43,11 +106,11 @@ class HarnessLoopTest {
         InferenceProvider provider=new InferenceProvider(){
             public String label(){return "Provider route fixture";}public boolean simulated(){return false;}
             public ModelRoute model(Route route,ModelRoute configured){return new ModelRoute(route==Route.LIGHT?"vendor/light":"vendor/planning",route==Route.LIGHT?"auto":"high");}
-            public CompletableFuture<Decision> infer(Request request){requests.add(request);request.emitOutput(json("{\"type\":\"function_call\",\"name\":\"fixture\"}"));return CompletableFuture.completedFuture(request.route()==Route.LIGHT?decision("think_harder",new JsonObject()):decision("chat",json("{\"message\":\"done\"}")));}
+            public CompletableFuture<Decision> infer(Request request){requests.add(request);request.emitOutput(json("{\"type\":\"function_call\",\"name\":\"fixture\"}"));return CompletableFuture.completedFuture(request.route()==Route.LIGHT?acknowledge("I’ll get started."):decision("chat",json("{\"message\":\"done\"}")));}
         };
         try(var loop=new HarnessLoop(BINDING,state,provider,clock,sink,()->{},traces::add)){
             loop.accept(frame(chat(1,"do something")));pump(loop);clock.advance(5000);pump(loop);
-            assertEquals(List.of("vendor/light","vendor/planning"),requests.stream().map(r->r.model().model()).toList());assertEquals(List.of("vendor/light","vendor/planning"),traces.stream().map(t->t.get("model").getAsString()).toList());assertEquals("gpt-6-luna",state.lightModel);assertEquals("xhigh",state.planningEffort);assertEquals(1,sink.sent.size());
+            assertEquals(List.of("vendor/light","vendor/planning"),requests.stream().map(r->r.model().model()).toList());assertEquals(List.of("vendor/light","vendor/planning"),traces.stream().map(t->t.get("model").getAsString()).toList());assertEquals("gpt-6-luna",state.lightModel);assertEquals("xhigh",state.planningEffort);assertEquals(2,sink.sent.size());
         }
     }
     @Test void diagnosticOutputIsFlushedOnClientTickEvenWhenDecisionFailsAndStaleOutputIsDropped() {
@@ -112,7 +175,7 @@ class HarnessLoopTest {
             JsonObject newer = frame(chat(1, "Josh, collect diamonds"), chat(2, "Josh, progress?")); newer.addProperty("health", 7);
             loop.accept(newer); clock.advance(20_000); pump(loop);
             assertEquals(1, provider.requests.size());
-            slow.complete(decision("think_harder", new JsonObject())); pump(loop);
+            slow.complete(acknowledge("I’ll gather the diamonds.")); pump(loop);
             assertEquals(2, provider.requests.size()); var high = provider.requests.get(1);
             assertEquals(InferenceProvider.Route.PLANNING, high.route()); assertEquals(1, high.trigger().get("id").getAsInt());
             assertEquals(7, high.snapshot().get("health").getAsInt()); assertFalse(high.tools().contains("think_harder")); assertTrue(high.tools().contains("program"));
@@ -177,14 +240,14 @@ class HarnessLoopTest {
         Clock clock = new Clock(); Provider provider = new Provider(clock); Sink sink = new Sink(); AgentState state = new AgentState();
         state.mutate("task_upsert", json("{\"id\":\"inactive\",\"goal\":\"later\",\"status\":\"INACTIVE\"}"));
         provider.answer = request -> CompletableFuture.completedFuture(request.route() == InferenceProvider.Route.LIGHT
-                ? decision("think_harder", new JsonObject()) : decision("wait", json("{\"event\":\"weather\"}")));
+                ? acknowledge("I’ll wait for that.") : decision("wait", json("{\"event\":\"weather\"}")));
         try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, sink, () -> {})) {
             loop.accept(frame()); pump(loop); clock.advance(5_000); pump(loop); assertEquals("Waiting: weather", loop.status());
             clock.advance(600_000); loop.accept(frame(event(1, "unrelated"))); pump(loop); assertEquals(1, provider.requests.size());
             loop.accept(frame(event(1, "unrelated"), event(2, "damage"))); pump(loop); assertEquals(2, provider.requests.size());
         }
         Clock timerClock = new Clock(); Provider timer = new Provider(timerClock);
-        timer.answer = request -> CompletableFuture.completedFuture(timer.requests.size() == 1 ? decision("think_harder", new JsonObject())
+        timer.answer = request -> CompletableFuture.completedFuture(timer.requests.size() == 1 ? acknowledge("I’ll wait.")
                 : timer.requests.size() == 2 ? decision("wait", json("{\"seconds\":10}")) : new InferenceProvider.Decision(List.of()));
         try (HarnessLoop loop = new HarnessLoop(BINDING, new AgentState(), timer, timerClock, new Sink(), () -> {})) {
             loop.accept(frame(chat(1, "wait"))); pump(loop); timerClock.advance(5_000); pump(loop);

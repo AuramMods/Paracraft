@@ -40,9 +40,13 @@ public final class SimulatedProvider implements InferenceProvider {
         JsonObject task = nextTask(frame);
         if (request.route() == Route.LIGHT) {
             if (chat) {
-                if(COMMAND.matcher(text).find() || DISCOVER.matcher(text).find() || PORTAL.matcher(text).find() || BLOCKS.matcher(text).find())return decision(call("think_harder",new JsonObject()));
+                if (COMMAND.matcher(text).find()) return acknowledge("I'll run the requested command.");
+                if (DISCOVER.matcher(text).find()) return acknowledge("I'll check which commands are available.");
+                if (PORTAL.matcher(text).find()) return acknowledge("I'll head to the portal and go through it.");
+                if (BLOCKS.matcher(text).find()) return acknowledge("I'll look for those blocks nearby and report where they are.");
                 if (lower.contains("progress") || lower.contains("status")) return say(progress(frame));
-                if (scriptedAction(text)) return decision(call("think_harder", new JsonObject()));
+                String acknowledgment = scriptedAcknowledgment(text, lower);
+                if (acknowledgment != null) return acknowledge(acknowledgment);
                 if (lower.contains("hello") || lower.contains("hey") || lower.contains("how's it going"))
                     return say("I'm here. This companion is running the deterministic QA simulator.");
                 return say("Simulation scripts: collect diamonds, progress, pause/resume work, travel to X Y Z, execute command TEXT, teleport command TEXT, discover commands PREFIX, behavior players|mobs REACTION, wait for EVENT, remember KEY=TEXT, personality TEXT, trust/untrust UUID.");
@@ -135,11 +139,21 @@ public final class SimulatedProvider implements InferenceProvider {
         }
         return manageTask(frame, task);
     }
-    private static boolean scriptedAction(String text) {
-        String lower = text.toLowerCase(Locale.ROOT);
-        return idleOff(lower) || idleOn(lower) || (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find"))) || TRAVEL.matcher(text).find()
-                || lower.contains("pause work") || lower.contains("resume work") || lower.contains("remember ") || lower.contains("personality ")
-                || lower.contains("wait for ") || lower.contains("trust ") || BEHAVIOR.matcher(text).find() || COMMAND.matcher(text).find() || DISCOVER.matcher(text).find();
+    private static String scriptedAcknowledgment(String text, String lower) {
+        if (idleOff(lower)) return "I'll stop wandering and stay here.";
+        if (idleOn(lower)) return "I'll go back to wandering nearby while idle.";
+        if (lower.contains("diamond") && (lower.contains("collect") || lower.contains("find")))
+            return "I'll look in nearby containers, gather the diamonds, and bring them to you.";
+        var travel = TRAVEL.matcher(text);
+        if (travel.find()) return "I'll head to " + travel.group(1) + " " + travel.group(2) + " " + travel.group(3) + ".";
+        if (lower.contains("pause work")) return "I'll pause the current task so I can resume it later.";
+        if (lower.contains("resume work")) return "I'll pick up the unfinished work.";
+        if (lower.contains("remember ")) return "I'll save that in my memory.";
+        if (lower.contains("personality ")) return "I'll update my personality.";
+        if (lower.contains("wait for ")) return "I'll wait for the event you named.";
+        if (lower.contains("trust ")) return "I'll update who can give me instructions.";
+        if (BEHAVIOR.matcher(text).find()) return "I'll update how I react as requested.";
+        return null;
     }
     private static boolean idleOff(String text){return text.contains("stop moving") || text.contains("stop wandering") || text.contains("stay still") || text.contains("idle off");}
     private static boolean idleOn(String text){return text.contains("resume idling") || text.contains("wander again") || text.contains("idle on");}
@@ -221,5 +235,6 @@ public final class SimulatedProvider implements InferenceProvider {
     private static Call call(String tool, JsonObject args) { return new Call(tool, args); }
     private static Call speech(String text) { JsonObject args = new JsonObject(); args.addProperty("message", "[SIMULATED] " + text); return call("chat", args); }
     private static Decision say(String text) { return decision(speech(text)); }
+    private static Decision acknowledge(String text) { return decision(speech(text), call("think_harder", new JsonObject())); }
     private static Decision decision(Call... calls) { return new Decision(List.of(calls)); }
 }

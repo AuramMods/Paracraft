@@ -4,6 +4,7 @@ import com.aurammods.paracraft.core.agent.*;
 import com.google.gson.*;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -112,6 +113,18 @@ class DecisionSchemaTest {
         args.getAsJsonArray("observationRefs").add(args.getAsJsonArray("observationRefs").get(0).deepCopy());
         assertThrows(IOException.class, () -> DecisionSchema.decode(batch("program", args), InferenceProvider.Route.PLANNING));
     }
+    @Test void lightDecodesTheAcknowledgmentBeforeItsPlanningHandoff() throws Exception {
+        var ordered = json("""
+                {"calls":[{"tool":"chat","arguments":{"message":"I'll gather the wood, then make the pickaxe."}},
+                          {"tool":"think_harder","arguments":{}}]}
+                """);
+        var decision = DecisionSchema.decode(ordered, InferenceProvider.Route.LIGHT);
+        assertEquals(List.of("chat", "think_harder"), decision.calls().stream().map(InferenceProvider.Call::tool).toList());
+        var calls = ordered.getAsJsonArray("calls");
+        calls.add(calls.remove(0));
+        assertThrows(IOException.class, () -> DecisionSchema.decode(ordered, InferenceProvider.Route.LIGHT));
+    }
+
     @Test void malformedOrUnauthorizedCallsRejectTheEntireBatch() {
         var invalid = batch("chat", json("{\"message\":\"Hello\"}"));
         invalid.getAsJsonArray("calls").add(batch("task_remove", json("{\"id\":\"work\"}")).getAsJsonArray("calls").get(0));

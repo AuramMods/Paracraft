@@ -12,10 +12,10 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Script QA against a stubbed service; physical inventory behavior is covered separately by GameTests. */
 class SimulatedProviderTest {
     @Test void nearestBlockScriptEscalatesAndForwardsCountAndRadius() {
-        Clock clock=new Clock();Sink sink=new Sink();sink.reply=sent->CompletableFuture.completedFuture(ok(job(sent.args().get("id").getAsString(),"RUNNING")));
+        Clock clock=new Clock();Sink sink=new Sink();sink.reply=SimulatedProviderTest::acknowledgeRunningProgram;
         try(var loop=new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{})){
-            loop.accept(frame(chat(1,"Josh, search blocks minecraft:crafting_table nearest 3 radius 16")));pump(loop);assertTrue(sink.sent.isEmpty());clock.advance(5000);pump(loop);
-            assertEquals(1,loop.planningCalls());var step=sink.sent.get(0).args().getAsJsonArray("steps").get(0).getAsJsonObject();
+            loop.accept(frame(chat(1,"Josh, search blocks minecraft:crafting_table nearest 3 radius 16")));pump(loop);assertEquals(List.of("chat"),sink.sent.stream().map(Sent::tool).toList());clock.advance(5000);pump(loop);
+            assertEquals(1,loop.planningCalls());var step=sink.sent.get(1).args().getAsJsonArray("steps").get(0).getAsJsonObject();
             assertEquals("search_blocks",step.get("op").getAsString());assertEquals("minecraft:crafting_table",step.get("block").getAsString());assertEquals(3,step.get("limit").getAsInt());assertEquals(16,step.get("radius").getAsDouble());
         }
     }
@@ -30,10 +30,10 @@ class SimulatedProviderTest {
     }
     @Test void commandScriptsEscalateAndSelectExplicitCompletionSemantics(){
         for(String instruction:List.of("Josh, execute command qa_identity","Josh, teleport command qa_home","Josh, discover commands qa_","Josh, use portal 12 64 -30","Josh, search blocks #minecraft:portals")){
-            Clock clock=new Clock();Sink sink=new Sink();sink.reply=sent->CompletableFuture.completedFuture(ok(job(sent.args().get("id").getAsString(),"RUNNING")));
+            Clock clock=new Clock();Sink sink=new Sink();sink.reply=SimulatedProviderTest::acknowledgeRunningProgram;
             try(HarnessLoop loop=new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{})){
-                loop.accept(frame(chat(1,instruction)));pump(loop);assertTrue(sink.sent.isEmpty());clock.advance(5000);pump(loop);
-                assertEquals(1,loop.planningCalls());assertEquals("program",sink.sent.get(0).tool());var step=sink.sent.get(0).args().getAsJsonArray("steps").get(0).getAsJsonObject();
+                loop.accept(frame(chat(1,instruction)));pump(loop);assertEquals(List.of("chat"),sink.sent.stream().map(Sent::tool).toList());clock.advance(5000);pump(loop);
+                assertEquals(1,loop.planningCalls());assertEquals("program",sink.sent.get(1).tool());var step=sink.sent.get(1).args().getAsJsonArray("steps").get(0).getAsJsonObject();
                 if(instruction.contains("discover")){assertEquals("discover_commands",step.get("op").getAsString());assertEquals("qa_",step.get("prefix").getAsString());}
                 else if(instruction.contains("use portal")){assertEquals("use_portal",step.get("op").getAsString());assertEquals("[12,64,-30]",step.getAsJsonArray("position").toString());}
                 else if(instruction.contains("search blocks")){assertEquals("search_blocks",step.get("op").getAsString());assertEquals("#minecraft:portals",step.get("block").getAsString());}
@@ -45,10 +45,10 @@ class SimulatedProviderTest {
         Clock clock = new Clock(); Sink sink = new Sink();
         assertThrows(IllegalArgumentException.class,()->ToolPolicy.validate(InferenceProvider.Route.LIGHT,decision("configure_behavior",json("{\"players\":\"passive\"}"))));
         try (HarnessLoop loop = new HarnessLoop(BINDING,new AgentState(),new SimulatedProvider(),clock,sink,()->{})) {
-            loop.accept(frame(chat(1,"Josh, behavior players passive"))); pump(loop); assertTrue(sink.sent.isEmpty());
+            loop.accept(frame(chat(1,"Josh, behavior players passive"))); pump(loop); assertEquals(List.of("chat"),sink.sent.stream().map(Sent::tool).toList());
             clock.advance(5000); pump(loop);
-            assertEquals(List.of("configure_behavior","chat"),sink.sent.stream().map(Sent::tool).toList());
-            assertEquals("passive",sink.sent.get(0).args().get("players").getAsString()); assertEquals(1,loop.planningCalls());
+            assertEquals(List.of("chat","configure_behavior","chat"),sink.sent.stream().map(Sent::tool).toList());
+            assertEquals("passive",sink.sent.get(1).args().get("players").getAsString()); assertEquals(1,loop.planningCalls());
         }
     }
     @Test void socialChatHasASimulationLabelAndIdleInvokesNothing() {
@@ -74,24 +74,25 @@ class SimulatedProviderTest {
             return CompletableFuture.completedFuture(ok(new JsonObject()));
         };
         try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, sink, () -> {})) {
-            loop.accept(snapshot); pump(loop); assertEquals(0, sink.sent.size());
+            loop.accept(snapshot); pump(loop); assertEquals(List.of("chat"), sink.sent.stream().map(Sent::tool).toList());
+            assertTrue(sink.sent.get(0).args().get("message").getAsString().contains("gather the diamonds, and bring them to you"));
             clock.advance(4_999); pump(loop); assertEquals(1, provider.requests.size());
-            clock.advance(1); pump(loop); assertEquals(List.of("observe"), sink.sent.stream().map(Sent::tool).toList());
-            clock.advance(5_000); pump(loop); assertEquals(List.of("observe", "program"), sink.sent.stream().map(Sent::tool).toList());
+            clock.advance(1); pump(loop); assertEquals(List.of("chat", "observe"), sink.sent.stream().map(Sent::tool).toList());
+            clock.advance(5_000); pump(loop); assertEquals(List.of("chat", "observe", "program"), sink.sent.stream().map(Sent::tool).toList());
             assertEquals(List.of(0L, 5_000_000_000L, 10_000_000_000L), provider.starts);
-            JsonObject submitted = sink.sent.get(1).args();
+            JsonObject submitted = sink.sent.get(2).args();
             assertEquals("search-receipt", submitted.getAsJsonObject("observationRefs").get("found").getAsString());
             assertEquals("collect_items", submitted.getAsJsonArray("steps").get(0).getAsJsonObject().get("op").getAsString());
             assertEquals(BINDING.owner().toString(), submitted.getAsJsonArray("steps").get(1).getAsJsonObject().get("recipient").getAsString());
             assertEquals(1, state.tasks().size());
             snapshot.getAsJsonArray("programs").add(program[0]); snapshot.getAsJsonArray("events").add(chat(2, "Josh, progress?"));
             loop.accept(snapshot); clock.advance(5_000); pump(loop);
-            assertEquals("chat", sink.sent.get(2).tool()); assertTrue(sink.sent.get(2).args().get("message").getAsString().contains("RUNNING"));
+            assertEquals("chat", sink.sent.get(3).tool()); assertTrue(sink.sent.get(3).args().get("message").getAsString().contains("RUNNING"));
             assertEquals(1, sink.sent.stream().filter(s -> s.tool().equals("program")).count());
             program[0].addProperty("state", "SUCCEEDED"); program[0].add("result", json("{\"results\":{\"delivery\":{\"delivered\":6}}}"));
             loop.accept(snapshot); clock.advance(5_000); pump(loop); clock.advance(5_000); pump(loop);
             assertEquals("COMPLETED", state.tasks().get(0).getAsJsonObject().get("status").getAsString());
-            assertTrue(sink.sent.get(3).args().get("message").getAsString().contains("Dropped 6 acquired diamonds"));
+            assertTrue(sink.sent.get(4).args().get("message").getAsString().contains("Dropped 6 acquired diamonds"));
             long calls = loop.calls(); clock.advance(120_000); pump(loop); assertEquals(calls, loop.calls()); assertEquals("Idle", loop.status());
         }
     }
@@ -112,7 +113,7 @@ class SimulatedProviderTest {
         try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, sink, () -> {})) {
             loop.accept(snapshot); pump(loop); clock.advance(5_000); pump(loop);
             assertEquals("INACTIVE", state.tasks().get(1).getAsJsonObject().get("status").getAsString());
-            assertEquals("interrupt", sink.sent.get(0).args().get("mode").getAsString());
+            assertEquals("interrupt", sink.sent.get(1).args().get("mode").getAsString());
             snapshot.getAsJsonArray("programs").get(1).getAsJsonObject().addProperty("state", "SUCCEEDED"); loop.accept(snapshot);
             clock.advance(5_000); pump(loop); clock.advance(5_000); pump(loop);
             assertEquals("COMPLETED", state.tasks().get(0).getAsJsonObject().get("status").getAsString());
@@ -139,6 +140,10 @@ class SimulatedProviderTest {
             assertEquals("FAILED", state.tasks().get(0).getAsJsonObject().get("status").getAsString());
             assertTrue(state.tasks().get(0).getAsJsonObject().get("failure").getAsString().contains("3 remaining"));
         }
+    }
+    private static CompletableFuture<JsonObject> acknowledgeRunningProgram(Sent sent) {
+        var result = sent.tool().equals("program") ? job(sent.args().get("id").getAsString(), "RUNNING") : new JsonObject();
+        return CompletableFuture.completedFuture(ok(result));
     }
     private static Provider scripted(Clock clock) {
         Provider provider = new Provider(clock);

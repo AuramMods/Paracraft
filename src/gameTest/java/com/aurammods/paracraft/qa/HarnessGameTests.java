@@ -71,12 +71,22 @@ public final class HarnessGameTests {
         MinecraftForge.EVENT_BUS.register(new Drops());
 
         UUID programId = UUID.randomUUID();
+        String acknowledgment = "I’ll go after the cow and pick up what it drops.";
         var provider = new InferenceProvider() {
             @Override public String label() { return "Scripted direct attack"; }
             @Override public boolean simulated() { return true; }
             @Override public CompletableFuture<Decision> infer(Request request) {
-                if (request.route() == Route.LIGHT)
-                    return CompletableFuture.completedFuture(new Decision(List.of(new Call("think_harder", new JsonObject()))));
+                if (request.route() == Route.LIGHT) {
+                    var message = new JsonObject();
+                    message.addProperty("message", acknowledgment);
+                    return CompletableFuture.completedFuture(new Decision(List.of(
+                            new Call("chat", message), new Call("think_harder", new JsonObject()))));
+                }
+                var responses = StreamSupport.stream(entry.control.getAsJsonArray("events").spliterator(), false)
+                        .map(event -> event.getAsJsonObject()).filter(event -> event.get("type").getAsString().equals("response")).toList();
+                helper.assertTrue(responses.size() == 1 && acknowledgment.equals(responses.get(0).get("message").getAsString())
+                                && cow.isAlive() && manager.jobs().request(entry.id, programId) == null,
+                        "The acknowledgment reached Minecraft chat before Planning started or submitted the job");
                 var program = json("""
                         {"schema":1,"id":"%s","mode":"replace","wakeOnSuccess":false,"steps":[
                            {"op":"attack_entity","target":"%s","saveAs":"combat"},
@@ -104,7 +114,8 @@ public final class HarnessGameTests {
                     .map(event -> event.getAsJsonObject()).toList();
             var replies = events.stream().filter(event -> event.get("type").getAsString().equals("response")).toList();
             if (job.state() != JobState.SUCCEEDED) {
-                helper.assertTrue(replies.isEmpty(), "The completion reply must wait for native work");
+                helper.assertTrue(replies.size() == 1 && acknowledgment.equals(replies.get(0).get("message").getAsString()),
+                        "Only the acknowledgment has been sent while native work runs");
                 helper.assertTrue(loop.status().equals("Working"), "No task entry is needed to show that the avatar is working");
                 return;
             }
@@ -113,9 +124,9 @@ public final class HarnessGameTests {
             helper.assertTrue(!cow.isAlive() && !drop.isAlive() && unrelated.isAlive()
                             && actor.getInventory().countItem(Items.BEEF) == 2 && combat.get("acquired").getAsInt() == 2,
                     "The avatar walks to and picks up the victim's actual loot while leaving unrelated drops");
-            helper.assertTrue(replies.size() == 1 && replies.get(0).get("message").getAsString().equals("I defeated the cow.")
+            helper.assertTrue(replies.size() == 2 && replies.get(1).get("message").getAsString().equals("I defeated the cow.")
                             && loop.calls() == 2 && loop.planningCalls() == 1 && loop.status().equals("Idle"),
-                    "One routing decision and one action decision produce a single completion reply and return to idle");
+                    "The acknowledgment and completion each arrive once with one Light decision and one Planning decision");
             helper.assertTrue(events.stream().anyMatch(event -> event.get("type").getAsString().equals("program")
                             && event.has("wake") && !event.get("wake").getAsBoolean()),
                     "Successful one-shot work is still journaled");

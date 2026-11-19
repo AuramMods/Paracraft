@@ -53,6 +53,12 @@ final class HarnessFixture {
     static JsonObject json(String value) { return JsonParser.parseString(value).getAsJsonObject(); }
     static JsonObject ok(JsonObject value) { JsonObject reply = new JsonObject(); reply.addProperty("ok", true); reply.add("value", value); return reply; }
     static InferenceProvider.Decision decision(String tool, JsonObject args) { return new InferenceProvider.Decision(List.of(new InferenceProvider.Call(tool, args))); }
+    static InferenceProvider.Decision acknowledge(String message) {
+        var args = new JsonObject();
+        args.addProperty("message", message);
+        return new InferenceProvider.Decision(List.of(new InferenceProvider.Call("chat", args),
+                new InferenceProvider.Call("think_harder", new JsonObject())));
+    }
     static void pump(HarnessLoop loop) { for (int i = 0; i < 12; i++) loop.tick(); }
     static final class Uncancellable<T> extends CompletableFuture<T> { @Override public boolean cancel(boolean interrupt) { return false; } }
 }

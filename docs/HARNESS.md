@@ -17,7 +17,7 @@ The [OpenRouter provider](OPENROUTER.md) uses separately configured client-wide 
 | Light | `chat`, `think_harder`, `get_context`, or an empty decision |
 | Planning | `chat`, `observe`, `sample_terrain`, `get_context`, `program`, `resume_program`, `pause_program`, `cancel_program`, `task_upsert`, `task_remove`, `remember`, `forget`, `personality`, `wait`, `trust`, `untrust`, `configure_behavior` |
 
-A reply can batch multiple `get_context` calls when it needs different filters. That read-only batch shares one continuation. `think_harder`, `observe`, and `sample_terrain` each require a reply with a single call. The whole reply is checked before even an otherwise permitted call is applied. Persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
+A clear player instruction uses an ordered Light pair of `chat` and `think_harder`. Light restates the goal in public chat, and the harness waits for the server receipt before handing the original instruction and reply to Planning. Greetings, clarification questions and progress replies can use `chat` alone. Background escalations can use `think_harder` alone. A read-only batch of `get_context` calls shares one continuation. `observe` and `sample_terrain` each require a response with a single call. The whole reply is checked before any effects, and persisted decisions are checked again on load. The server must independently enforce instruction authority and operation permissions.
 
 ## Scheduling and recovery
 

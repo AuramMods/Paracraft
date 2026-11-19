@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /** Tick on the owner client thread. Provider callbacks never mutate game/state objects. */
 public final class HarnessLoop implements AutoCloseable {
@@ -89,33 +90,59 @@ public final class HarnessLoop implements AutoCloseable {
             flushOutputs();
             if (effect != null) {
                 if (!effect.isDone()) return;
-                JsonObject reply = effect.join(); effect = null;
-                var acknowledged=pendingCall();var outcome=identity();outcome.addProperty("tool",acknowledged.tool());outcome.add("arguments",acknowledged.arguments());outcome.add("reply",reply.deepCopy());state.history("tool_result",outcome);
+                JsonObject reply = effect.join();
+                effect = null;
+                var acknowledged = pendingCall();
+                String tool = acknowledged.tool();
+                var outcome = identity();
+                outcome.addProperty("tool", tool);
+                outcome.add("arguments", acknowledged.arguments());
+                outcome.add("reply", reply.deepCopy());
+                state.history("tool_result", outcome);
+                var observations = state.turn.getAsJsonObject("observations");
+                var calls = state.turn.getAsJsonArray("calls");
+                boolean instructionReply = route() == InferenceProvider.Route.LIGHT && tool.equals("chat")
+                        && calls.size() == 2 && calls.get(1).getAsJsonObject().get("tool").getAsString().equals("think_harder");
                 if (!reply.get("ok").getAsBoolean()) {
-                    String code=reply.has("code")?reply.get("code").getAsString():"";
-                    if(!Set.of("TOOL_FAILED","OBSERVATION_FAILED").contains(code))throw new IllegalStateException(reply.get("error").getAsString());
-                    var failed=pendingCall();var details=new JsonObject();details.addProperty("tool",failed.tool());details.add("arguments",failed.arguments());details.add("reply",reply.deepCopy());
-                    var observations=state.turn.getAsJsonObject("observations");var failures=observations.has("tool_failures")?observations.getAsJsonArray("tool_failures"):new JsonArray();failures.add(details);observations.add("tool_failures",failures);
-                    state.history("tool_error",details);continuePlanning();save.run();
-                } else {
-                String tool = pendingCall().tool();
-                if (tool.equals("observe") || tool.equals("sample_terrain")) {
+                    String code = reply.has("code") ? reply.get("code").getAsString() : "";
+                    if (!Set.of("TOOL_FAILED", "OBSERVATION_FAILED").contains(code))
+                        throw new IllegalStateException(reply.get("error").getAsString());
+                    var details = new JsonObject();
+                    details.addProperty("tool", tool);
+                    details.add("arguments", acknowledged.arguments());
+                    details.add("reply", reply.deepCopy());
+                    var failures = observations.has("tool_failures") ? observations.getAsJsonArray("tool_failures") : new JsonArray();
+                    failures.add(details);
+                    observations.add("tool_failures", failures);
+                    state.history("tool_error", details);
+                    if (instructionReply) continueDecision();
+                    else continuePlanning();
+                } else if (tool.equals("observe") || tool.equals("sample_terrain")) {
                     String section = tool.equals("observe") ? "inventory" : "terrain";
-                    state.turn.getAsJsonObject("observations").add(section, reply.getAsJsonObject("value").deepCopy());
+                    observations.add(section, reply.getAsJsonObject("value").deepCopy());
                     continuePlanning();
                 } else {
-                    if (Set.of("program", "resume_program").contains(tool) && reply.has("value")) {mergeProgram(reply.getAsJsonObject("value"));state.executingProgram=reply.getAsJsonObject("value").has("id")?reply.getAsJsonObject("value").get("id").getAsString():"";}
+                    if (instructionReply) observations.add("instruction_acknowledgment", acknowledged.arguments().get("message"));
+                    if (Set.of("program", "resume_program").contains(tool) && reply.has("value")) {
+                        var program = reply.getAsJsonObject("value");
+                        mergeProgram(program);
+                        state.executingProgram = program.has("id") ? program.get("id").getAsString() : "";
+                    }
                     advanceCall();
                 }
                 save.run();
-                }
             }
             if (inference != null) {
                 if (!inference.isDone()) return;
                 flushOutputs();
                 var decision = inference.join(); inference = null;
-                state.turn.remove("formatFailures");
                 ToolPolicy.validate(route(), decision); // Reject the whole reply before any effects.
+                if (route() == InferenceProvider.Route.LIGHT && trigger().get("type").getAsString().equals("chat")
+                        && decision.calls().size() == 1 && decision.calls().get(0).tool().equals("think_harder")) {
+                    throw new CompletionException(new InferenceProvider.DecisionFormatException(
+                            "For a player instruction, put a short chat reply restating the request before think_harder in the same calls array"));
+                }
+                state.turn.remove("formatFailures");
                 state.turn.getAsJsonObject("observations").remove("format_feedback");
                 JsonArray calls = new JsonArray();
                 for (var call : decision.calls()) {

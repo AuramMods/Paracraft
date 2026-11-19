@@ -20,7 +20,7 @@ class AgentPersistenceTest {
         state.mutate("personality", json("{\"text\":\"Brief and cheerful\"}"));
         CompletableFuture<InferenceProvider.Decision> pending = new CompletableFuture<>();
         provider.answer = request -> request.route() == InferenceProvider.Route.LIGHT
-                ? CompletableFuture.completedFuture(decision("think_harder", new JsonObject())) : pending;
+                ? CompletableFuture.completedFuture(acknowledge("I’ll do the requested work.")) : pending;
         try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, new Sink(), () -> {})) {
             loop.accept(frame(chat(17, "Josh, collect diamonds"))); pump(loop); clock.advance(5_000); pump(loop);
         }
@@ -43,22 +43,23 @@ class AgentPersistenceTest {
     @Test void unacknowledgedEffectReplaysTheSameRequestIdWithoutRepeatingAcceptedSideEffects() {
         Clock clock = new Clock(); Provider provider = new Provider(clock); Sink sink = new Sink(); AgentState state = new AgentState();
         provider.answer = request -> CompletableFuture.completedFuture(request.route() == InferenceProvider.Route.LIGHT
-                ? decision("think_harder", new JsonObject()) : new InferenceProvider.Decision(List.of(
+                ? acknowledge("I’ll do the requested work.") : new InferenceProvider.Decision(List.of(
                     new InferenceProvider.Call("chat", json("{\"message\":\"once\"}")),
                     new InferenceProvider.Call("remember", json("{\"key\":\"ack\",\"text\":\"done\"}")))));
         var accepted = new HashMap<UUID, JsonObject>();
         sink.reply = sent -> {
             JsonObject previous = accepted.putIfAbsent(sent.id(), ok(new JsonObject()));
-            return previous == null ? new Uncancellable<>() : CompletableFuture.completedFuture(previous);
+            if (previous == null && sent.args().get("message").getAsString().equals("once")) return new Uncancellable<>();
+            return CompletableFuture.completedFuture(accepted.get(sent.id()));
         };
         try (HarnessLoop loop = new HarnessLoop(BINDING, state, provider, clock, sink, () -> {})) {
-            loop.accept(frame(chat(1, "fixture"))); pump(loop); clock.advance(5_000); pump(loop); assertEquals(1, accepted.size());
+            loop.accept(frame(chat(1, "fixture"))); pump(loop); clock.advance(5_000); pump(loop); assertEquals(2, accepted.size());
         }
         AgentState restored = AgentState.load(state.save()); Provider freshProvider = new Provider(clock);
         try (HarnessLoop loop = new HarnessLoop(BINDING, restored, freshProvider, clock, sink, () -> {})) {
             JsonObject snapshot = frame(chat(1, "fixture")); snapshot.addProperty("session", "new-lease"); loop.accept(snapshot); pump(loop);
-            assertEquals(2, sink.sent.size()); assertEquals(sink.sent.get(0).id(), sink.sent.get(1).id());
-            assertEquals(1, accepted.size()); assertTrue(freshProvider.requests.isEmpty(), "Recorded calls replay without re-inference");
+            assertEquals(3, sink.sent.size()); assertEquals(sink.sent.get(1).id(), sink.sent.get(2).id());
+            assertEquals(2, accepted.size()); assertTrue(freshProvider.requests.isEmpty(), "Recorded calls replay without re-inference");
             assertEquals("done", restored.context().getAsJsonObject("memory").get("ack").getAsString()); assertEquals("Idle", loop.status());
         }
     }

@@ -67,18 +67,19 @@ class ClientCoordinatorTest {
             var lightPoll = remote.outbound.get(remote.outbound.size() - 1);
             var activity = lightPoll.getAsJsonArray("activities").get(0).getAsJsonObject();
             assertEquals("THINKING", activity.get("phase").getAsString()); assertFalse(activity.get("planning").getAsBoolean());
-            light.complete(decision("think_harder", new JsonObject())); pump(client);
+            light.complete(acknowledge("I’ll help you with that.")); pump(client);
             assertEquals("Planning", client.views().get(0).status(), "The escalation cooldown also holds ambient movement");
-            assertEquals(2, remote.outbound.size(), "No duplicate polls while a response is outstanding");
+            assertEquals(2, remote.polls().size(), "No duplicate polls while a response is outstanding");
+            assertEquals(1, remote.effects().size(), "The chat reply has its own request while a poll is outstanding");
             client.receive(remote.baseline(lightPoll)); client.tick();
-            var planningPoll = remote.outbound.get(2);
+            var planningPoll = remote.polls().get(2);
             assertTrue(planningPoll.getAsJsonArray("activities").get(0).getAsJsonObject().get("planning").getAsBoolean());
             assertEquals(0, clock.nanoTime(), "Thinking and queued Planning report without waiting for the heartbeat");
             clock.advance(5000); client.tick(); assertEquals("Thinking: PLANNING", client.views().get(0).status());
             client.receive(remote.baseline(planningPoll)); remote.autoPoll = true;
             planning.complete(decision("wait", json("{\"event\":\"chat\"}"))); pump(client);
-            assertEquals(4, remote.outbound.size());
-            assertEquals("IDLE", remote.outbound.get(3).getAsJsonArray("activities").get(0).getAsJsonObject().get("phase").getAsString());
+            assertEquals(4, remote.polls().size());
+            assertEquals("IDLE", remote.polls().get(3).getAsJsonArray("activities").get(0).getAsJsonObject().get("phase").getAsString());
             assertEquals(5_000_000_000L, clock.nanoTime(), "Completion reports without any further heartbeat delay");
         }
     }
@@ -161,6 +162,7 @@ class ClientCoordinatorTest {
         ClientCoordinator client; JsonObject snapshot = frame(); boolean autoPoll = true, holdEffects; long revision;
         final List<JsonObject> outbound = new ArrayList<>();
         List<JsonObject> effects() { return outbound.stream().filter(m -> m.get("kind").getAsString().equals("effect")).toList(); }
+        List<JsonObject> polls() { return outbound.stream().filter(m -> m.get("kind").getAsString().equals("poll")).toList(); }
         void send(JsonObject message) {
             outbound.add(message.deepCopy()); String kind = message.get("kind").getAsString();
             if (kind.equals("poll") && autoPoll) client.receive(baseline(message));
