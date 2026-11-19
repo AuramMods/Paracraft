@@ -21,6 +21,7 @@ public final class OperationSyntax {
             case "interact_block", "interact_entity", "use_item" -> {
                 if(op.equals("interact_block"))com.aurammods.paracraft.core.program.BlockTargets.position(spec.get("position"));
                 if(op.equals("interact_entity"))UUID.fromString(string(spec,"target"));
+                if(spec.has("item"))string(spec,"item");
                 if(spec.has("hand") && !java.util.Set.of("mainhand","offhand").contains(string(spec,"hand")))throw new IllegalArgumentException("hand must be mainhand or offhand");
                 if(spec.has("sneak") && (!spec.get("sneak").isJsonPrimitive() || !spec.getAsJsonPrimitive("sneak").isBoolean()))throw new IllegalArgumentException("sneak must be a boolean");
                 if(spec.has("holdTicks") && integer(spec,"holdTicks")>Integer.MAX_VALUE)throw new IllegalArgumentException("holdTicks is too large");

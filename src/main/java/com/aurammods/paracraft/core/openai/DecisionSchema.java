@@ -113,9 +113,9 @@ final class DecisionSchema {
                 "layers", array(object("y", array(any(integer(0, Integer.MAX_VALUE), layerRange)), "rows", array(text())))));
         variants.add(operation("equip", "item", text(), "slot", values("mainhand", "offhand", "head", "chest", "legs", "feet")));
         variants.add(operation("unequip","slot",values("mainhand","offhand","head","chest","legs","feet")));
-        variants.add(operation("interact_block","position",position(true),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"face",optional(values("down","up","north","south","west","east")),"hit",optional(fixedArray(range(type("number"),0,1),3)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
-        variants.add(operation("interact_entity","target",uuid(),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"hit",optional(position(false)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
-        variants.add(operation("use_item","hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"lookAt",optional(position(false)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
+        variants.add(operation("interact_block","position",position(true),"item",optional(text()),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"face",optional(values("down","up","north","south","west","east")),"hit",optional(fixedArray(range(type("number"),0,1),3)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
+        variants.add(operation("interact_entity","target",uuid(),"item",optional(text()),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"hit",optional(position(false)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
+        variants.add(operation("use_item","item",optional(text()),"hand",optional(values("mainhand","offhand")),"sneak",optional(type("boolean")),"lookAt",optional(position(false)),"holdTicks",optional(integer(0,Integer.MAX_VALUE))));
         for (String op : List.of("follow", "attack_entity")) variants.add(operation(op, "target", uuid(), "distance", optional(minimum(type("number"), 0.5)), "ticks", optional(integer(0, Long.MAX_VALUE))));
         variants.add(operation("set_spawn", "bed", position(true)));
         variants.add(operation("search_blocks", "block", text(), "limit", optional(integer(1, 4096)),"radius",optional(minimum(type("number"),0))));

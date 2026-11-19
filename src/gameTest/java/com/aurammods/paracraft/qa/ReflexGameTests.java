@@ -71,13 +71,21 @@ public final class ReflexGameTests {
     @GameTest(template="arena",timeoutTicks=220)
     public static void neutralMobReactionUsesNativeMeleeAndResumesInterruptedProgram(GameTestHelper helper) {
         var manager=manager(helper); UUID owner=UUID.randomUUID(); var entry=spawn(helper,manager,owner,48.5,48.5); var actor=manager.actor(entry.id);
-        actor.getInventory().setItem(0,new ItemStack(Items.DIAMOND_SWORD)); var cow=EntityType.COW.create(helper.getLevel()); cow.setNoAi(true); cow.setHealth(4); cow.moveTo(helper.absoluteVec(new Vec3(50.5,2,48.5))); helper.getLevel().addFreshEntity(cow);
-        GameJob[] work={null}; boolean[] held={false}; float[] hurtHealth={20};
+        actor.getInventory().setItem(0,new ItemStack(Items.WOODEN_SWORD));
+        actor.getInventory().setItem(12,new ItemStack(Items.DIAMOND_SWORD));
+        actor.getInventory().setItem(15,new ItemStack(Items.SHIELD));
+        var cow=EntityType.COW.create(helper.getLevel()); cow.setNoAi(true); cow.setHealth(4); cow.moveTo(helper.absoluteVec(new Vec3(50.5,2,48.5))); helper.getLevel().addFreshEntity(cow);
+        GameJob[] work={null}; boolean[] held={false}, shieldEquipped={false}; float[] hurtHealth={20};
         helper.runAfterDelay(70,()->{work[0]=waitJob(manager,owner,entry,20); helper.assertTrue(actor.hurt(actor.damageSources().mobAttack(cow),2),"Actual mob-sourced damage is accepted after spawn protection"); hurtHealth[0]=actor.getHealth();});
         helper.onEachTick(()->{
             if(work[0]==null)return; if(manager.reflexBusy(entry.id)){held[0]=true; helper.assertTrue(work[0].state()==JobState.PAUSED,"Retaliation holds ordinary work");}
+            shieldEquipped[0] |= actor.getOffhandItem().is(Items.SHIELD);
             if(work[0].state()!=JobState.SUCCEEDED)return;
-            helper.assertTrue(held[0] && !cow.isAlive() && actor.getInventory().getItem(0).getDamageValue()==1,"Server retaliation selected a weapon and made one actual native damaging hit");
+            helper.assertTrue(held[0] && !cow.isAlive() && actor.getMainHandItem().is(Items.DIAMOND_SWORD)
+                    && actor.getMainHandItem().getDamageValue()==1 && actor.getInventory().getItem(12).is(Items.WOODEN_SWORD),
+                    "Retaliation chooses the backpack weapon and uses it for an actual native damaging hit");
+            helper.assertTrue(shieldEquipped[0] && actor.getOffhandItem().isEmpty() && actor.getInventory().getItem(15).is(Items.SHIELD),
+                    "Reactive defense also equips a backpack shield and returns it before work resumes");
             helper.assertTrue(hurtHealth[0]==18,"Native damage changed health before later natural regeneration"); cow.discard(); clear(manager,owner,entry); pass("neutral_mob_native_retaliation_and_resume"); helper.succeed();
         });
     }

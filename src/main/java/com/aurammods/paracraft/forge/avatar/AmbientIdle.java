@@ -1,12 +1,21 @@
 package com.aurammods.paracraft.forge.avatar;
 
+import com.aurammods.paracraft.Paracraft;
+import com.aurammods.paracraft.core.agent.AgentActivity;
 import com.aurammods.paracraft.forge.execution.CarriedItems;
 import com.aurammods.paracraft.forge.execution.JobJson;
 import com.aurammods.paracraft.forge.execution.PlayerNavigator;
 import com.aurammods.paracraft.forge.inventory.InventoryAccess;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.phys.Vec3;
@@ -17,6 +26,8 @@ import java.util.Map;
 /** Quiet server-only activity. No tasks, inference, wake events, invented items, or movement teleports. */
 final class AmbientIdle implements AutoCloseable {
     static final double RADIUS = 16;
+    private static final TagKey<Item> HANDHELD_LIGHTS = TagKey.create(Registries.ITEM,
+            new ResourceLocation(Paracraft.ID, "handheld_lights"));
     private final AvatarManager avatars;
     private final AvatarEntry entry;
     private final CompanionPlayer actor;
@@ -26,6 +37,7 @@ final class AmbientIdle implements AutoCloseable {
     private BlockPos interaction;
     private boolean restocking, ownsSleep, sawWork;
     private Scan scan;
+    private Runnable restoreLight;
     private long nextWalk, nextLook, lookUntil, nextScan;
     private float yaw, pitch;
     private boolean lookingAtOwner;
@@ -35,6 +47,7 @@ final class AmbientIdle implements AutoCloseable {
     AmbientIdle(AvatarManager avatars, AvatarEntry entry, CompanionPlayer actor, JsonObject survival) {
         this.avatars=avatars;this.entry=entry;this.actor=actor;this.survival=survival;
         if(!survival.has("ambient"))survival.add("ambient",new JsonObject());state=survival.getAsJsonObject("ambient");
+        state.remove("offhandLight");
         if(!state.has("center") || contextChanged())reanchor();else center=JobJson.vector(state.get("center"));
         nextWalk=now()+100+random(100);nextLook=now()+30;nextScan=now()+10;
     }
@@ -65,7 +78,12 @@ final class AmbientIdle implements AutoCloseable {
         if(entry.paused || !survival.getAsJsonObject("behavior").get("ambientIdle").getAsBoolean()
                 || survival.getAsJsonObject("behavior").getAsJsonObject("idle").get("enabled").getAsBoolean()
                 || avatars.jobs().hasUnfinished(entry.id) || actor.isSpectator()) {suspend();return;}
-        if(avatars.endpoint().activity(entry.id).thinking()){
+        var activity = avatars.endpoint().activity(entry.id);
+        boolean night = actor.serverLevel().isNight();
+        boolean lightAllowed = night && activity.phase() == AgentActivity.Phase.IDLE && activity.tasks() == 0
+                && !actor.isSleeping();
+        if (!lightAllowed) stowLight();
+        if(activity.thinking()){
             holdForThinking();if(!actor.isSleeping())look();phase("thinking");return;
         }
         if(actor.isSleeping()){
@@ -74,16 +92,21 @@ final class AmbientIdle implements AutoCloseable {
             else {phase("sleeping");return;}
         }
         ownsSleep=false;
-        if(actor.getAbilities().flying){stopRoute();look();phase("resting");return;}
-        if(navigator!=null){move();return;}
+        boolean flying = actor.getAbilities().flying;
+        if(navigator!=null){
+            if(flying)stopRoute();else{move();return;}
+        }
         look();
         if(scan!=null){scan.tick();if(!scan.done())return;var complete=scan;scan=null;
-            if(wantsFood() && complete.food!=null){begin(complete.food,true);return;}
-            if(actor.serverLevel().isNight() && complete.bed!=null){begin(complete.bed,false);return;}
+            if (lightAllowed && complete.bed == null) holdLight();
+            else stowLight();
+            if(!flying && wantsFood() && complete.food!=null){begin(complete.food,true);return;}
+            if(!flying && night && complete.bed!=null){begin(complete.bed,false);return;}
         }
-        if(now()>=nextScan && (wantsFood() || actor.serverLevel().isNight())) {
+        if(now()>=nextScan && (!flying && wantsFood() || night)) {
             nextScan=now()+200+random(100);unavailable.values().removeIf(expiry->expiry<=now());scan=new Scan();return;
         }
+        if(flying){phase("resting");return;}
         if(now()<nextWalk){if(now()>=lookUntil)phase("resting");return;}
         nextWalk=now()+100+random(160);
         // Short walks from the current position, inside a fixed center; wandering never moves the center.
@@ -99,6 +122,29 @@ final class AmbientIdle implements AutoCloseable {
             }
         }
         phase("resting");
+    }
+    private boolean handheldLight(ItemStack stack) {
+        return !stack.isEmpty() && stack.isItemEnabled(actor.level().enabledFeatures())
+                && (stack.is(HANDHELD_LIGHTS) || stack.getItem() instanceof BlockItem block
+                && block.getBlock().defaultBlockState().getLightEmission() > 0);
+    }
+    private void holdLight() {
+        if (handheldLight(actor.getOffhandItem())) return;
+        stowLight();
+        int slot = CarriedItems.find(actor, this::handheldLight);
+        if (slot >= 0) {
+            restoreLight = CarriedItems.holdOffhand(actor, slot);
+            if (restoreLight == null) return;
+            state.addProperty("offhandLight", BuiltInRegistries.ITEM.getKey(actor.getOffhandItem().getItem()).toString());
+            avatars.dirty();
+        }
+    }
+    private void stowLight() {
+        if (restoreLight == null) return;
+        restoreLight.run();
+        restoreLight = null;
+        state.remove("offhandLight");
+        avatars.dirty();
     }
     private void begin(BlockPos target,boolean food){
         if(!inside(Vec3.atCenterOf(target)))return;
@@ -154,11 +200,13 @@ final class AmbientIdle implements AutoCloseable {
         interaction=null;scan=null;state.remove("destination");state.remove("target");
     }
     void holdForThinking(){
+        stowLight();
         stopRoute();
         // Preserve a bed already in use and never stop navigation owned by work or a reflex.
         if(survival.has("mode") && state.has("state") && survival.get("mode").getAsString().equals("idle_"+state.get("state").getAsString()))phase("thinking");
     }
     void suspend(){
+        stowLight();
         stopRoute();
         if(ownsSleep && actor.isSleeping())actor.stopSleepInBed(true,true);
         ownsSleep=false;

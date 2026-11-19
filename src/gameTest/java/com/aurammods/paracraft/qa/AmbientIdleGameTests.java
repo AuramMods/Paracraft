@@ -11,6 +11,7 @@ import com.google.gson.JsonParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.*;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.*;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.*;
@@ -118,11 +119,14 @@ public final class AmbientIdleGameTests {
     @GameTest(batch="ambient_night",template="arena",timeoutTicks=1200)
     public static void sleepsInANearbyBedAndWakesForDayAndNewWork(GameTestHelper h) {
         var m=manager(h);var owner=spawn(h,m,UUID.randomUUID(),30.5,48.5,false);var e=spawn(h,m,owner.id,48.5,48.5,true);var actor=m.actor(e.id);
+        actor.getInventory().setItem(13, new ItemStack(Items.TORCH, 8));
         BlockPos near=new BlockPos(58,2,48),outside=new BlockPos(67,2,48);bed(h,near);bed(h,outside);int[] stage={0};long[] dawn={0};GameJob[] work={null};
         h.onEachTick(()->{
             h.assertTrue(!actor.isSprinting(),"Nighttime bed approach walks");
             if(stage[0]==0 && actor.isSleeping()){
                 h.assertTrue(actor.getSleepingPos().orElseThrow().equals(h.absolutePos(near)) && m.statuses().label(e.id).equals("Sleeping"),"Actual sleep uses the nearby bed and public server status");
+                h.assertTrue(actor.getOffhandItem().isEmpty() && actor.getInventory().getItem(13).getCount() == 8,
+                        "A nearby bed takes priority over holding a light");
                 h.getLevel().setDayTime(6000);dawn[0]=h.getLevel().getGameTime();stage[0]=1;return;
             }
             if(stage[0]==1 && h.getLevel().getGameTime()-dawn[0]>5){h.assertTrue(!actor.isSleeping(),"Dawn releases native sleep");h.getLevel().setDayTime(18000);stage[0]=2;return;}
@@ -131,6 +135,51 @@ public final class AmbientIdleGameTests {
                 h.assertTrue(!actor.isSleeping() && !h.getLevel().getBlockState(h.absolutePos(near)).getValue(BedBlock.OCCUPIED),"New work immediately wakes and releases the bed");stage[0]=3;
             }
             if(stage[0]==3 && work[0].state()==JobState.SUCCEEDED){h.assertTrue(!h.getLevel().getBlockState(h.absolutePos(outside)).getValue(BedBlock.OCCUPIED),"Outside-radius bed was not used");clear(m,e);clear(m,owner);pass("ambient_night_native_sleep_dawn_work_wake");h.succeed();}
+        });
+    }
+    @BeforeBatch(batch = "ambient_lights")
+    public static void startLightTestAtNight(net.minecraft.server.level.ServerLevel level) { night(level); }
+    @AfterBatch(batch = "ambient_lights")
+    public static void restoreTimeAfterLightTest(net.minecraft.server.level.ServerLevel level) { restoreDay(level); }
+
+    @GameTest(batch = "ambient_lights", template = "arena", timeoutTicks = 250)
+    public static void idleNightUsesACarriedLightAndRestoresTheOffhandAtWorkOrDawn(GameTestHelper h) {
+        var manager = manager(h);
+        UUID owner = UUID.randomUUID();
+        var entry = spawn(h, manager, owner, 48.5, 48.5, true);
+        var actor = manager.actor(entry.id);
+        var light = new ItemStack(Items.LANTERN, 6);
+        var original = new ItemStack(Items.SHIELD);
+        original.getOrCreateTag().putString("qa_marker", "mine");
+        actor.setItemSlot(EquipmentSlot.OFFHAND, original);
+        actor.getInventory().setItem(14, light);
+        GameJob[] work = {null};
+        boolean[] dawn = {false};
+        h.onEachTick(() -> {
+            if (work[0] == null) {
+                if (!actor.getOffhandItem().is(Items.LANTERN)) return;
+                h.assertTrue(ambient(manager, entry).get("offhandLight").getAsString().equals("minecraft:lantern")
+                        && actor.getOffhandItem().getCount() == 6 && ItemStack.isSameItemSameTags(actor.getInventory().getItem(14), original),
+                        "The idle avatar holds the original carried lantern stack and preserves its former offhand item");
+                work[0] = manager.jobs().submitProgram(owner, entry.id, entry.authority.session(), UUID.randomUUID(),
+                        json("{\"steps\":[{\"op\":\"wait_ticks\",\"ticks\":25}]}"), "replace");
+            }
+            if (work[0].state() == JobState.RUNNING) {
+                h.assertTrue(ItemStack.isSameItemSameTags(actor.getOffhandItem(), original)
+                        && actor.getInventory().getItem(14).getCount() == 6, "Starting work restores the prior offhand");
+                return;
+            }
+            if (!dawn[0]) {
+                if (!actor.getOffhandItem().is(Items.LANTERN)) return;
+                dawn[0] = true;
+                h.getLevel().setDayTime(6000);
+                return;
+            }
+            if (!h.getLevel().isDay() || actor.getOffhandItem().is(Items.LANTERN)) return;
+            h.assertTrue(ItemStack.isSameItemSameTags(actor.getOffhandItem(), original) && actor.getInventory().getItem(14).getCount() == 6
+                    && !ambient(manager, entry).has("offhandLight"), "Dawn stows the light without dropping or consuming it");
+            clear(manager, entry);
+            h.succeed();
         });
     }
     @BeforeBatch(batch="ambient_blocked") public static void terrainOn(net.minecraft.server.level.ServerLevel level){Paracraft.NAVIGATION_TERRAIN_CHANGES.set(true);}

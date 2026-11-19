@@ -21,8 +21,7 @@ Use this for buttons, levers, doors, machines, bonemeal, tools and other native/
 
 ```json
 {"steps":[
-  {"op":"equip","item":"minecraft:bucket","slot":"mainhand"},
-  {"op":"interact_entity","target":"00000000-0000-0000-0000-000000000000","saveAs":"milked"}
+  {"op":"interact_entity","target":"00000000-0000-0000-0000-000000000000","item":"minecraft:bucket","saveAs":"milked"}
 ]}
 ```
 
@@ -34,16 +33,16 @@ The server runs Forge's specific interaction hook and native `interactAt`, then 
 
 All three actions accept:
 
-- `hand`: `mainhand` (default) or `offhand`. Use `equip` beforehand to select an existing carried item, or `unequip` to free a hand.
+- `hand`: `mainhand` (default) or `offhand`.
+- `item`: optional carried item ID or tag. The server selects it into the specified hand before the click. Omit it to use the existing held item.
 - `sneak`: whether this click uses the sneak modifier. The prior modifier is restored afterward.
 - `holdTicks`: nonnegative server ticks to hold a native item use. Default zero is a click/release. Items that finish naturally can end earlier.
 
-`use_item` uses the current hand directly and optionally aims at an absolute world point with `lookAt`:
+`use_item` optionally aims at an absolute world point with `lookAt`:
 
 ```json
 {"steps":[
-  {"op":"equip","item":"minecraft:milk_bucket","slot":"mainhand"},
-  {"op":"use_item","holdTicks":40,"saveAs":"drank"}
+  {"op":"use_item","item":"minecraft:milk_bucket","holdTicks":40,"saveAs":"drank"}
 ]}
 ```
 

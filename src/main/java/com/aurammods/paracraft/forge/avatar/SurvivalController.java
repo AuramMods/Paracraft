@@ -28,7 +28,8 @@ final class SurvivalController implements AutoCloseable {
     private UUID threat;
     private int threatTicks, aggressionCooldown, oxygenRetry;
     private boolean eating;
-    private int priorSelected, foodRetry;
+    private int foodRetry;
+    private Runnable restoreFoodHand;
     private final AmbientIdle ambient;
 
     SurvivalController(AvatarManager avatars, AvatarEntry entry, CompanionPlayer actor) {
@@ -185,10 +186,10 @@ final class SurvivalController implements AutoCloseable {
         }
         foodRetry = 100;
         if (slot < 0) { state.addProperty("foodStatus", "No suitable carried food"); return false; }
-        pauseBed(); pausePatrol(); ambient.suspend(); avatars.jobs().holdForReflex(entry.id); priorSelected = actor.getInventory().selected;
-        state.addProperty("priorSelected", priorSelected);
+        pauseBed(); pausePatrol(); ambient.suspend(); avatars.jobs().holdForReflex(entry.id);
+        state.addProperty("priorSelected", actor.getInventory().selected);
         InteractionHand hand = slot == actor.getInventory().items.size() ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
-        if (hand == InteractionHand.MAIN_HAND) CarriedItems.select(actor, slot);
+        if (hand == InteractionHand.MAIN_HAND) restoreFoodHand = CarriedItems.selectForUse(actor, slot);
         actor.gameMode.useItem(actor, actor.serverLevel(), actor.getItemInHand(hand), hand);
         eating = actor.isUsingItem(); state.addProperty("mode", eating ? "eating" : "idle");
         state.addProperty("foodStatus", eating ? "Using carried food through native item behavior" : "Native item use ended immediately or was refused");
@@ -196,7 +197,9 @@ final class SurvivalController implements AutoCloseable {
         return eating;
     }
     private void finishEating() {
-        eating = false; actor.getInventory().selected = priorSelected; state.remove("priorSelected"); state.addProperty("mode", "idle");
+        eating = false;
+        if (restoreFoodHand != null) { restoreFoodHand.run(); restoreFoodHand = null; }
+        state.remove("priorSelected"); state.addProperty("mode", "idle");
         state.addProperty("foodAfterUse", actor.getFoodData().getFoodLevel()); avatars.dirty();
     }
     private void tickBed() {

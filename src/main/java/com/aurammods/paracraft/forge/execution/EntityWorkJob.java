@@ -4,10 +4,12 @@ import com.aurammods.paracraft.forge.avatar.CompanionPlayer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,6 +30,9 @@ public final class EntityWorkJob extends GameJob {
     private long elapsed;
     private int attempts, hits, refused, sinceAttack = 20, pickupTicks;
     private boolean equipped, armed, defeated;
+    private boolean shieldAvailable, triedGuard;
+    private ItemStack guarding = ItemStack.EMPTY;
+    private Runnable restoreOffhand;
     private Runnable unobservePickups;
 
     public EntityWorkJob(UUID id, CompanionPlayer actor, String type, UUID target, double distance, long duration) {
@@ -53,13 +58,29 @@ public final class EntityWorkJob extends GameJob {
         if (!living.isAlive()) { finishCombat(); return; }
         if (duration > 0 && elapsed >= duration) throw new IllegalStateException("Combat duration elapsed before the target was defeated");
         if (!equipped || armed && actor.getMainHandItem().isEmpty()) {
-            CarriedItems.weapon(actor, living.getMobType()); equipped = true; armed = !actor.getMainHandItem().isEmpty(); phase = "equipping weapon"; return;
+            CarriedItems.weapon(actor, living.getMobType());
+            equipped = true;
+            armed = !actor.getMainHandItem().isEmpty();
+            result.addProperty("weapon", BuiltInRegistries.ITEM.getKey(actor.getMainHandItem().getItem()).toString());
+            prepareShield();
+            phase = "equipping weapon";
+            return;
+        }
+        if (shieldAvailable && !shield(actor.getOffhandItem())) {
+            stowShield();
+            prepareShield();
         }
         phase = "approaching melee target";
-        if (!navigate(living.position(), Math.min(distance, 2.4))) return;
+        double reach = Math.min(distance, 2.4);
+        if (actor.distanceToSqr(living) > reach * reach) lowerShield();
+        if (!navigate(living.position(), reach)) return;
         if (!actor.canReach(living, 0) || !actor.hasLineOfSight(living)) throw new IllegalStateException("Melee target is obstructed or out of reach");
         actor.lookAt(EntityAnchorArgument.Anchor.EYES, living.getEyePosition()); phase = "waiting for attack cooldown";
-        if (actor.getAttackStrengthScale(0.5F) < 1 || sinceAttack < Math.ceil(actor.getCurrentItemAttackStrengthDelay())) return;
+        if (actor.getAttackStrengthScale(0.5F) < 1 || sinceAttack < Math.ceil(actor.getCurrentItemAttackStrengthDelay())) {
+            guard();
+            return;
+        }
+        lowerShield();
         float before = living.getHealth();
         if (collectLoot) attackAndTrackDrops(living);
         else actor.attack(living);
@@ -72,6 +93,37 @@ public final class EntityWorkJob extends GameJob {
         if (collectLoot && !living.isAlive()) { finishCombat(); return; }
         if (refused >= 10) throw new IllegalStateException("Ten native attack attempts caused no observable damage");
     }
+    private static boolean shield(ItemStack stack) { return stack.canPerformAction(ToolActions.SHIELD_BLOCK); }
+    private void prepareShield() {
+        if (!shield(actor.getOffhandItem())) {
+            int slot = CarriedItems.find(actor, EntityWorkJob::shield);
+            if (slot >= 0) restoreOffhand = CarriedItems.holdOffhand(actor, slot);
+        }
+        shieldAvailable = shield(actor.getOffhandItem());
+        if (shieldAvailable) result.addProperty("shield", BuiltInRegistries.ITEM.getKey(actor.getOffhandItem().getItem()).toString());
+    }
+    private void guard() {
+        if (shieldAvailable && !triedGuard && !actor.isUsingItem() && !actor.getCooldowns().isOnCooldown(actor.getOffhandItem().getItem())) {
+            triedGuard = true;
+            actor.gameMode.useItem(actor, actor.serverLevel(), actor.getOffhandItem(), InteractionHand.OFF_HAND);
+            if (actor.isUsingItem() && actor.getUsedItemHand() == InteractionHand.OFF_HAND) guarding = actor.getUseItem();
+        }
+        if (!guarding.isEmpty() && actor.isBlocking()) phase = "guarding with shield";
+    }
+    private void lowerShield() {
+        if (!guarding.isEmpty() && actor.isUsingItem() && actor.getUsedItemHand() == InteractionHand.OFF_HAND
+                && actor.getUseItem() == guarding) actor.releaseUsingItem();
+        guarding = ItemStack.EMPTY;
+        triedGuard = false;
+    }
+    private void stowShield() {
+        lowerShield();
+        if (restoreOffhand != null) {
+            restoreOffhand.run();
+            restoreOffhand = null;
+        }
+        shieldAvailable = false;
+    }
     private void attackAndTrackDrops(LivingEntity living) {
         List<LivingDropsEvent> events = new ArrayList<>();
         actor.attackObservingDrops(living, event -> {
@@ -81,6 +133,7 @@ public final class EntityWorkJob extends GameJob {
             for (ItemEntity drop : event.getDrops()) drops.add(drop.getUUID());
     }
     private void finishCombat() {
+        stowShield();
         defeated = true;
         result.addProperty("targetDefeated", true);
         if (collectLoot) collectDrops();
@@ -117,6 +170,7 @@ public final class EntityWorkJob extends GameJob {
         result.addProperty("dropsRemaining", drops.size());
     }
     @Override protected void onStop() {
+        stowShield();
         equipped = false;
         if (unobservePickups != null) { unobservePickups.run(); unobservePickups = null; }
     }

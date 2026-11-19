@@ -13,6 +13,11 @@ public final class EquipJob extends GameJob {
     public EquipJob(UUID id, CompanionPlayer actor, String item, String slot) { super(id, "equip", actor); this.item = item; this.slot = slot; }
     @Override protected void advance() {
         ItemSelector selector = new ItemSelector(item); EquipmentSlot destination = EquipmentSlot.byName(slot);
+        if (destination == EquipmentSlot.OFFHAND && selector.matches(actor.getOffhandItem())) {
+            result.addProperty("alreadyEquipped", true);
+            finish(destination);
+            return;
+        }
         int index = CarriedItems.find(actor, selector);
         if (index < 0) {
             if (selector.matches(actor.getItemBySlot(destination))) result.addProperty("alreadyEquipped", true);
@@ -21,9 +26,9 @@ public final class EquipJob extends GameJob {
             return;
         }
         if (destination == EquipmentSlot.MAINHAND) CarriedItems.select(actor, index);
+        else if (destination == EquipmentSlot.OFFHAND) EquipmentAccess.swapOffhand(actor, index);
         else {
-            int menuIndex = destination == EquipmentSlot.OFFHAND ? 45 : 8 - destination.getIndex();
-            var target = actor.inventoryMenu.getSlot(menuIndex); ItemStack source = actor.getInventory().getItem(index), previous = target.getItem();
+            var target = EquipmentAccess.slot(actor, slot); ItemStack source = actor.getInventory().getItem(index), previous = target.getItem();
             if (!target.mayPlace(source) || !target.mayPickup(actor)) throw new IllegalStateException("Native equipment slot refuses this exchange");
             if (!previous.isEmpty() && source.getCount() > 1 && actor.getInventory().getFreeSlot() < 0) throw new IllegalStateException("No inventory space for replaced equipment");
             ItemStack equipped = source.split(1);

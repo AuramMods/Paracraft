@@ -259,9 +259,12 @@ public final class GameplayGameTests {
         var manager = ServerEvents.avatars(helper.getLevel().getServer()); UUID owner = UUID.randomUUID();
         var entry = spawn(helper, manager, owner, 40.5, 48.5); var actor = manager.actor(entry.id);
         actor.getInventory().setItem(0, new ItemStack(Items.WOODEN_SWORD)); actor.getInventory().setItem(10, new ItemStack(Items.DIAMOND_SWORD));
+        var torch = new ItemStack(Items.TORCH, 12); torch.getOrCreateTag().putString("qa_marker", "offhand");
+        actor.setItemSlot(EquipmentSlot.OFFHAND, torch);
+        actor.getInventory().setItem(16, new ItemStack(Items.SHIELD));
         var cow = EntityType.COW.create(helper.getLevel()); cow.setNoAi(true); cow.moveTo(helper.absoluteVec(new Vec3(60.5,2,48.5))); helper.getLevel().addFreshEntity(cow);
         var follow = submit(manager, owner, entry, "{\"steps\":[{\"op\":\"follow\",\"target\":\"" + cow.getUUID() + "\",\"distance\":2,\"ticks\":160}]}");
-        GameJob[] combat = {null}; Vec3 start = actor.position();
+        GameJob[] combat = {null}; Vec3 start = actor.position(); boolean[] blocked = {false};
         helper.runAfterDelay(60, () -> cow.moveTo(helper.absoluteVec(new Vec3(64.5,2,51.5))));
         helper.onEachTick(() -> {
             requireRunning(helper, follow);
@@ -271,10 +274,25 @@ public final class GameplayGameTests {
                         "The moved target receives native entity ticks beyond the GameTest template's forced chunks");
                 combat[0] = submit(manager, owner, entry, "{\"steps\":[{\"op\":\"attack_entity\",\"target\":\"" + cow.getUUID() + "\",\"ticks\":400,\"saveAs\":\"combat\"}]}");
             }
-            if (combat[0] == null) return; requireRunning(helper, combat[0]); if (combat[0].state() != JobState.SUCCEEDED) return;
+            if (combat[0] == null) return;
+            requireRunning(helper, combat[0]);
+            if (!blocked[0] && actor.isBlocking() && cow.isAlive()) {
+                float health = actor.getHealth();
+                helper.assertTrue(actor.getMainHandItem().is(Items.DIAMOND_SWORD) && actor.getOffhandItem().is(Items.SHIELD),
+                        "The avatar selects its backpack weapon and shield for the instructed fight");
+                actor.hurt(actor.damageSources().mobAttack(cow), 4);
+                helper.assertTrue(actor.getHealth() == health && actor.getOffhandItem().getDamageValue() > 0,
+                        "The raised shield uses native damage blocking and wears normally");
+                blocked[0] = true;
+            }
+            if (combat[0].state() != JobState.SUCCEEDED) return;
             int hits = combat[0].result().getAsJsonObject("results").getAsJsonObject("combat").get("hits").getAsInt();
             helper.assertTrue(!cow.isAlive() && hits > 0 && damage(actor, Items.DIAMOND_SWORD) == hits && damage(actor, Items.WOODEN_SWORD) == 0,
                     "Normal attacks defeat the cow with matching native hit/durability counts; " + combat[0].view());
+            helper.assertTrue(blocked[0] && !actor.isUsingItem() && ItemStack.isSameItemSameTags(actor.getOffhandItem(), torch)
+                            && actor.getOffhandItem().getCount() == 12 && actor.getInventory().getItem(16).is(Items.SHIELD)
+                            && actor.getInventory().getItem(16).getDamageValue() > 0,
+                    "When combat ends, the worn shield and previous offhand stack return to their original places");
             cow.discard(); clean(manager, owner, entry); pass("follow_moving_entity_and_native_melee"); helper.succeed();
         });
     }

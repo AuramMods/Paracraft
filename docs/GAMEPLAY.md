@@ -71,7 +71,7 @@ The result includes harvested/broken, skipped, replanted, and acquired counts. A
 
 Items accept registry IDs or tags. Slots are `mainhand`, `offhand`, `head`, `chest`, `legs`, and `feet`. Main-hand selection uses a hotbar item or exchanges it with a carried inventory item. Other equipment uses native slot acceptance/removal rules, including Forge item equipping and binding curses. Replaced equipment stays in the inventory; an exchange requiring unavailable space fails.
 
-If no spare matching item is carried and the requested item is already equipped, it acknowledges that state. Otherwise it uses a matching carried item. Stack data is preserved. Extra accessory/custom equipment slots require adapters.
+Hand selection keeps the full stack and its metadata. Moving something into the offhand exchanges it with the previous offhand stack, so this works even with a full inventory. If the requested item is already held in that hand, the action acknowledges it. Extra accessory and custom equipment slots require adapters.
 
 ### Unequipping and dropping existing belongings
 
@@ -96,7 +96,7 @@ Drops use native slot removal and Forge toss hooks. A cancelled toss or refused 
 
 Following continually updates its route to the entity's actual position. Optional `distance` is at least 0.5; it defaults to two blocks. Positive `ticks` follows for that many active ticks; zero/omitted runs until interrupted or the target is lost.
 
-Melee approaches a living target, selects a carried weapon using its damage modifiers and enchantments, observes native attack cooldowns, and uses the normal attack/hurt/durability paths. Bare hands work without a carried weapon. Reach, visibility, Forge attack cancellation, and the target's damage rules still apply. Ten consecutive attempts causing no observable damage report refusal instead of attacking forever. Optional positive `ticks` bounds the attempt; zero/omitted continues until the target is defeated or work fails.
+Melee searches the hotbar and backpack for a weapon using its damage, attack speed, and target-specific enchantments. The avatar holds and raises a carried shield between attacks when in range, then restores its previous offhand when the fight ends. The same equipment logic applies to reactive defense. Reach, visibility, cooldowns, durability, and Forge hooks govern each native action. Bare hands work without a carried weapon. Ten consecutive attacks with no observable damage report refusal. Optional positive `ticks` bounds the attempt. An omitted or zero value continues until the target is defeated or work fails.
 
 Results report actual attempts, damaging hits, elapsed ticks, and observed target health/defeat. They do not claim exclusive kill credit if something else defeats the target. Target loss or a different dimension fails rather than automatically entering a portal. Ranged/special weapon adapters are later expansion. [BEHAVIOR.md](BEHAVIOR.md) describes automatic reactions, oxygen escape, and idle patrols.
 

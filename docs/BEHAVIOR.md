@@ -55,6 +55,8 @@ An empty food supply prompts a loaded nearby-container search, even before hunge
 
 At night it may approach an available bed and use the native sleep action. Occupied, unreachable, protected or unsuitable-dimension beds are left alone. Bed selection leaves room for the native wake-up position inside the area. Dawn, new work, disabling idle behavior, owner pause, disconnect, or urgent survival work releases its sleep and occupancy. Normal sleep safety, spawn-setting, and server night-skipping rules apply; the routine grants neither a safe-sleep bypass nor health directly.
 
+At night, an idle avatar with zero tasks and no available bed can carry one of its light sources in the offhand. Light-emitting block items include torches, glowstone, and lanterns. Modpacks can add other items to the `paracraft:handheld_lights` item tag. The server equips the actual stack and restores the previous offhand when work begins or daylight returns. Dynamic lighting comes from the installed client lighting mod.
+
 Food already in inventory is eaten by the existing survival reflex. It also eats when hurt and below full hunger, allowing normal regeneration; it does not directly grant nutrition or health. Ambient arrivals, glances, food restocking, sleep and quiet navigation failures create no model wake events or agent tasks. Actual damage and world-item pickups retain their normal wake behavior. Snapshots and nameplates can show **Idling**, **Sleeping**, or **Restocking food** while the model remains idle.
 
 Disable ambient idling through the planning tool or owner command:

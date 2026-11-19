@@ -189,7 +189,8 @@ public final class SurvivalGameTests {
             if (job.state() != JobState.SUCCEEDED) return;
             helper.assertTrue(held[0] && finished[0] == 1 && actor.getFoodData().getFoodLevel() == 16, "Actual use duration and native finish event supplied food");
             helper.assertTrue(actor.getInventory().countItem(Items.BOWL) == 1 && actor.getInventory().countItem(Items.MUSHROOM_STEW) == 0
-                    && actor.getInventory().countItem(Items.IRON_SWORD) == 1, "Native food remainder and prior tool are conserved");
+                    && actor.getMainHandItem().is(Items.IRON_SWORD) && actor.getInventory().getItem(12).is(Items.BOWL),
+                    "The previous held tool is restored and the actual food remainder goes back to the source slot");
             helper.assertTrue(!manager.reflexBusy(entry.id) && manager.control().snapshot(owner, entry.id).getAsJsonObject("survival").get("mode").getAsString().equals("idle"), "Reflex releases work and reports completion without inference");
             MinecraftForge.EVENT_BUS.unregister(food); clear(manager, owner, entry); pass("native_eating_remainder_and_work_resume"); helper.succeed();
         });

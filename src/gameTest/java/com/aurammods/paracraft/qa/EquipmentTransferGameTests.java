@@ -24,6 +24,37 @@ import java.util.UUID;
 @GameTestHolder(Paracraft.ID)
 @PrefixGameTestTemplate(false)
 public final class EquipmentTransferGameTests {
+    @GameTest(batch = "equipment_transfer", template = "arena", timeoutTicks = 80)
+    public static void selectsBackpackItemsAndSwapsWholeOffhandStacksWithAFullInventory(GameTestHelper h) {
+        var manager = manager(h);
+        var entry = spawn(h, manager, UUID.randomUUID(), 48.5);
+        var actor = manager.actor(entry.id);
+        var inventory = actor.getInventory();
+        for (int i = 0; i < inventory.items.size(); i++) inventory.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+        inventory.selected = 2;
+        var pickaxe = tagged(Items.DIAMOND_PICKAXE, 1, "backpack");
+        var torches = tagged(Items.TORCH, 48, "light");
+        var shield = tagged(Items.SHIELD, 1, "old-offhand");
+        inventory.setItem(12, pickaxe);
+        inventory.setItem(18, torches);
+        actor.setItemSlot(EquipmentSlot.OFFHAND, shield);
+        var work = program(manager, entry, """
+                {"steps":[{"op":"equip","item":"minecraft:diamond_pickaxe","slot":"mainhand"},
+                          {"op":"equip","item":"minecraft:torch","slot":"offhand"}]}
+                """);
+        h.onEachTick(() -> {
+            h.assertTrue(work.state() != JobState.FAILED, "Hand swaps need no spare inventory slot: " + work.view());
+            if (work.state() != JobState.SUCCEEDED) return;
+            h.assertTrue(inventory.selected == 2 && ItemStack.isSameItemSameTags(actor.getMainHandItem(), pickaxe)
+                    && inventory.getItem(12).is(Items.COBBLESTONE), "The backpack pickaxe replaces the selected hotbar stack");
+            h.assertTrue(ItemStack.isSameItemSameTags(actor.getOffhandItem(), torches) && actor.getOffhandItem().getCount() == 48
+                    && ItemStack.isSameItemSameTags(inventory.getItem(18), shield) && inventory.getFreeSlot() == -1,
+                    "The whole offhand stack and its displaced equipment are conserved in a full inventory");
+            clear(manager, entry);
+            h.succeed();
+        });
+    }
+
     @GameTest(batch="equipment_transfer",template="arena",timeoutTicks=250)
     public static void wornHelmetCanBeUnequippedAndDeliveredWithItsExactMetadata(GameTestHelper h) {
         var m=manager(h);var owner=spawn(h,m,UUID.randomUUID(),60.5);var e=spawn(h,m,owner.id,48.5);var actor=m.actor(e.id);
