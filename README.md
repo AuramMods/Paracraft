@@ -16,6 +16,8 @@ See [the design](docs/PLAN.md), [cycle progress](docs/PROGRESS.md), [action prog
 
 ## Build
 
+**Local builds only.** Build, test, and reobfuscate Paracraft on the local machine using its Gradle cache. Do not add or run GitHub Actions workflows for this mod. For a release, upload the locally built JAR to GitHub Releases.
+
 With a Java 17 JDK selected through `JAVA_HOME`:
 
 ```sh
